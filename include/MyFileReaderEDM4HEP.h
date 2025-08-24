@@ -23,27 +23,25 @@ struct MyFileReaderEDM4HEP : public JEventSource {
     void Close() override { }
 
     Result Emit(JEvent& event) override {
-
         auto event_nr = event.GetEventNumber();
-
         auto hits_out  = std::make_unique<edm4hep::CalorimeterHitCollection>();
 
-        // CalorimeterHit: cellID, energy, time, position
-        auto hit1 = edm4hep::MutableCalorimeterHit();
+        // Emit 3 hits per event/timeslice
+        edm4hep::MutableCalorimeterHit hit1;
         hit1.setCellID(event_nr);
         hit1.setEnergy(22.0);
         hit1.setTime(0.0);
         hit1.setPosition({22.0, 22.0, 22.0});
         hits_out->push_back(hit1);
 
-        auto hit2 = edm4hep::MutableCalorimeterHit();
+        edm4hep::MutableCalorimeterHit hit2;
         hit2.setCellID(event_nr);
         hit2.setEnergy(49.0);
         hit2.setTime(1.0);
         hit2.setPosition({49.0, 49.0, 49.0});
         hits_out->push_back(hit2);
 
-        auto hit3 = edm4hep::MutableCalorimeterHit();
+        edm4hep::MutableCalorimeterHit hit3;
         hit3.setCellID(event_nr);
         hit3.setEnergy(7.6);
         hit3.setTime(2.0);
@@ -56,9 +54,8 @@ struct MyFileReaderEDM4HEP : public JEventSource {
 
         m_hits_out() = std::move(hits_out);
 
-        // Furnish this event with info object
         edm4hep::EventHeaderCollection info;
-        info.push_back(edm4hep::MutableEventHeader(event_nr, 0, 0, 0)); // event nr, timeslice nr, run nr
+        info.push_back(edm4hep::MutableEventHeader(event_nr, 0, 0, 0));
         if (GetLevel() == JEventLevel::Timeslice) {
             event.InsertCollection<edm4hep::EventHeader>(std::move(info), "ts_info");
         }

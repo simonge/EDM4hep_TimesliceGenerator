@@ -24,11 +24,9 @@ add_jana_plugin(EDM4HEPTimesliceExample
         src/CollectionTabulatorsEDM4HEP.cc
     PUBLIC_HEADER
         include/CollectionTabulatorsEDM4HEP.h
-        include/MyClusterFactoryEDM4HEP.h
         include/MyFileReaderEDM4HEP.h
         include/MyFileReaderGeneratorEDM4HEP.h
         include/MyFileWriterEDM4HEP.h
-        include/MyProtoclusterFactoryEDM4HEP.h
         include/MyTimesliceSplitterEDM4HEP.h
 )
 

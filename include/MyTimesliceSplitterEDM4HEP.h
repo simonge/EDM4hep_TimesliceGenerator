@@ -10,10 +10,8 @@
 
 struct MyTimesliceSplitterEDM4HEP : public JEventUnfolder {
 
-    PodioInput<edm4hep::Cluster> m_timeslice_clusters_in {this, {.name = "ts_protoclusters", 
-                                                               .level = JEventLevel::Timeslice}};
-
-    PodioOutput<edm4hep::Cluster> m_event_clusters_out {this, "evt_protoclusters"};
+    PodioInput<edm4hep::CalorimeterHit> m_timeslice_hits_in {this, {.name = "hits", .level = JEventLevel::Timeslice}};
+    PodioOutput<edm4hep::CalorimeterHit> m_event_hits_out {this, "ev_hits"};
     PodioOutput<edm4hep::EventHeader> m_event_info_out {this, "evt_info"};
 
     MyTimesliceSplitterEDM4HEP() {
@@ -24,35 +22,37 @@ struct MyTimesliceSplitterEDM4HEP : public JEventUnfolder {
 
 
     Result Unfold(const JEvent& parent, JEvent& child, int child_idx) override {
-
         auto timeslice_nr = parent.GetEventNumber();
         size_t event_nr = 100*timeslice_nr + child_idx;
         child.SetEventNumber(event_nr);
 
-        // For now, a one-to-one relationship between timeslices and events
-
-        auto event_clusters_out = std::make_unique<edm4hep::ClusterCollection>();
-        event_clusters_out->setSubsetCollection(true);
-        event_clusters_out->push_back(m_timeslice_clusters_in()->at(child_idx));
+        // Each child event gets one hit from the timeslice
+        auto event_hits_out = std::make_unique<edm4hep::CalorimeterHitCollection>();
+        // event_hits_out->setSubsetCollection(true);
+        auto& hits_in = *m_timeslice_hits_in();
+        if (child_idx < hits_in.size()) {
+            event_hits_out->push_back(hits_in.at(child_idx).clone());
+        }
 
         auto event_info_out = std::make_unique<edm4hep::EventHeaderCollection>();
         auto header = edm4hep::MutableEventHeader();
         header.setEventNumber(event_nr);
         header.setRunNumber(0);
-        header.setTimeStamp(timeslice_nr); // Using timeslice_nr as a form of timestamp
+        header.setTimeStamp(timeslice_nr);
         event_info_out->push_back(header);
 
-        LOG_DEBUG(GetLogger()) << "MyTimesliceSplitter: Timeslice " << parent.GetEventNumber() 
+        LOG_DEBUG(GetLogger()) << "MyTimesliceSplitter: Timeslice " << parent.GetEventNumber()
             <<  ", Event " << child.GetEventNumber()
-            << "\nTimeslice clusters in:\n"
-            << TabulateClustersEDM4HEP(m_timeslice_clusters_in())
-            << "\nEvent clusters out:\n"
-            << TabulateClustersEDM4HEP(event_clusters_out.get())
+            << "\nTimeslice hits in:\n"
+            << TabulateHitsEDM4HEP(&hits_in)
+            << "\nEvent hits out:\n"
+            << TabulateHitsEDM4HEP(event_hits_out.get())
             << LOG_END;
 
-        m_event_clusters_out() = std::move(event_clusters_out);
+        m_event_hits_out() = std::move(event_hits_out);
         m_event_info_out() = std::move(event_info_out);
 
+        // Only 3 events per timeslice
         return (child_idx == 2) ? Result::NextChildNextParent : Result::NextChildKeepParent;
     }
 };

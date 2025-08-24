@@ -4,7 +4,7 @@
 #pragma once
 
 #include <JANA/JEventProcessor.h>
-#include <edm4hep/ClusterCollection.h>
+#include <edm4hep/CalorimeterHitCollection.h>
 #include "CollectionTabulatorsEDM4HEP.h"
 
 #include <podio/podioVersion.h>
@@ -16,7 +16,7 @@
 struct MyFileWriterEDM4HEP : public JEventProcessor {
 
     // Trigger the creation of clusters
-    PodioInput<edm4hep::Cluster> m_evt_clusters_in {this, {.name="clusters"}};
+    PodioInput<edm4hep::CalorimeterHit> m_evt_hits_in {this, {.name="ev_hits"}};
 
     // Retrieve the PODIO frame so we can write it directly
     Input<podio::Frame> m_evt_frame_in {this, {.name = "", 
@@ -79,8 +79,8 @@ struct MyFileWriterEDM4HEP : public JEventProcessor {
 
             LOG_DEBUG(GetLogger()) 
                 << "Event " << event.GetEventNumber() << " from Timeslice " << ts_nr
-                << "\nClusters\n"
-                << TabulateClustersEDM4HEP(m_evt_clusters_in())
+                << "\nHits\n"
+                << TabulateHitsEDM4HEP(m_evt_hits_in())
                 << LOG_END;
         }
         else {
@@ -88,7 +88,7 @@ struct MyFileWriterEDM4HEP : public JEventProcessor {
             LOG_DEBUG(GetLogger()) 
                 << "Event " << event.GetEventNumber()
                 << "\nClusters\n"
-                << TabulateClustersEDM4HEP(m_evt_clusters_in())
+                << TabulateHitsEDM4HEP(m_evt_hits_in())
                 << LOG_END;
         }
 
