@@ -8,7 +8,7 @@
 #include <edm4hep/ClusterCollection.h>
 
 
-struct MyProtoclusterFactory : public JOmniFactory<MyProtoclusterFactory> {
+struct MyProtoclusterFactoryEDM4HEP : public JOmniFactory<MyProtoclusterFactoryEDM4HEP> {
 
     PodioInput<edm4hep::CalorimeterHit> hits_in {this};
     PodioOutput<edm4hep::Cluster> clusters_out {this};

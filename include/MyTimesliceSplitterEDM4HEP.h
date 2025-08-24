@@ -6,9 +6,9 @@
 #include <JANA/JEventUnfolder.h>
 #include <edm4hep/EventHeaderCollection.h>
 #include <edm4hep/ClusterCollection.h>
-#include "CollectionTabulators.h"
+#include "CollectionTabulatorsEDM4HEP.h"
 
-struct MyTimesliceSplitter : public JEventUnfolder {
+struct MyTimesliceSplitterEDM4HEP : public JEventUnfolder {
 
     PodioInput<edm4hep::Cluster> m_timeslice_clusters_in {this, {.name = "ts_protoclusters", 
                                                                .level = JEventLevel::Timeslice}};
@@ -16,7 +16,7 @@ struct MyTimesliceSplitter : public JEventUnfolder {
     PodioOutput<edm4hep::Cluster> m_event_clusters_out {this, "evt_protoclusters"};
     PodioOutput<edm4hep::EventHeader> m_event_info_out {this, "evt_info"};
 
-    MyTimesliceSplitter() {
+    MyTimesliceSplitterEDM4HEP() {
         SetTypeName(NAME_OF_THIS);
         SetParentLevel(JEventLevel::Timeslice);
         SetChildLevel(JEventLevel::PhysicsEvent);
@@ -45,9 +45,9 @@ struct MyTimesliceSplitter : public JEventUnfolder {
         LOG_DEBUG(GetLogger()) << "MyTimesliceSplitter: Timeslice " << parent.GetEventNumber() 
             <<  ", Event " << child.GetEventNumber()
             << "\nTimeslice clusters in:\n"
-            << TabulateClusters(m_timeslice_clusters_in())
+            << TabulateClustersEDM4HEP(m_timeslice_clusters_in())
             << "\nEvent clusters out:\n"
-            << TabulateClusters(event_clusters_out.get())
+            << TabulateClustersEDM4HEP(event_clusters_out.get())
             << LOG_END;
 
         m_event_clusters_out() = std::move(event_clusters_out);

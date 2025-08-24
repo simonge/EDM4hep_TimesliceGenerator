@@ -1,14 +1,11 @@
+#include "CollectionTabulatorsEDM4HEP.h"
 
-#include "CollectionTabulators.h"
-
-JTablePrinter TabulateClusters(const edm4hep::ClusterCollection* c) {
-    
+JTablePrinter TabulateClustersEDM4HEP(const edm4hep::ClusterCollection* c) {
     JTablePrinter t;
     t.AddColumn("clusterId");
     t.AddColumn("energy");
     t.AddColumn("position");
     t.AddColumn("type");
-
     for (auto cluster : *c) {
         auto pos = cluster.getPosition();
         std::ostringstream pos_str;
@@ -18,16 +15,13 @@ JTablePrinter TabulateClusters(const edm4hep::ClusterCollection* c) {
     return t;
 }
 
-
-JTablePrinter TabulateHits(const edm4hep::CalorimeterHitCollection* c) {
-
+JTablePrinter TabulateHitsEDM4HEP(const edm4hep::CalorimeterHitCollection* c) {
     JTablePrinter t;
     t.AddColumn("hitId");
     t.AddColumn("cellId");
     t.AddColumn("energy");
     t.AddColumn("time");
     t.AddColumn("position");
-
     for (auto hit : *c) {
         auto pos = hit.getPosition();
         std::ostringstream pos_str;

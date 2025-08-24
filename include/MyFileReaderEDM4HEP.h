@@ -4,17 +4,16 @@
 #pragma once
 
 #include <JANA/JEventSource.h>
-#include <PodioDatamodel/TimesliceInfoCollection.h>
-#include <PodioDatamodel/EventInfoCollection.h>
+#include <edm4hep/EventHeaderCollection.h>
 #include <edm4hep/CalorimeterHitCollection.h>
-#include "CollectionTabulators.h"
+#include "CollectionTabulatorsEDM4HEP.h"
 
 
-struct MyFileReader : public JEventSource {
+struct MyFileReaderEDM4HEP : public JEventSource {
 
     PodioOutput<edm4hep::CalorimeterHit> m_hits_out {this, "hits"};
 
-    MyFileReader() {
+    MyFileReaderEDM4HEP() {
         SetTypeName(NAME_OF_THIS);
         SetCallbackStyle(CallbackStyle::ExpertMode);
     }
@@ -52,21 +51,19 @@ struct MyFileReader : public JEventSource {
         hits_out->push_back(hit3);
 
         LOG_DEBUG(GetLogger()) << "MySource: Emitted " << GetLevel() << " " << event.GetEventNumber() << "\n"
-            << TabulateHits(hits_out.get())
+            << TabulateHitsEDM4HEP(hits_out.get())
             << LOG_END;
 
         m_hits_out() = std::move(hits_out);
 
         // Furnish this event with info object
+        edm4hep::EventHeaderCollection info;
+        info.push_back(edm4hep::MutableEventHeader(event_nr, 0, 0, 0)); // event nr, timeslice nr, run nr
         if (GetLevel() == JEventLevel::Timeslice) {
-            TimesliceInfoCollection info;
-            info.push_back(MutableTimesliceInfo(event_nr, 0)); // event nr, run nr
-            event.InsertCollection<TimesliceInfo>(std::move(info), "ts_info");
+            event.InsertCollection<edm4hep::EventHeader>(std::move(info), "ts_info");
         }
         else {
-            EventInfoCollection info;
-            info.push_back(MutableEventInfo(event_nr, 0, 0)); // event nr, timeslice nr, run nr
-            event.InsertCollection<EventInfo>(std::move(info), "evt_info");
+            event.InsertCollection<edm4hep::EventHeader>(std::move(info), "evt_info");
         }
         return Result::Success;
     }

@@ -1,13 +1,13 @@
 
 #include <JANA/JEventSourceGenerator.h>
-#include "MyFileReader.h"
+#include "MyFileReaderEDM4HEP.h"
 
 
-class MyFileReaderGenerator : public JEventSourceGenerator {
+class MyFileReaderGeneratorEDM4HEP : public JEventSourceGenerator {
 
     JEventSource* MakeJEventSource(std::string resource_name) override {
 
-        auto source = new MyFileReader;
+    auto source = new MyFileReaderEDM4HEP;
         source->SetResourceName(resource_name);
 
         // Check if the string "timeslices" appears anywhere in our filename. 

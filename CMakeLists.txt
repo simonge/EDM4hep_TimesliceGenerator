@@ -1,14 +1,14 @@
 cmake_minimum_required(VERSION 3.16)
-project(TimesliceExample VERSION 1.0.0)
+project(EDM4HEPTimesliceExample VERSION 1.0.0)
 
 # Set C++ standard
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Find JANA
 find_package(JANA REQUIRED)
 
-# Find PODIO (required for TimesliceExample)
+# Find PODIO (required for EDM4HEPTimesliceExample)
 find_package(podio REQUIRED)
 
 # Find EDM4HEP
@@ -18,26 +18,25 @@ find_package(EDM4HEP REQUIRED)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
 
 # Create the plugin
-add_jana_plugin(TimesliceExample
+add_jana_plugin(EDM4HEPTimesliceExample
     SOURCES
-        src/TimesliceExample.cc
-        src/CollectionTabulators.cc
+        src/EDM4HEPTimesliceExample.cc
+        src/CollectionTabulatorsEDM4HEP.cc
     PUBLIC_HEADER
-        include/CollectionTabulators.h
-        include/MyClusterFactory.h
-        include/MyFileReader.h
-        include/MyFileReaderGenerator.h
-        include/MyFileWriter.h
-        include/MyProtoclusterFactory.h
-        include/MyTimesliceSplitter.h
+        include/CollectionTabulatorsEDM4HEP.h
+        include/MyClusterFactoryEDM4HEP.h
+        include/MyFileReaderEDM4HEP.h
+        include/MyFileReaderGeneratorEDM4HEP.h
+        include/MyFileWriterEDM4HEP.h
+        include/MyProtoclusterFactoryEDM4HEP.h
+        include/MyTimesliceSplitterEDM4HEP.h
 )
 
 # Link against PODIO and EDM4HEP
-target_link_libraries(TimesliceExample PUBLIC 
-    PodioDatamodel 
-    PodioDatamodelDict 
+target_link_libraries(EDM4HEPTimesliceExample PUBLIC 
     podio::podioRootIO
     EDM4HEP::edm4hep
+    EDM4HEP::edm4hepDict
 )
 
 # Set install prefix if not specified
@@ -47,7 +46,7 @@ endif()
 
 # Add tests (optional)
 add_test(NAME timeslice-example-simple-test
-    COMMAND ${CMAKE_INSTALL_PREFIX}/bin/jana -Pplugins=TimesliceExample -Pjana:nevents=10 events.root)
+    COMMAND ${CMAKE_INSTALL_PREFIX}/bin/jana -Pplugins=EDM4HEPTimesliceExample -Pjana:nevents=10 events.root)
 
 add_test(NAME timeslice-example-complex-test
-    COMMAND ${CMAKE_INSTALL_PREFIX}/bin/jana -Pplugins=TimesliceExample -Pjana:nevents=10 timeslices.root)
+    COMMAND ${CMAKE_INSTALL_PREFIX}/bin/jana -Pplugins=EDM4HEPTimesliceExample -Pjana:nevents=10 timeslices.root)

@@ -7,7 +7,7 @@
 #include <edm4hep/ClusterCollection.h>
 
 
-struct MyClusterFactory : public JOmniFactory<MyClusterFactory> {
+struct MyClusterFactoryEDM4HEP : public JOmniFactory<MyClusterFactoryEDM4HEP> {
 
     PodioInput<edm4hep::Cluster> m_protoclusters_in {this};
     PodioOutput<edm4hep::Cluster> m_clusters_out {this};
@@ -32,6 +32,9 @@ struct MyClusterFactory : public JOmniFactory<MyClusterFactory> {
             // You may need to handle cluster associations differently
             cs->push_back(cluster);
         }
+
+        // debug log comment
+        LOG_DEBUG(GetLogger()) << "MyClusterFactory: Created " << cs->size() << " clusters";
 
         m_clusters_out() = std::move(cs);
     }
