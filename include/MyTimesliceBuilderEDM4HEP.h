@@ -17,6 +17,7 @@ struct MyTimesliceBuilderEDM4HEP : public JEventUnfolder {
     PodioOutput<edm4hep::EventHeader> m_timeslice_info_out {this, "ts_info"};
 
     std::vector<edm4hep::CalorimeterHit> hit_accumulator;
+    size_t parent_idx = 0;
 
     MyTimesliceBuilderEDM4HEP() {
         SetTypeName(NAME_OF_THIS);
@@ -30,7 +31,7 @@ struct MyTimesliceBuilderEDM4HEP : public JEventUnfolder {
         auto& hits_in = *m_event_hits_in();
 
         std::cout << "HIHIHIHIHIH" << std::endl;
-        // std::cout << m_event_hits_in()->size() << std::endl;
+        std::cout << child_idx << std::endl;
 
 
         for (const auto& hit : hits_in) {
@@ -40,11 +41,15 @@ struct MyTimesliceBuilderEDM4HEP : public JEventUnfolder {
                 << LOG_END;
             hit_accumulator.push_back(hit);
         }
+        
+        if (parent_idx < 2) {
+            parent_idx++;
+            // Not enough hits yet, keep accumulating
+            std::cout << "Not enough hits yet, keep accumulating" << std::endl;
+            return Result::KeepChildNextParent;
+        }
 
-        // if (child_idx < 2) {
-        //     // Not enough hits yet, keep accumulating
-        //     return Result::KeepChildNextParent;
-        // }
+        parent_idx = 0;
 
         // Now we have 3 hits, build the timeslice
         auto timeslice_nr = child_idx;//1000+parent.GetEventNumber() / 3;

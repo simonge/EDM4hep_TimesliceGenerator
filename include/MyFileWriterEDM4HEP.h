@@ -19,9 +19,9 @@ struct MyFileWriterEDM4HEP : public JEventProcessor {
     PodioInput<edm4hep::CalorimeterHit> m_ts_hits_in  {this, {.name="ts_hits", .level = JEventLevel::Timeslice}};
 
     // Retrieve the PODIO frame so we can write it directly
-    // Input<podio::Frame> m_evt_frame_in {this, {.name = "", 
-    //                                            .level = JEventLevel::PhysicsEvent,
-    //                                            .is_optional = true }};
+    Input<podio::Frame> m_evt_frame_in {this, {.name = "", 
+                                               .level = JEventLevel::PhysicsEvent,
+                                               .is_optional = true }};
 
     Input<podio::Frame> m_ts_frame_in {this, {.name = "", 
                                               .level = JEventLevel::Timeslice}};
@@ -32,6 +32,7 @@ struct MyFileWriterEDM4HEP : public JEventProcessor {
     MyFileWriterEDM4HEP() {
         SetTypeName(NAME_OF_THIS);
         SetCallbackStyle(CallbackStyle::ExpertMode);
+        SetLevel(JEventLevel::Timeslice);
         LOG_INFO(GetLogger()) << "MyFileWriterEDM4HEP constructed" << LOG_END;
     }
 
@@ -82,24 +83,24 @@ struct MyFileWriterEDM4HEP : public JEventProcessor {
         // If this is a timeslice event, write the timeslice frame
         if (event.GetLevel() == JEventLevel::Timeslice) {
 
-            // NEW: Loop through parent events and write their frames if present
-            const auto parents = const_cast<JEvent&>(event).ReleaseAllParents();
-            std::cout << parents.size() << " parent events found." << std::endl;
-            for (const auto* parent : parents) {
-                if (parent == nullptr) continue;
-                // Try to get the podio frame from the parent event
-                auto parent_frames = parent->Get<podio::Frame>();
-                if (!parent_frames.empty()) {
-                    const auto& pf = *(parent_frames.at(0));
-                    auto parent_names = pf.getAvailableCollections();
-                    std::cout << "Parent event " << parent->GetEventNumber() << " frame collections: ";
-                    for (const auto& n : parent_names) std::cout << n << " ";
-                    std::cout << std::endl;
-                    m_writer->writeFrame(pf, "events");
-                } else {
-                    std::cout << "No podio frame found for parent event " << parent->GetEventNumber() << std::endl;
-                }
-            }
+            // // NEW: Loop through parent events and write their frames if present
+            // std::cout << parents.size() << " parent events found." << std::endl;
+            // auto parents = const_cast<JEvent&>(event).ReleaseAllParents();
+            // for (const auto* parent : parents) {
+            //     if (parent == nullptr) continue;
+            //     // Try to get the podio frame from the parent event
+            //     auto parent_frames = parent->Get<podio::Frame>();
+            //     if (!parent_frames.empty()) {
+            //         const auto& pf = *(parent_frames.at(0));
+            //         auto parent_names = pf.getAvailableCollections();
+            //         std::cout << "Parent event " << parent->GetEventNumber() << " frame collections: ";
+            //         for (const auto& n : parent_names) std::cout << n << " ";
+            //         std::cout << std::endl;
+            //         m_writer->writeFrame(pf, "events");
+            //     } else {
+            //         std::cout << "No podio frame found for parent event " << parent->GetEventNumber() << std::endl;
+            //     }
+            // }
 
 
             std::cout << "Writing timeslice event " << event.GetEventNumber() << " with " << m_ts_hits_in()->size() << " hits." << std::endl;
