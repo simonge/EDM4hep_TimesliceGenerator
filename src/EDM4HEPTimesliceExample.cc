@@ -4,7 +4,7 @@
 
 #include "MyFileReaderGeneratorEDM4HEP.h"
 #include "MyFileWriterEDM4HEP.h"
-#include "MyTimesliceSplitterEDM4HEP.h"
+#include "MyTimesliceBuilderEDM4HEP.h"
 
 #include <JANA/Components/JOmniFactoryGeneratorT.h>
 
@@ -25,7 +25,7 @@ void InitPlugin(JApplication *app) {
     app->Add(new MyFileWriterEDM4HEP());
 
     // Unfolder that takes timeslices and splits them into physics events.
-    app->Add(new MyTimesliceSplitterEDM4HEP());
+    app->Add(new MyTimesliceBuilderEDM4HEP());
 
 
 

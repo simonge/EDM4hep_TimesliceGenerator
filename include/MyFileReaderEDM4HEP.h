@@ -4,6 +4,8 @@
 #pragma once
 
 #include <JANA/JEventSource.h>
+// #include <JANA/Components/JHasInputs.h>
+#include <JANA/Components/JPodioOutput.h>
 #include <edm4hep/EventHeaderCollection.h>
 #include <edm4hep/CalorimeterHitCollection.h>
 #include "CollectionTabulatorsEDM4HEP.h"
@@ -52,16 +54,13 @@ struct MyFileReaderEDM4HEP : public JEventSource {
             << TabulateHitsEDM4HEP(hits_out.get())
             << LOG_END;
 
+        std::cout << "Emitting event " << event_nr << " with " << hits_out->size() << " hits." << std::endl;
+
         m_hits_out() = std::move(hits_out);
 
         edm4hep::EventHeaderCollection info;
         info.push_back(edm4hep::MutableEventHeader(event_nr, 0, 0, 0));
-        if (GetLevel() == JEventLevel::Timeslice) {
-            event.InsertCollection<edm4hep::EventHeader>(std::move(info), "ts_info");
-        }
-        else {
-            event.InsertCollection<edm4hep::EventHeader>(std::move(info), "evt_info");
-        }
+        event.InsertCollection<edm4hep::EventHeader>(std::move(info), "evt_info");
         return Result::Success;
     }
 };

@@ -9,16 +9,7 @@ class MyFileReaderGeneratorEDM4HEP : public JEventSourceGenerator {
 
     auto source = new MyFileReaderEDM4HEP;
         source->SetResourceName(resource_name);
-
-        // Check if the string "timeslices" appears anywhere in our filename. 
-        // If so, we assume the file contains timeslices, otherwise it contains physics events.
-        // Another approach might be to peek at the file's contents
-        if (resource_name.find("timeslices") != std::string::npos)  {
-            source->SetLevel(JEventLevel::Timeslice);
-        }
-        else {
-            source->SetLevel(JEventLevel::PhysicsEvent);
-        }
+        source->SetLevel(JEventLevel::PhysicsEvent);
         return source;
     }
 

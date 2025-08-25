@@ -8,52 +8,80 @@
 #include <edm4hep/ClusterCollection.h>
 #include "CollectionTabulatorsEDM4HEP.h"
 
-struct MyTimesliceSplitterEDM4HEP : public JEventUnfolder {
 
-    PodioInput<edm4hep::CalorimeterHit> m_timeslice_hits_in {this, {.name = "hits", .level = JEventLevel::Timeslice}};
-    PodioOutput<edm4hep::CalorimeterHit> m_event_hits_out {this, "ev_hits"};
-    PodioOutput<edm4hep::EventHeader> m_event_info_out {this, "evt_info"};
 
-    MyTimesliceSplitterEDM4HEP() {
+struct MyTimesliceBuilderEDM4HEP : public JEventUnfolder {
+
+    PodioInput<edm4hep::CalorimeterHit> m_event_hits_in {this, {.name = "hits", .level = JEventLevel::PhysicsEvent}};
+    PodioOutput<edm4hep::CalorimeterHit> m_timeslice_hits_out {this, "ts_hits"};
+    PodioOutput<edm4hep::EventHeader> m_timeslice_info_out {this, "ts_info"};
+
+    std::vector<edm4hep::CalorimeterHit> hit_accumulator;
+
+    MyTimesliceBuilderEDM4HEP() {
         SetTypeName(NAME_OF_THIS);
-        SetParentLevel(JEventLevel::Timeslice);
-        SetChildLevel(JEventLevel::PhysicsEvent);
+        SetParentLevel(JEventLevel::PhysicsEvent);
+        SetChildLevel(JEventLevel::Timeslice);
     }
 
-
     Result Unfold(const JEvent& parent, JEvent& child, int child_idx) override {
-        auto timeslice_nr = parent.GetEventNumber();
-        size_t event_nr = 100*timeslice_nr + child_idx;
-        child.SetEventNumber(event_nr);
 
-        // Each child event gets one hit from the timeslice
-        auto event_hits_out = std::make_unique<edm4hep::CalorimeterHitCollection>();
-        // event_hits_out->setSubsetCollection(true);
-        auto& hits_in = *m_timeslice_hits_in();
-        if (child_idx < hits_in.size()) {
-            event_hits_out->push_back(hits_in.at(child_idx).clone());
+        // Accumulate hits from each parent event
+        auto& hits_in = *m_event_hits_in();
+
+        std::cout << "HIHIHIHIHIH" << std::endl;
+        // std::cout << m_event_hits_in()->size() << std::endl;
+
+
+        for (const auto& hit : hits_in) {
+            std::cout << "AcumulatedHits " << hit_accumulator.size() << std::endl;
+            LOG_DEBUG(GetLogger()) << "NHits: " << hit_accumulator.size()
+                << "\nCurrent hits:\n"
+                << LOG_END;
+            hit_accumulator.push_back(hit);
         }
 
-        auto event_info_out = std::make_unique<edm4hep::EventHeaderCollection>();
+        // if (child_idx < 2) {
+        //     // Not enough hits yet, keep accumulating
+        //     return Result::KeepChildNextParent;
+        // }
+
+        // Now we have 3 hits, build the timeslice
+        auto timeslice_nr = child_idx;//1000+parent.GetEventNumber() / 3;
+        child.SetEventNumber(timeslice_nr);
+        // child.SetParent(const_cast<JEvent*>(&parent));
+        // std::cout << "Number of parents " << child.GetParentNumber(JEventLevel::PhysicsEvent) << std::endl;
+
+        auto timeslice_hits_out = std::make_unique<edm4hep::CalorimeterHitCollection>();
+        for (const auto& hit : hit_accumulator) {
+            edm4hep::MutableCalorimeterHit new_hit;
+            new_hit.setCellID(hit.getCellID());
+            new_hit.setEnergy(hit.getEnergy());
+            new_hit.setTime(hit.getTime());
+            new_hit.setPosition(hit.getPosition());
+            timeslice_hits_out->push_back(new_hit);
+        }
+
+        auto timeslice_info_out = std::make_unique<edm4hep::EventHeaderCollection>();
         auto header = edm4hep::MutableEventHeader();
-        header.setEventNumber(event_nr);
+        header.setEventNumber(timeslice_nr);
         header.setRunNumber(0);
         header.setTimeStamp(timeslice_nr);
-        event_info_out->push_back(header);
+        timeslice_info_out->push_back(header);
 
-        LOG_DEBUG(GetLogger()) << "MyTimesliceSplitter: Timeslice " << parent.GetEventNumber()
-            <<  ", Event " << child.GetEventNumber()
-            << "\nTimeslice hits in:\n"
-            << TabulateHitsEDM4HEP(&hits_in)
-            << "\nEvent hits out:\n"
-            << TabulateHitsEDM4HEP(event_hits_out.get())
+        LOG_DEBUG(GetLogger()) << "MyTimesliceBuilder: Built timeslice " << timeslice_nr
+            << "\nTimeslice hits out:\n"
+            << TabulateHitsEDM4HEP(timeslice_hits_out.get())
             << LOG_END;
 
-        m_event_hits_out() = std::move(event_hits_out);
-        m_event_info_out() = std::move(event_info_out);
+        m_timeslice_hits_out() = std::move(timeslice_hits_out);
+        m_timeslice_info_out() = std::move(timeslice_info_out);
 
-        // Only 3 events per timeslice
-        return (child_idx == 2) ? Result::NextChildNextParent : Result::NextChildKeepParent;
+        hit_accumulator.clear(); // Reset for next timeslice
+
+        // std::cout << "Number of parents " << child.GetParentNumber(JEventLevel::PhysicsEvent) << std::endl;
+
+        return Result::NextChildNextParent;
     }
 };
 
