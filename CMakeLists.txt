@@ -27,7 +27,7 @@ add_jana_plugin(EDM4HEPTimesliceExample
         include/MyFileReaderEDM4HEP.h
         include/MyFileReaderGeneratorEDM4HEP.h
         include/MyFileWriterEDM4HEP.h
-        include/MyTimesliceSplitterEDM4HEP.h
+        include/MyTimesliceBuilderEDM4HEP.h
 )
 
 # Link against PODIO and EDM4HEP

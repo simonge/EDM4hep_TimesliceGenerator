@@ -5,6 +5,9 @@
 
 echo "=== EDM4HEPTimesliceExample Quick Setup ==="
 
+source /scratch2/JANA2/install/bin/jana-this.sh 
+export CMAKE_PREFIX_PATH=$JANA_HOME:$CMAKE_PREFIX_PATH
+export LD_LIBRARY_PATH=$JANA_HOME/lib:$LD_LIBRARY_PATH
 # Build the plugin
 echo "1. Building plugin..."
 mkdir -p build
