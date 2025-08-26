@@ -1,24 +1,24 @@
 
 #include <JANA/JEventSourceGenerator.h>
 #include "MyFileReaderEDM4HEP.h"
-
+#include <filesystem>
 
 class MyFileReaderGeneratorEDM4HEP : public JEventSourceGenerator {
 
     JEventSource* MakeJEventSource(std::string resource_name) override {
 
-    auto source = new MyFileReaderEDM4HEP;
+        auto source = new MyFileReaderEDM4HEP;
         source->SetResourceName(resource_name);
 
-        // Check if the string "timeslices" appears anywhere in our filename. 
-        // If so, we assume the file contains timeslices, otherwise it contains physics events.
-        // Another approach might be to peek at the file's contents
-        if (resource_name.find("timeslices") != std::string::npos)  {
-            source->SetLevel(JEventLevel::Timeslice);
-        }
-        else {
-            source->SetLevel(JEventLevel::PhysicsEvent);
-        }
+        // Get the file basename to use as a tag 
+        std::filesystem::path p(resource_name);
+        // Get the filename without extension
+        std::string tag = p.stem().string(); // "myfile"
+        source->SetTag(tag);
+
+        if(tag=="det1") source->SetLevel(JEventLevel::PhysicsEvent);
+        if(tag=="det2") source->SetLevel(JEventLevel::Subevent);
+        std::cout << "MyFileReaderGeneratorEDM4HEP: Created JEventSource for file " << resource_name << " with tag " << tag << std::endl;
         return source;
     }
 
