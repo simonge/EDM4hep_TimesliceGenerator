@@ -1,0 +1,32 @@
+# Build and install artifacts
+build/
+install/
+
+# CMake files
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+
+# VS Code settings
+.vscode/
+
+# OS/Editor files
+*.swp
+*.swo
+*.bak
+*~
+.DS_Store
+
+# Root output
+*.root
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Logs
+*.log
+
+# Misc
+janainstall/
