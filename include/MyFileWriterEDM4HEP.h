@@ -6,7 +6,7 @@
 #include <JANA/JEventProcessor.h>
 #include <JANA/Components/JHasInputs.h>
 #include <JANA/Components/JPodioOutput.h>
-#include <edm4hep/CalorimeterHitCollection.h>
+#include <edm4hep/SimTrackerHitCollection.h>
 #include "CollectionTabulatorsEDM4HEP.h"
 
 #include <podio/podioVersion.h>
@@ -15,8 +15,8 @@
 struct MyFileWriterEDM4HEP : public JEventProcessor {
 
     // Trigger the creation of clusters
-    // PodioInput<edm4hep::CalorimeterHit> m_evt_hits_in {this, {.name="hits", .level = JEventLevel::PhysicsEvent}};
-    PodioInput<edm4hep::CalorimeterHit> m_ts_hits_in  {this, {.name="ts_hits", .level = JEventLevel::Timeslice}};
+    // PodioInput<edm4hep::SimTrackerHit> m_evt_hits_in {this, {.name="hits", .level = JEventLevel::PhysicsEvent}};
+    PodioInput<edm4hep::SimTrackerHit> m_ts_hits_in  {this, {.name="ts_hits", .level = JEventLevel::Timeslice}};
 
     // Retrieve the PODIO frame so we can write it directly
     Input<podio::Frame> m_evt_frame_in {this, {.name = "", 

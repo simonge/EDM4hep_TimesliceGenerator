@@ -7,13 +7,13 @@
 // #include <JANA/Components/JHasInputs.h>
 #include <JANA/Components/JPodioOutput.h>
 #include <edm4hep/EventHeaderCollection.h>
-#include <edm4hep/CalorimeterHitCollection.h>
+#include <edm4hep/SimTrackerHitCollection.h>
 #include "CollectionTabulatorsEDM4HEP.h"
 
 
 struct MyFileReaderEDM4HEP : public JEventSource {
 
-    PodioOutput<edm4hep::CalorimeterHit> m_hits_out {this, "hits"};
+    PodioOutput<edm4hep::SimTrackerHit> m_hits_out {this, "hits"};
 
     MyFileReaderEDM4HEP() {
         SetTypeName(NAME_OF_THIS);
@@ -26,26 +26,26 @@ struct MyFileReaderEDM4HEP : public JEventSource {
 
     Result Emit(JEvent& event) override {
         auto event_nr = event.GetEventNumber();
-        auto hits_out  = std::make_unique<edm4hep::CalorimeterHitCollection>();
+        auto hits_out  = std::make_unique<edm4hep::SimTrackerHitCollection>();
 
         // Emit 3 hits per event/timeslice
-        edm4hep::MutableCalorimeterHit hit1;
+        edm4hep::MutableSimTrackerHit hit1;
         hit1.setCellID(event_nr);
-        hit1.setEnergy(22.0);
+        hit1.setEDep(22.0);
         hit1.setTime(0.0);
         hit1.setPosition({22.0, 22.0, 22.0});
         hits_out->push_back(hit1);
 
-        edm4hep::MutableCalorimeterHit hit2;
+        edm4hep::MutableSimTrackerHit hit2;
         hit2.setCellID(event_nr);
-        hit2.setEnergy(49.0);
+        hit2.setEDep(49.0);
         hit2.setTime(1.0);
         hit2.setPosition({49.0, 49.0, 49.0});
         hits_out->push_back(hit2);
 
-        edm4hep::MutableCalorimeterHit hit3;
+        edm4hep::MutableSimTrackerHit hit3;
         hit3.setCellID(event_nr);
-        hit3.setEnergy(7.6);
+        hit3.setEDep(7.6);
         hit3.setTime(2.0);
         hit3.setPosition({7.6, 7.6, 7.6});
         hits_out->push_back(hit3);

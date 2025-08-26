@@ -21,13 +21,18 @@ void InitPlugin(JApplication *app) {
     // Either way, these files contain just hits
     app->Add(new MyFileReaderGeneratorEDM4HEP());
 
-    // Event processor that writes events (and timeslices, if they are present) to file
-    app->Add(new MyFileWriterEDM4HEP());
 
     // Unfolder that takes timeslices and splits them into physics events.
     app->Add(new MyTimesliceBuilderEDM4HEP());
 
+     
 
+
+    // Collection Collector for the output...
+
+
+    // Event processor that writes and timeslices to file
+    app->Add(new MyFileWriterEDM4HEP());
 
 }
 } // "C"

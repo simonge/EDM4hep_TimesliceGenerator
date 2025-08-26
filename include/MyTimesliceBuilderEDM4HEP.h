@@ -5,18 +5,17 @@
 
 #include <JANA/JEventUnfolder.h>
 #include <edm4hep/EventHeaderCollection.h>
-#include <edm4hep/ClusterCollection.h>
 #include "CollectionTabulatorsEDM4HEP.h"
 
 
 
 struct MyTimesliceBuilderEDM4HEP : public JEventUnfolder {
 
-    PodioInput<edm4hep::CalorimeterHit> m_event_hits_in {this, {.name = "hits", .level = JEventLevel::PhysicsEvent}};
-    PodioOutput<edm4hep::CalorimeterHit> m_timeslice_hits_out {this, "ts_hits"};
+    PodioInput<edm4hep::SimTrackerHit> m_event_hits_in {this, {.name = "hits", .level = JEventLevel::PhysicsEvent}};
+    PodioOutput<edm4hep::SimTrackerHit> m_timeslice_hits_out {this, "ts_hits"};
     PodioOutput<edm4hep::EventHeader> m_timeslice_info_out {this, "ts_info"};
 
-    std::vector<edm4hep::CalorimeterHit> hit_accumulator;
+    std::vector<edm4hep::SimTrackerHit> hit_accumulator;
     size_t parent_idx = 0;
 
     MyTimesliceBuilderEDM4HEP() {
@@ -57,14 +56,9 @@ struct MyTimesliceBuilderEDM4HEP : public JEventUnfolder {
         // child.SetParent(const_cast<JEvent*>(&parent));
         // std::cout << "Number of parents " << child.GetParentNumber(JEventLevel::PhysicsEvent) << std::endl;
 
-        auto timeslice_hits_out = std::make_unique<edm4hep::CalorimeterHitCollection>();
+        auto timeslice_hits_out = std::make_unique<edm4hep::SimTrackerHitCollection>();
         for (const auto& hit : hit_accumulator) {
-            edm4hep::MutableCalorimeterHit new_hit;
-            new_hit.setCellID(hit.getCellID());
-            new_hit.setEnergy(hit.getEnergy());
-            new_hit.setTime(hit.getTime());
-            new_hit.setPosition(hit.getPosition());
-            timeslice_hits_out->push_back(new_hit);
+            timeslice_hits_out->push_back(hit.clone());
         }
 
         auto timeslice_info_out = std::make_unique<edm4hep::EventHeaderCollection>();
