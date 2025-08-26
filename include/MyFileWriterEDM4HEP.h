@@ -19,9 +19,9 @@ struct MyFileWriterEDM4HEP : public JEventProcessor {
     PodioInput<edm4hep::SimTrackerHit> m_ts_hits_in  {this, {.name="ts_hits", .level = JEventLevel::Timeslice}};
 
     // Retrieve the PODIO frame so we can write it directly
-    Input<podio::Frame> m_evt_frame_in {this, {.name = "", 
-                                               .level = JEventLevel::PhysicsEvent,
-                                               .is_optional = true }};
+    // Input<podio::Frame> m_evt_frame_in {this, {.name = "", 
+    //                                            .level = JEventLevel::PhysicsEvent,
+    //                                            .is_optional = true }};
 
     Input<podio::Frame> m_ts_frame_in {this, {.name = "", 
                                               .level = JEventLevel::Timeslice}};
