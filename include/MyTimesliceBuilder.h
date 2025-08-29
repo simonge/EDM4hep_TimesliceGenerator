@@ -16,7 +16,7 @@ struct MyTimesliceBuilder : public JEventUnfolder {
     // PodioOutput<edm4hep::MCParticle> m_timeslice_MCParticles_out {this, "ts_MCParticles"};
     // PodioOutput<edm4hep::EventHeader> m_timeslice_info_out {this, "ts_info"};
 
-    std::vector<edm4hep::MCParticle> particle_accumulator;
+    std::vector<std::vector<edm4hep::MCParticle>> event_accumulator;
     size_t parent_idx    = 0;
     int    events_needed = 0;
 
@@ -27,12 +27,14 @@ struct MyTimesliceBuilder : public JEventUnfolder {
     std::mt19937 gen;
     std::uniform_real_distribution<float> uniform;
     std::poisson_distribution<> poisson;
+    std::normal_distribution<> gaussian;
 
     MyTimesliceBuilder(MyTimesliceBuilderConfig config)  
           : m_config(config), 
             gen(rd()),
             uniform(0.0f, config.time_slice_duration),
-            poisson(config.time_slice_duration * config.mean_hit_frequency) 
+            poisson(config.time_slice_duration * config.mean_hit_frequency),
+            gaussian(0.0f, config.beam_spread)
     {
         SetTypeName(NAME_OF_THIS);
         SetChildLevel(JEventLevel::Timeslice);
@@ -65,7 +67,7 @@ struct MyTimesliceBuilder : public JEventUnfolder {
             return Result::NextChildNextParent;
         }
 
-
+        std::vector<edm4hep::MCParticle> particle_accumulator;
 
         std::cout << parent_idx << std::endl;
 
@@ -76,10 +78,12 @@ struct MyTimesliceBuilder : public JEventUnfolder {
             particle_accumulator.push_back(particle);
         }
 
+        event_accumulator.push_back(particle_accumulator);
+
         std::cout << "AcumulatedParticles " << particle_accumulator.size() << std::endl;
         parent_idx++;
 
-        if (parent_idx < events_needed) {
+        if (event_accumulator.size() < events_needed) {
             // Not enough particles yet, keep accumulating
             std::cout << "Not enough particles yet, keep accumulating (need " << events_needed << ", have " << parent_idx << ")" << std::endl;
             
@@ -99,17 +103,37 @@ struct MyTimesliceBuilder : public JEventUnfolder {
         // child.SetParent(const_cast<JEvent*>(&parent));
         // std::cout << "Number of parents " << child.GetParentNumber(JEventLevel::PhysicsEvent) << std::endl;
 
-        for (const auto& particle : particle_accumulator) {
+        for (const auto& event : event_accumulator) {
             // Distribute the time of the accumulated particle randomly uniformly throughout the timeslice_duration
             float time_offset = uniform(gen);
             // If use_bunch_crossing is enabled, apply bunch crossing period
             if (m_config.use_bunch_crossing) {
                 time_offset = std::floor(time_offset / m_config.bunch_crossing_period) * m_config.bunch_crossing_period;
             }
-            auto new_time = particle.getTime() + time_offset;
-            auto new_particle = particle.clone();
-            new_particle.setTime(new_time);
-            timeslice_particles_out.push_back(new_particle);
+            // If attach_to_beam is enabled, apply Gaussian smearing and position based time offset
+            // TODO Make this more accurate and configurable.
+            if (m_config.attach_to_beam) {
+                time_offset += gaussian(gen);
+                // Find vertex of first particle with generator status of 1
+                const auto* first_particle = std::find_if(event.begin(), event.end(), [](const auto& p) {
+                    return p.getGeneratorStatus() == 1;
+                });
+                if (first_particle != event.end()) {
+                    // Calculate time offset based on distance to 0,0,0 and speed
+                    float distance = std::sqrt(std::pow(first_particle->getX(), 2) +
+                                                std::pow(first_particle->getY(), 2) +
+                                                std::pow(first_particle->getZ(), 2));
+                    time_offset += distance / m_config.beam_speed;                
+                }
+            }
+
+            for (const auto& particle : event) {
+                auto new_time = particle.getTime() + time_offset;
+                auto new_particle = particle.clone();
+                new_particle.setTime(new_time);
+                new_particle.setGeneratorStatus(particle.getGeneratorStatus() + m_config.generator_status_offset);
+                timeslice_particles_out.push_back(new_particle);
+            }
         }
 
         auto header = edm4hep::MutableEventHeader();
@@ -128,7 +152,7 @@ struct MyTimesliceBuilder : public JEventUnfolder {
         // child.InsertCollection<edm4hep::MCParticle>(std::move(timeslice_particles_out),m_config.tag + "ts_MCParticles");
         // child.InsertCollection<edm4hep::EventHeader>(std::move(timeslice_info_out),m_config.tag + "ts_info");
 
-        particle_accumulator.clear(); // Reset for next timeslice
+        event_accumulator.clear(); // Reset for next timeslice
 
         // std::cout << "Number of parents " << child.GetParentNumber(JEventLevel::PhysicsEvent) << std::endl;
 

@@ -15,5 +15,9 @@ struct MyTimesliceBuilderConfig {
     bool   attach_to_beam{false};
     float  beam_angle{0.0f};
     float  beam_speed{299792.4580f}; //Speed of light in ns/mm
+    float  beam_spread{0.0f};
+
+    // New generator status offset
+    int32_t  generator_status_offset{0};
 
 };
