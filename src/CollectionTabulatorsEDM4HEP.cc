@@ -15,3 +15,18 @@ JTablePrinter TabulateHitsEDM4HEP(const edm4hep::SimTrackerHitCollection* c) {
     }
     return t;
 }
+
+// JTablePrinter TabulateParticlesEDM4HEP(const edm4hep::MCParticleCollection* c) {
+//     JTablePrinter t;
+//     t.AddColumn("particleId");
+//     t.AddColumn("PDG");
+//     t.AddColumn("mass");
+//     t.AddColumn("charge");
+//     t.AddColumn("time");
+//     t.AddColumn("position");
+//     for (auto particle : *c) {
+//         auto pos = particle.getPosition();
+//         std::ostringstream pos_str;
+//         pos_str << "(" << pos.x << "," << pos.y << "," << pos.z << ")";
+//         t | particle.id() | particle.getPDG() | particle.getMass() | particle.getCharge() | particle.getTime() | pos_str.str();
+//     }

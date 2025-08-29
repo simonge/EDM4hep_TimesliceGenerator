@@ -1,13 +1,13 @@
 
 #include <JANA/JEventSourceGenerator.h>
-#include "MyFileReaderEDM4HEP.h"
+#include "MyEventFileReader.h"
 #include <filesystem>
 
-class MyFileReaderGeneratorEDM4HEP : public JEventSourceGenerator {
+class MyEventFileReaderGenerator : public JEventSourceGenerator {
 
     JEventSource* MakeJEventSource(std::string resource_name) override {
 
-        auto source = new MyFileReaderEDM4HEP;
+        auto source = new MyEventFileReader;
         source->SetResourceName(resource_name);
 
         // Get the file basename to use as a tag 
@@ -16,9 +16,11 @@ class MyFileReaderGeneratorEDM4HEP : public JEventSourceGenerator {
         std::string tag = p.stem().string(); // "myfile"
         source->SetTag(tag);
 
-        if(tag=="det1") source->SetLevel(JEventLevel::PhysicsEvent);
-        if(tag=="det2") source->SetLevel(JEventLevel::Subevent);
-        std::cout << "MyFileReaderGeneratorEDM4HEP: Created JEventSource for file " << resource_name << " with tag " << tag << std::endl;
+        source->SetLevel(JEventLevel::PhysicsEvent);
+
+        // if(tag=="det1") source->SetLevel(JEventLevel::PhysicsEvent);
+        // if(tag=="det2") source->SetLevel(JEventLevel::Subevent);
+        std::cout << "MyEventFileReaderGenerator: Created JEventSource for file " << resource_name << " with tag " << tag << std::endl;
         return source;
     }
 
