@@ -17,14 +17,31 @@ struct MyTimesliceBuilder : public JEventUnfolder {
     // PodioOutput<edm4hep::EventHeader> m_timeslice_info_out {this, "ts_info"};
 
     std::vector<edm4hep::MCParticle> particle_accumulator;
-    size_t parent_idx = 0;
+    size_t parent_idx    = 0;
+    int    events_needed = 0;
 
     MyTimesliceBuilderConfig m_config;
 
-    MyTimesliceBuilder(MyTimesliceBuilderConfig config) : m_config(config) {
+    // Random number generator members
+    std::random_device rd;
+    std::mt19937 gen;
+    std::uniform_real_distribution<float> uniform;
+    std::poisson_distribution<> poisson;
+
+    MyTimesliceBuilder(MyTimesliceBuilderConfig config)  
+          : m_config(config), 
+            gen(rd()),
+            uniform(0.0f, config.time_slice_duration),
+            poisson(config.time_slice_duration * config.mean_hit_frequency) 
+    {
         SetTypeName(NAME_OF_THIS);
         SetChildLevel(JEventLevel::Timeslice);
         SetParentLevel(m_config.parent_level);
+        if(m_config.static_number_of_hits) {
+            events_needed = m_config.static_hits_per_timeslice;
+        } else {
+            events_needed = poisson(gen);
+        }
         // m_event_MCParticles_in.SetCollectionName(m_config.tag + "MCParticles");
         // m_timeslice_MCParticles_out.SetCollectionName(m_config.tag + "ts_MCParticles");
         // m_timeslice_info_out.SetCollectionName(m_config.tag + "ts_info");
@@ -49,32 +66,28 @@ struct MyTimesliceBuilder : public JEventUnfolder {
         }
 
 
+
         std::cout << parent_idx << std::endl;
 
         for (const auto& particle : *particles_in) {
-            std::cout << "AcumulatedParticles " << particle_accumulator.size() << std::endl;
             LOG_DEBUG(GetLogger()) << "NParticles: " << particle_accumulator.size()
                 << "\nCurrent particles:\n"
                 << LOG_END;
             particle_accumulator.push_back(particle);
         }
 
-        // Calculate the number of particles needed for a timeslice using Poisson statistics
-        static std::random_device rd;
-        static std::mt19937 gen(rd());
-        double lambda = m_config.time_slice_duration * m_config.mean_hit_frequency;
-        static std::poisson_distribution<> poisson(lambda);
-        static std::uniform_real_distribution<float> uniform(0.0f, m_config.time_slice_duration);
+        std::cout << "AcumulatedParticles " << particle_accumulator.size() << std::endl;
+        parent_idx++;
 
-        static size_t particles_needed = poisson(gen);
-
-        if (particle_accumulator.size() < particles_needed) {
+        if (parent_idx < events_needed) {
             // Not enough particles yet, keep accumulating
-            std::cout << "Not enough particles yet, keep accumulating (need " << particles_needed << ", have " << particle_accumulator.size() << ")" << std::endl;
+            std::cout << "Not enough particles yet, keep accumulating (need " << events_needed << ", have " << parent_idx << ")" << std::endl;
+            
             return Result::KeepChildNextParent;
-        }
-        // Reset for next timeslice
-        particles_needed = poisson(gen);
+        } else if (!m_config.static_number_of_hits) {
+            events_needed = poisson(gen);
+        } //TODO - Gracefully handle events_needed == 0 using Result::KeepChildNextParent
+
         parent_idx = 0;
 
         edm4hep::MCParticleCollection    timeslice_particles_out;

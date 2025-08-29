@@ -1,69 +1,73 @@
-// Copyright 2024, Jefferson Science Associates, LLC.
-// Subject to the terms in the LICENSE file found in the top-level directory.
-
 #pragma once
 
 #include <JANA/JEventSource.h>
-// #include <JANA/Components/JHasInputs.h>
 #include <JANA/Components/JPodioOutput.h>
 #include <edm4hep/EventHeaderCollection.h>
 #include <edm4hep/MCParticleCollection.h>
-#include "CollectionTabulatorsEDM4HEP.h"
-
-#include <random>
+#include <podio/ROOTReader.h>
+#include <iostream>
 
 struct MyEventFileReader : public JEventSource {
 
-    // PodioOutput<edm4hep::MCParticle> m_particles_out {this, "MCParticles"};
-
-    MyEventFileReader() {
-        SetTypeName(NAME_OF_THIS);
-        SetCallbackStyle(CallbackStyle::ExpertMode);
-    }
-
     std::string m_tag{""};
+    std::string m_filename;
+    podio::ROOTReader m_reader;
+    int m_event_counter = 0;
+    int m_total_events = 0;
+    std::vector<std::string> m_collections_to_read {"MCParticles", "EventHeader"};
+
+    MyEventFileReader(const std::string& filename) : m_filename(filename) {
+        SetTypeName(NAME_OF_THIS);
+        SetResourceName(filename);
+        SetCallbackStyle(CallbackStyle::ExpertMode);
+        m_reader.openFile(m_filename);
+        m_total_events = m_reader.getEntries("events");
+    }
 
     void SetTag(std::string tag) { m_tag = std::move(tag); }
     const std::string& GetTag() const { return m_tag; }
 
-    void Open() override { }
-
-    void Close() override { }
+    void Open() override { /* Already opened in constructor */ }
+    void Close() override { 
+        // m_reader.closeFile(); 
+    }
 
     Result Emit(JEvent& event) override {
-        auto event_nr = event.GetEventNumber();
+        // if (m_event_counter >= m_total_events) {
+        //     return Result::Finished;
+        // }    
 
-        if(event.GetLevel() == JEventLevel::Timeslice) {
-            return Result::Success;
+        auto frame_data = m_reader.readNextEntry("events");//, m_collections_to_read);
+        auto frame      = std::make_unique<podio::Frame>(std::move(frame_data));
+        
+
+        for (const std::string& coll_name : m_collections_to_read) {
+            const podio::CollectionBase* coll = frame->get(coll_name);
+            const auto& coll_type = coll->getValueTypeName();
+
+            if(coll_type == "edm4hep::MCParticle") {
+                event.InsertCollectionAlreadyInFrame<edm4hep::MCParticle>(coll, coll_name);
+            }
+            else if(coll_type == "edm4hep::EventHeader") {
+                event.InsertCollectionAlreadyInFrame<edm4hep::EventHeader>(coll, coll_name);
+            }
+            else {
+                std::cerr << "Warning: Unhandled collection type '" << coll_type << "' for collection '" << coll_name << "'" << std::endl;
+            }
+
         }
 
-        edm4hep::MCParticleCollection mc_particles_out;
+        // const auto& mc_particles = frame->get<edm4hep::MCParticleCollection>("MCParticles");
 
-        // Set time to a random value from a gaussian with a width of 1 and mean 0
-        
-        std::random_device rd;
-        std::mt19937 gen(rd());
-        std::normal_distribution<float> d(0, 1);
-        float time = d(gen);
+        // const auto& event_headers = frame->get<edm4hep::EventHeaderCollection>("EventHeader");
 
-        // Emit particles per event/timeslice
-        edm4hep::MutableMCParticle mc_particle1;
-        mc_particle1.setPDG(22);
-        mc_particle1.setTime(time);
-        mc_particles_out.push_back(mc_particle1);
+        // event.InsertCollection<edm4hep::MCParticle>(std::move(mc_particles), "MCParticles");
+        // event.InsertCollection<edm4hep::EventHeader>(std::move(event_headers), "EventHeader");
 
-        // LOG_DEBUG(GetLogger()) << "MySource: Emitted " << GetLevel() << " " << event.GetEventNumber() << "\n"
-        //     << TabulateParticlesEDM4HEP(&mc_particles_out)
-        //     << LOG_END;
 
-        std::cout << "Emitting event " << event_nr << " with " << mc_particles_out.size() << " particles." << std::endl;
-        std::cout << "At Level " << static_cast<int>(event.GetLevel()) << " Tag " << m_tag << std::endl;
-
-        event.InsertCollection<edm4hep::MCParticle>(std::move(mc_particles_out), "MCParticles");
-
-        edm4hep::EventHeaderCollection info;
-        info.push_back(edm4hep::MutableEventHeader(event_nr, 0, 0, 0));
-        event.InsertCollection<edm4hep::EventHeader>(std::move(info), m_tag+"evt_info");
+        event.Insert(frame.release());
+        // std::cout << "Read event " << m_event_counter << " from " << m_filename << std::endl;
+        m_event_counter++;
         return Result::Success;
     }
 };

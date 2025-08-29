@@ -3,17 +3,17 @@
 #include "MyEventFileReader.h"
 #include <filesystem>
 
-class MyEventFileReaderGenerator : public JEventSourceGenerator {
+class MyEventGeneratorGenerator : public JEventSourceGenerator {
 
     JEventSource* MakeJEventSource(std::string resource_name) override {
 
-        auto source = new MyEventFileReader(resource_name);
-        // source->SetResourceName(resource_name);
+        auto source = new MyEventFileReader;
+        source->SetResourceName(resource_name);
 
         // Get the file basename to use as a tag 
-        // std::filesystem::path p(resource_name);
-        // // Get the filename without extension
-        std::string tag = "";//p.stem().string(); // "myfile"
+        std::filesystem::path p(resource_name);
+        // Get the filename without extension
+        std::string tag = p.stem().string(); // "myfile"
         source->SetTag(tag);
 
         source->SetLevel(JEventLevel::PhysicsEvent);

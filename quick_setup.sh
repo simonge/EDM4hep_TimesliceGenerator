@@ -41,3 +41,7 @@ echo "   jana -Pplugins=TimesliceCreator -Pjana:nevents=10 -Pjana:debug_plugin_l
 echo ""
 echo "More up to date running"
 echo "   jana -Pplugins=TimesliceCreator -Pwriter:nevents=100 -Pwriter:write_event_frame=false -Pjana:debug_plugin_loading=1 -Pjana:loglevel=info det2.root"
+echo ""
+echo "Example with a real file from dtn-eic:"
+
+echo " jana -Pplugins=TimesliceCreator -Pwriter:nevents=100 -Pwriter:write_event_frame=false -Pjana:debug_plugin_loading=1 -Pjana:loglevel=info root://dtn-eic.jlab.org//volatile/eic/EPIC/RECO/25.06.1/epic_craterlake/SIDIS/pythia6-eic/1.0.0/10x100/q2_0to1/pythia_ep_noradcor_10x100_q2_0.000000001_1.0_run21.ab.0642.eicrecon.edm4eic.root"
