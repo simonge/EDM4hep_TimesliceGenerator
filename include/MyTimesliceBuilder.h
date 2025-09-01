@@ -9,17 +9,31 @@
 #include "CollectionTabulatorsEDM4HEP.h"
 #include "MyTimesliceBuilderConfig.h"
 
+// Conditional EDM4EIC support
+#ifdef HAVE_EDM4EIC
+#include <edm4eic/ReconstructedParticleCollection.h>
+#include <edm4eic/MCRecoParticleAssociationCollection.h>
+#endif
+
 #include <random>
 
 struct MyTimesliceBuilder : public JEventUnfolder {
 
     PodioInput<edm4hep::MCParticle> m_event_MCParticles_in {this, {.name = "MCParticles", .is_optional = true}};
     PodioInput<edm4hep::SimTrackerHit> m_event_SimTrackerHits_in {this, {.name = "SimTrackerHits", .is_optional = true}};
+#ifdef HAVE_EDM4EIC
+    PodioInput<edm4eic::ReconstructedParticle> m_event_RecoParticles_in {this, {.name = "ReconstructedParticles", .is_optional = true}};
+    PodioInput<edm4eic::MCRecoParticleAssociation> m_event_RecoAssociations_in {this, {.name = "MCRecoParticleAssociations", .is_optional = true}};
+#endif
     // PodioOutput<edm4hep::MCParticle> m_timeslice_MCParticles_out {this, "ts_MCParticles"};
     // PodioOutput<edm4hep::EventHeader> m_timeslice_info_out {this, "ts_info"};
 
     std::vector<std::vector<edm4hep::MCParticle>> event_accumulator;
     std::vector<std::vector<edm4hep::SimTrackerHit>> simhit_accumulator;
+#ifdef HAVE_EDM4EIC
+    std::vector<std::vector<edm4eic::ReconstructedParticle>> recoparticle_accumulator;
+    std::vector<std::vector<edm4eic::MCRecoParticleAssociation>> recoassoc_accumulator;
+#endif
     size_t parent_idx    = 0;
     int    events_needed = 0;
 
@@ -61,6 +75,10 @@ struct MyTimesliceBuilder : public JEventUnfolder {
 
             edm4hep::MCParticleCollection timeslice_particles_out;
             edm4hep::SimTrackerHitCollection timeslice_simhits_out;
+#ifdef HAVE_EDM4EIC
+            edm4eic::ReconstructedParticleCollection timeslice_recoparticles_out;
+            edm4eic::MCRecoParticleAssociationCollection timeslice_recoassoc_out;
+#endif
             edm4hep::EventHeaderCollection   timeslice_info_out;
 
             // child.InsertCollection<edm4hep::MCParticle>(std::move(timeslice_particles_out),m_config.tag + "ts_MCParticles");
@@ -69,6 +87,12 @@ struct MyTimesliceBuilder : public JEventUnfolder {
             if (m_config.include_sim_tracker_hits) {
                 child.InsertCollection<edm4hep::SimTrackerHit>(std::move(timeslice_simhits_out),"ts_SimTrackerHits");
             }
+#ifdef HAVE_EDM4EIC
+            if (m_config.include_reconstructed_particles) {
+                child.InsertCollection<edm4eic::ReconstructedParticle>(std::move(timeslice_recoparticles_out),"ts_ReconstructedParticles");
+                child.InsertCollection<edm4eic::MCRecoParticleAssociation>(std::move(timeslice_recoassoc_out),"ts_MCRecoParticleAssociations");
+            }
+#endif
             child.InsertCollection<edm4hep::EventHeader>(std::move(timeslice_info_out),"ts_info");
             
             return Result::NextChildNextParent;
@@ -76,6 +100,10 @@ struct MyTimesliceBuilder : public JEventUnfolder {
 
         std::vector<edm4hep::MCParticle> particle_accumulator;
         std::vector<edm4hep::SimTrackerHit> simhit_accumulator;
+#ifdef HAVE_EDM4EIC
+        std::vector<edm4eic::ReconstructedParticle> recoparticle_accumulator;
+        std::vector<edm4eic::MCRecoParticleAssociation> recoassoc_accumulator;
+#endif
 
         std::cout << parent_idx << std::endl;
 
@@ -96,10 +124,35 @@ struct MyTimesliceBuilder : public JEventUnfolder {
             }
         }
 
+#ifdef HAVE_EDM4EIC
+        // Accumulate ReconstructedParticles and associations if enabled
+        if (m_config.include_reconstructed_particles) {
+            auto* recoparticles_in = m_event_RecoParticles_in();
+            if (recoparticles_in) {
+                for (const auto& particle : *recoparticles_in) {
+                    recoparticle_accumulator.push_back(particle);
+                }
+            }
+            
+            auto* recoassoc_in = m_event_RecoAssociations_in();
+            if (recoassoc_in) {
+                for (const auto& assoc : *recoassoc_in) {
+                    recoassoc_accumulator.push_back(assoc);
+                }
+            }
+        }
+#endif
+
         event_accumulator.push_back(particle_accumulator);
         if (m_config.include_sim_tracker_hits) {
             this->simhit_accumulator.push_back(simhit_accumulator);
         }
+#ifdef HAVE_EDM4EIC
+        if (m_config.include_reconstructed_particles) {
+            this->recoparticle_accumulator.push_back(recoparticle_accumulator);
+            this->recoassoc_accumulator.push_back(recoassoc_accumulator);
+        }
+#endif
 
         std::cout << "AcumulatedParticles " << particle_accumulator.size() << std::endl;
         parent_idx++;
@@ -117,6 +170,10 @@ struct MyTimesliceBuilder : public JEventUnfolder {
 
         edm4hep::MCParticleCollection    timeslice_particles_out;
         edm4hep::SimTrackerHitCollection timeslice_simhits_out;
+#ifdef HAVE_EDM4EIC
+        edm4eic::ReconstructedParticleCollection timeslice_recoparticles_out;
+        edm4eic::MCRecoParticleAssociationCollection timeslice_recoassoc_out;
+#endif
         edm4hep::EventHeaderCollection   timeslice_info_out;
 
         // Now we have particles, build the timeslice
@@ -170,6 +227,28 @@ struct MyTimesliceBuilder : public JEventUnfolder {
                     timeslice_simhits_out.push_back(new_hit);
                 }
             }
+            
+#ifdef HAVE_EDM4EIC
+            // Process ReconstructedParticles with the same time offset
+            if (m_config.include_reconstructed_particles && event_idx < recoparticle_accumulator.size()) {
+                const auto& recoparticles_event = recoparticle_accumulator[event_idx];
+                for (const auto& particle : recoparticles_event) {
+                    auto new_time = particle.getTime() + time_offset;
+                    auto new_particle = particle.clone();
+                    new_particle.setTime(new_time);
+                    timeslice_recoparticles_out.push_back(new_particle);
+                }
+                
+                // Process associations (these typically don't have time but we keep them consistent)
+                if (event_idx < recoassoc_accumulator.size()) {
+                    const auto& recoassoc_event = recoassoc_accumulator[event_idx];
+                    for (const auto& assoc : recoassoc_event) {
+                        auto new_assoc = assoc.clone();
+                        timeslice_recoassoc_out.push_back(new_assoc);
+                    }
+                }
+            }
+#endif
         }
 
         auto header = edm4hep::MutableEventHeader();
@@ -187,6 +266,12 @@ struct MyTimesliceBuilder : public JEventUnfolder {
         if (m_config.include_sim_tracker_hits) {
             child.InsertCollection<edm4hep::SimTrackerHit>(std::move(timeslice_simhits_out),"ts_SimTrackerHits");
         }
+#ifdef HAVE_EDM4EIC
+        if (m_config.include_reconstructed_particles) {
+            child.InsertCollection<edm4eic::ReconstructedParticle>(std::move(timeslice_recoparticles_out),"ts_ReconstructedParticles");
+            child.InsertCollection<edm4eic::MCRecoParticleAssociation>(std::move(timeslice_recoassoc_out),"ts_MCRecoParticleAssociations");
+        }
+#endif
         child.InsertCollection<edm4hep::EventHeader>(std::move(timeslice_info_out),"ts_info");
         // child.InsertCollection<edm4hep::MCParticle>(std::move(timeslice_particles_out),m_config.tag + "ts_MCParticles");
         // child.InsertCollection<edm4hep::EventHeader>(std::move(timeslice_info_out),m_config.tag + "ts_info");
@@ -195,6 +280,12 @@ struct MyTimesliceBuilder : public JEventUnfolder {
         if (m_config.include_sim_tracker_hits) {
             simhit_accumulator.clear();
         }
+#ifdef HAVE_EDM4EIC
+        if (m_config.include_reconstructed_particles) {
+            recoparticle_accumulator.clear();
+            recoassoc_accumulator.clear();
+        }
+#endif
 
         // std::cout << "Number of parents " << child.GetParentNumber(JEventLevel::PhysicsEvent) << std::endl;
 
