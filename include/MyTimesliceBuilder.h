@@ -5,6 +5,7 @@
 
 #include <JANA/JEventUnfolder.h>
 #include <edm4hep/EventHeaderCollection.h>
+#include <edm4hep/SimTrackerHitCollection.h>
 #include "CollectionTabulatorsEDM4HEP.h"
 #include "MyTimesliceBuilderConfig.h"
 
@@ -13,10 +14,12 @@
 struct MyTimesliceBuilder : public JEventUnfolder {
 
     PodioInput<edm4hep::MCParticle> m_event_MCParticles_in {this, {.name = "MCParticles", .is_optional = true}};
+    PodioInput<edm4hep::SimTrackerHit> m_event_SimTrackerHits_in {this, {.name = "SimTrackerHits", .is_optional = true}};
     // PodioOutput<edm4hep::MCParticle> m_timeslice_MCParticles_out {this, "ts_MCParticles"};
     // PodioOutput<edm4hep::EventHeader> m_timeslice_info_out {this, "ts_info"};
 
     std::vector<std::vector<edm4hep::MCParticle>> event_accumulator;
+    std::vector<std::vector<edm4hep::SimTrackerHit>> simhit_accumulator;
     size_t parent_idx    = 0;
     int    events_needed = 0;
 
@@ -57,17 +60,22 @@ struct MyTimesliceBuilder : public JEventUnfolder {
             std::cerr << "ERROR: particles_in collection not found! Returning empty collections." << std::endl;
 
             edm4hep::MCParticleCollection timeslice_particles_out;
+            edm4hep::SimTrackerHitCollection timeslice_simhits_out;
             edm4hep::EventHeaderCollection   timeslice_info_out;
 
             // child.InsertCollection<edm4hep::MCParticle>(std::move(timeslice_particles_out),m_config.tag + "ts_MCParticles");
             // child.InsertCollection<edm4hep::EventHeader>(std::move(timeslice_info_out),m_config.tag + "ts_info");
             child.InsertCollection<edm4hep::MCParticle>(std::move(timeslice_particles_out),"ts_MCParticles");
+            if (m_config.include_sim_tracker_hits) {
+                child.InsertCollection<edm4hep::SimTrackerHit>(std::move(timeslice_simhits_out),"ts_SimTrackerHits");
+            }
             child.InsertCollection<edm4hep::EventHeader>(std::move(timeslice_info_out),"ts_info");
             
             return Result::NextChildNextParent;
         }
 
         std::vector<edm4hep::MCParticle> particle_accumulator;
+        std::vector<edm4hep::SimTrackerHit> simhit_accumulator;
 
         std::cout << parent_idx << std::endl;
 
@@ -78,7 +86,20 @@ struct MyTimesliceBuilder : public JEventUnfolder {
             particle_accumulator.push_back(particle);
         }
 
+        // Accumulate SimTrackerHits if enabled
+        if (m_config.include_sim_tracker_hits) {
+            auto* simhits_in = m_event_SimTrackerHits_in();
+            if (simhits_in) {
+                for (const auto& hit : *simhits_in) {
+                    simhit_accumulator.push_back(hit);
+                }
+            }
+        }
+
         event_accumulator.push_back(particle_accumulator);
+        if (m_config.include_sim_tracker_hits) {
+            this->simhit_accumulator.push_back(simhit_accumulator);
+        }
 
         std::cout << "AcumulatedParticles " << particle_accumulator.size() << std::endl;
         parent_idx++;
@@ -95,6 +116,7 @@ struct MyTimesliceBuilder : public JEventUnfolder {
         parent_idx = 0;
 
         edm4hep::MCParticleCollection    timeslice_particles_out;
+        edm4hep::SimTrackerHitCollection timeslice_simhits_out;
         edm4hep::EventHeaderCollection   timeslice_info_out;
 
         // Now we have particles, build the timeslice
@@ -103,7 +125,9 @@ struct MyTimesliceBuilder : public JEventUnfolder {
         // child.SetParent(const_cast<JEvent*>(&parent));
         // std::cout << "Number of parents " << child.GetParentNumber(JEventLevel::PhysicsEvent) << std::endl;
 
-        for (const auto& event : event_accumulator) {
+        for (size_t event_idx = 0; event_idx < event_accumulator.size(); ++event_idx) {
+            const auto& event = event_accumulator[event_idx];
+            
             // Distribute the time of the accumulated particle randomly uniformly throughout the timeslice_duration
             float time_offset = uniform(gen);
             // If use_bunch_crossing is enabled, apply bunch crossing period
@@ -127,12 +151,24 @@ struct MyTimesliceBuilder : public JEventUnfolder {
                 }
             }
 
+            // Process MCParticles with time offset
             for (const auto& particle : event) {
                 auto new_time = particle.getTime() + time_offset;
                 auto new_particle = particle.clone();
                 new_particle.setTime(new_time);
                 new_particle.setGeneratorStatus(particle.getGeneratorStatus() + m_config.generator_status_offset);
                 timeslice_particles_out.push_back(new_particle);
+            }
+            
+            // Process SimTrackerHits with the same time offset
+            if (m_config.include_sim_tracker_hits && event_idx < simhit_accumulator.size()) {
+                const auto& simhits_event = simhit_accumulator[event_idx];
+                for (const auto& hit : simhits_event) {
+                    auto new_time = hit.getTime() + time_offset;
+                    auto new_hit = hit.clone();
+                    new_hit.setTime(new_time);
+                    timeslice_simhits_out.push_back(new_hit);
+                }
             }
         }
 
@@ -148,11 +184,17 @@ struct MyTimesliceBuilder : public JEventUnfolder {
         //     << LOG_END;
 
         child.InsertCollection<edm4hep::MCParticle>(std::move(timeslice_particles_out),"ts_MCParticles");
+        if (m_config.include_sim_tracker_hits) {
+            child.InsertCollection<edm4hep::SimTrackerHit>(std::move(timeslice_simhits_out),"ts_SimTrackerHits");
+        }
         child.InsertCollection<edm4hep::EventHeader>(std::move(timeslice_info_out),"ts_info");
         // child.InsertCollection<edm4hep::MCParticle>(std::move(timeslice_particles_out),m_config.tag + "ts_MCParticles");
         // child.InsertCollection<edm4hep::EventHeader>(std::move(timeslice_info_out),m_config.tag + "ts_info");
 
         event_accumulator.clear(); // Reset for next timeslice
+        if (m_config.include_sim_tracker_hits) {
+            simhit_accumulator.clear();
+        }
 
         // std::cout << "Number of parents " << child.GetParentNumber(JEventLevel::PhysicsEvent) << std::endl;
 

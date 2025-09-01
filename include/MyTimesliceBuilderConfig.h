@@ -20,4 +20,8 @@ struct MyTimesliceBuilderConfig {
     // New generator status offset
     int32_t  generator_status_offset{0};
 
+    // Additional collection types to include in timeframes
+    bool include_sim_tracker_hits{false};
+    bool include_reconstructed_particles{false};
+
 };
