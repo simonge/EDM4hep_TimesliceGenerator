@@ -1,6 +1,15 @@
 
 #pragma once
 
+#include <string>
+#include <cstddef>
+#include <cstdint>
+
+// Forward declaration to avoid JANA dependency in simple tests
+#ifndef JANA_JEVENTLEVEL_H
+enum class JEventLevel { PhysicsEvent };
+#endif
+
 struct MyTimesliceBuilderConfig {
     std::string tag{"det1"};
     JEventLevel parent_level{JEventLevel::PhysicsEvent};
@@ -21,7 +30,7 @@ struct MyTimesliceBuilderConfig {
     int32_t  generator_status_offset{0};
 
     // Additional collection types to include in timeframes
-    bool include_sim_tracker_hits{false};
-    bool include_reconstructed_particles{false};
+    bool include_sim_tracker_hits{false};        // Include edm4hep::SimTrackerHits in timeframes
+    bool include_reconstructed_particles{false}; // Include edm4eic::ReconstructedParticles and associations
 
 };

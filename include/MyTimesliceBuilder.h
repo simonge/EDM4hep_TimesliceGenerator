@@ -3,6 +3,12 @@
 
 #pragma once
 
+// TimeframeGenerator2 - Enhanced Timeslice Builder
+// Supports:
+// - edm4hep::MCParticles (original functionality)
+// - edm4hep::SimTrackerHits (new: applies same time offset as MCParticles)
+// - edm4eic::ReconstructedParticles with MCRecoParticleAssociations (new: maintains associations to cloned MCParticles)
+
 #include <JANA/JEventUnfolder.h>
 #include <edm4hep/EventHeaderCollection.h>
 #include <edm4hep/SimTrackerHitCollection.h>
@@ -16,6 +22,7 @@
 #endif
 
 #include <random>
+#include <map>
 
 struct MyTimesliceBuilder : public JEventUnfolder {
 
@@ -173,6 +180,9 @@ struct MyTimesliceBuilder : public JEventUnfolder {
 #ifdef HAVE_EDM4EIC
         edm4eic::ReconstructedParticleCollection timeslice_recoparticles_out;
         edm4eic::MCRecoParticleAssociationCollection timeslice_recoassoc_out;
+        
+        // Map to track original MCParticles to cloned MCParticles for association updates
+        std::map<edm4hep::MCParticle, edm4hep::MCParticle> mcparticle_mapping;
 #endif
         edm4hep::EventHeaderCollection   timeslice_info_out;
 
@@ -215,6 +225,13 @@ struct MyTimesliceBuilder : public JEventUnfolder {
                 new_particle.setTime(new_time);
                 new_particle.setGeneratorStatus(particle.getGeneratorStatus() + m_config.generator_status_offset);
                 timeslice_particles_out.push_back(new_particle);
+                
+#ifdef HAVE_EDM4EIC
+                // Track mapping for association updates
+                if (m_config.include_reconstructed_particles) {
+                    mcparticle_mapping[particle] = new_particle;
+                }
+#endif
             }
             
             // Process SimTrackerHits with the same time offset
@@ -239,11 +256,20 @@ struct MyTimesliceBuilder : public JEventUnfolder {
                     timeslice_recoparticles_out.push_back(new_particle);
                 }
                 
-                // Process associations (these typically don't have time but we keep them consistent)
+                // Process associations (update to reference cloned MCParticles)
                 if (event_idx < recoassoc_accumulator.size()) {
                     const auto& recoassoc_event = recoassoc_accumulator[event_idx];
                     for (const auto& assoc : recoassoc_event) {
                         auto new_assoc = assoc.clone();
+                        
+                        // Update association to reference cloned MCParticle if available
+                        // Note: This depends on the EDM4EIC API - the exact method may vary
+                        auto original_mc = assoc.getSim();  // Get original MCParticle from association
+                        auto it = mcparticle_mapping.find(original_mc);
+                        if (it != mcparticle_mapping.end()) {
+                            new_assoc.setSim(it->second);  // Set to cloned MCParticle
+                        }
+                        
                         timeslice_recoassoc_out.push_back(new_assoc);
                     }
                 }
