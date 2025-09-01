@@ -18,7 +18,7 @@ make install
 cd ..
 
 # Set environment variables
-export JANA_PLUGIN_PATH="$(pwd)/install/lib/EDM4HEPTimesliceExample/plugins/:$JANA_PLUGIN_PATH"
+export JANA_PLUGIN_PATH="$(pwd)/install/lib/TimesliceGenerator/plugins/:$JANA_PLUGIN_PATH"
 export LD_LIBRARY_PATH="$(pwd)/install/lib:$LD_LIBRARY_PATH"
 
 echo "2. Environment set:"
@@ -34,7 +34,14 @@ fi
 echo "4. Plugin built and ready!"
 echo ""
 echo "To run the plugin:"
-echo "   jana -Pplugins=EDM4HEPTimesliceExample -Pjana:nevents=10 events.root"
+echo "   jana -Pplugins=TimesliceCreator -Pjana:nevents=10 events.root"
 echo ""
 echo "To run with debug info:"
-echo "   jana -Pplugins=EDM4HEPTimesliceExample -Pjana:nevents=10 -Pjana:debug_plugin_loading=1 -Plog:global=info events.root"
+echo "   jana -Pplugins=TimesliceCreator -Pjana:nevents=10 -Pjana:debug_plugin_loading=1 -Plog:global=info events.root"
+echo ""
+echo "More up to date running"
+echo "   jana -Pplugins=TimesliceCreator -Pwriter:nevents=100 -Pwriter:write_event_frame=false -Pjana:debug_plugin_loading=1 -Pjana:loglevel=info det2.root"
+echo ""
+echo "Example with a real file from dtn-eic:"
+
+echo " jana -Pplugins=TimesliceCreator -Pwriter:nevents=100 -Pwriter:write_event_frame=false -Pjana:debug_plugin_loading=1 -Pjana:loglevel=info root://dtn-eic.jlab.org//volatile/eic/EPIC/RECO/25.04.1/epic_craterlake/DIS/CC/18x275/minQ2=100/pythia8CCDIS_18x275_minQ2=100_beamEffects_xAngle=-0.025_hiDiv_5.1953.eicrecon.edm4eic.root"

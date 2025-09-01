@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(EDM4HEPTimesliceExample VERSION 1.0.0)
+project(TimesliceGenerator VERSION 1.0.0)
 
 # Set C++ standard
 set(CMAKE_CXX_STANDARD 20)
@@ -8,7 +8,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # Find JANA
 find_package(JANA REQUIRED)
 
-# Find PODIO (required for EDM4HEPTimesliceExample)
+# Find PODIO (required for TimesliceGenerator)
 find_package(podio REQUIRED)
 
 # Find EDM4HEP
@@ -18,25 +18,43 @@ find_package(EDM4HEP REQUIRED)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
 
 # Create the plugin
-add_jana_plugin(EDM4HEPTimesliceExample
+add_jana_plugin(TimesliceCreator
     SOURCES
-        src/EDM4HEPTimesliceExample.cc
+        src/TimesliceCreator.cc
         src/CollectionTabulatorsEDM4HEP.cc
     PUBLIC_HEADER
         include/CollectionTabulatorsEDM4HEP.h
-        include/MyFileReaderEDM4HEP.h
-        include/MyFileReaderGeneratorEDM4HEP.h
-        include/MyFileWriterEDM4HEP.h
-        include/MyTimesliceBuilderEDM4HEP.h
-        include/SimTrackerHitCollector_factory.h
+        include/MyEventFileReader.h
+        include/MyEventFileReaderGenerator.h
+        include/MyTimesliceFileWriter.h
+        include/MyTimesliceBuilder.h
 )
 
+# Create the plugin
+# add_jana_plugin(TimesliceMerger
+#     SOURCES
+#         src/TimesliceMerger.cc
+#         src/CollectionTabulatorsEDM4HEP.cc
+#     PUBLIC_HEADER
+#         include/MyTimesliceFileReader.h
+#         include/MyTimesliceFileReaderGenerator.h
+#         include/MyFileWriterEDM4HEP.h
+#         include/SimTrackerHitCollector_factory.h
+# )
+
 # Link against PODIO and EDM4HEP
-target_link_libraries(EDM4HEPTimesliceExample PUBLIC 
+target_link_libraries(TimesliceCreator PUBLIC
     podio::podioRootIO
     EDM4HEP::edm4hep
     EDM4HEP::edm4hepDict
 )
+
+# Link against PODIO and EDM4HEP
+# target_link_libraries(TimesliceMerger PUBLIC
+#     podio::podioRootIO
+#     EDM4HEP::edm4hep
+#     EDM4HEP::edm4hepDict
+# )
 
 # Set install prefix if not specified
 if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
