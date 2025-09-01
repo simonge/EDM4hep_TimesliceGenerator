@@ -3,23 +3,52 @@
 
 #pragma once
 
+// TimeframeGenerator2 - Generic Timeslice Builder
+// Automatically processes any collections available in the event
+// Applies consistent time offsets across all collection types
+
 #include <JANA/JEventUnfolder.h>
 #include <edm4hep/EventHeaderCollection.h>
+#include <edm4hep/MCParticleCollection.h>
+#include <edm4hep/SimTrackerHitCollection.h>
+#include <edm4hep/VertexCollection.h>
 #include "CollectionTabulatorsEDM4HEP.h"
 #include "MyTimesliceBuilderConfig.h"
 
+// Conditional EDM4EIC support
+#ifdef HAVE_EDM4EIC
+#include <edm4eic/ReconstructedParticleCollection.h>
+#include <edm4eic/MCRecoParticleAssociationCollection.h>
+#endif
+
 #include <random>
+#include <map>
+#include <any>
+#include <typeindex>
 
 struct MyTimesliceBuilder : public JEventUnfolder {
 
+    // Generic collection storage - stores collections by name and type
+    struct CollectionData {
+        std::vector<std::any> accumulated_events;  // Each element is a vector of objects from one event
+        std::type_index type_index;
+        std::string collection_name;
+        
+        // Provide explicit constructors to avoid tuple construction issues
+        CollectionData(std::type_index ti, const std::string& name) 
+            : type_index(ti), collection_name(name) {}
+            
+        // Default constructor for map usage
+        CollectionData() : type_index(typeid(void)), collection_name("") {}
+    };
+    
+    std::map<std::string, CollectionData> m_collection_data;
+    
+    // MCParticles are special - we need them for time offset calculation
     PodioInput<edm4hep::MCParticle> m_event_MCParticles_in {this, {.name = "MCParticles", .is_optional = true}};
-    // PodioOutput<edm4hep::MCParticle> m_timeslice_MCParticles_out {this, "ts_MCParticles"};
-    // PodioOutput<edm4hep::EventHeader> m_timeslice_info_out {this, "ts_info"};
-
-    std::vector<std::vector<edm4hep::MCParticle>> event_accumulator;
-    size_t parent_idx    = 0;
-    int    events_needed = 0;
-
+    
+    size_t parent_idx = 0;
+    int events_needed = 0;
     MyTimesliceBuilderConfig m_config;
 
     // Random number generator members
@@ -28,6 +57,11 @@ struct MyTimesliceBuilder : public JEventUnfolder {
     std::uniform_real_distribution<float> uniform;
     std::poisson_distribution<> poisson;
     std::normal_distribution<> gaussian;
+    
+#ifdef HAVE_EDM4EIC
+    // Map to track original MCParticles to cloned MCParticles for association updates
+    std::map<edm4hep::MCParticle, edm4hep::MCParticle> mcparticle_mapping;
+#endif
 
     MyTimesliceBuilder(MyTimesliceBuilderConfig config)  
           : m_config(config), 
@@ -44,82 +78,194 @@ struct MyTimesliceBuilder : public JEventUnfolder {
         } else {
             events_needed = poisson(gen);
         }
-        // m_event_MCParticles_in.SetCollectionName(m_config.tag + "MCParticles");
-        // m_timeslice_MCParticles_out.SetCollectionName(m_config.tag + "ts_MCParticles");
-        // m_timeslice_info_out.SetCollectionName(m_config.tag + "ts_info");
+    }
+
+    template<typename T>
+    void RegisterCollectionType(const std::string& collection_name) {
+        if (m_collection_data.find(collection_name) == m_collection_data.end()) {
+            m_collection_data[collection_name] = CollectionData(std::type_index(typeid(T)), collection_name);
+        }
+    }
+    
+    template<typename T>
+    void AccumulateCollection(const std::string& collection_name, const JEvent& parent) {
+        auto* collection = parent.GetCollection<T>(collection_name, false); // Don't throw if missing
+        if (collection) {
+            RegisterCollectionType<T>(collection_name);
+            
+            std::vector<T> event_objects;
+            for (const auto& obj : *collection) {
+                event_objects.push_back(obj);
+            }
+            
+            m_collection_data[collection_name].accumulated_events.push_back(std::any(event_objects));
+        }
+    }
+    
+    template<typename T>
+    void ProcessAccumulatedCollection(const std::string& collection_name, JEvent& child, float time_offset, size_t event_idx) {
+        auto& coll_data = m_collection_data[collection_name];
+        if (event_idx < coll_data.accumulated_events.size()) {
+            auto& event_objects = std::any_cast<std::vector<T>&>(coll_data.accumulated_events[event_idx]);
+            
+            if constexpr (std::is_same_v<T, edm4hep::MCParticle>) {
+                auto timeslice_collection = edm4hep::MCParticleCollection();
+                for (const auto& obj : event_objects) {
+                    auto new_time = obj.getTime() + time_offset;
+                    auto new_obj = obj.clone();
+                    new_obj.setTime(new_time);
+                    new_obj.setGeneratorStatus(obj.getGeneratorStatus() + m_config.generator_status_offset);
+                    timeslice_collection.push_back(new_obj);
+                    
+#ifdef HAVE_EDM4EIC
+                    // Track mapping for association updates
+                    mcparticle_mapping[obj] = new_obj;
+#endif
+                }
+                child.InsertCollection<edm4hep::MCParticle>(std::move(timeslice_collection), "ts_" + collection_name);
+            }
+            else if constexpr (std::is_same_v<T, edm4hep::SimTrackerHit>) {
+                auto timeslice_collection = edm4hep::SimTrackerHitCollection();
+                for (const auto& obj : event_objects) {
+                    auto new_time = obj.getTime() + time_offset;
+                    auto new_obj = obj.clone();
+                    new_obj.setTime(new_time);
+                    
+                    // Update MCParticle association if available
+                    auto original_mc = obj.getMCParticle();
+                    if (original_mc.isAvailable()) {
+#ifdef HAVE_EDM4EIC
+                        auto it = mcparticle_mapping.find(original_mc);
+                        if (it != mcparticle_mapping.end()) {
+                            new_obj.setMCParticle(it->second);
+                        }
+#endif
+                    }
+                    
+                    timeslice_collection.push_back(new_obj);
+                }
+                child.InsertCollection<edm4hep::SimTrackerHit>(std::move(timeslice_collection), "ts_" + collection_name);
+            }
+            else if constexpr (std::is_same_v<T, edm4hep::Vertex>) {
+                auto timeslice_collection = edm4hep::VertexCollection();
+                for (const auto& obj : event_objects) {
+                    auto new_time = obj.getTime() + time_offset;
+                    auto new_obj = obj.clone();
+                    new_obj.setTime(new_time);
+                    timeslice_collection.push_back(new_obj);
+                }
+                child.InsertCollection<edm4hep::Vertex>(std::move(timeslice_collection), "ts_" + collection_name);
+            }
+#ifdef HAVE_EDM4EIC
+            else if constexpr (std::is_same_v<T, edm4eic::ReconstructedParticle>) {
+                auto timeslice_collection = edm4eic::ReconstructedParticleCollection();
+                for (const auto& obj : event_objects) {
+                    auto new_time = obj.getTime() + time_offset;
+                    auto new_obj = obj.clone();
+                    new_obj.setTime(new_time);
+                    timeslice_collection.push_back(new_obj);
+                }
+                child.InsertCollection<edm4eic::ReconstructedParticle>(std::move(timeslice_collection), "ts_" + collection_name);
+            }
+            else if constexpr (std::is_same_v<T, edm4eic::MCRecoParticleAssociation>) {
+                auto timeslice_collection = edm4eic::MCRecoParticleAssociationCollection();
+                for (const auto& obj : event_objects) {
+                    auto new_obj = obj.clone();
+                    
+                    // Update association to reference cloned MCParticle if available
+                    auto original_mc = obj.getSim();
+                    auto it = mcparticle_mapping.find(original_mc);
+                    if (it != mcparticle_mapping.end()) {
+                        new_obj.setSim(it->second);
+                    }
+                    
+                    timeslice_collection.push_back(new_obj);
+                }
+                child.InsertCollection<edm4eic::MCRecoParticleAssociation>(std::move(timeslice_collection), "ts_" + collection_name);
+            }
+#endif
+        }
     }
 
     Result Unfold(const JEvent& parent, JEvent& child, int child_idx) override {
 
-        // Accumulate particles from each parent event
+        // Always try to get MCParticles for time offset calculation
         auto* particles_in = m_event_MCParticles_in();
         if (!particles_in) {
-            std::cerr << "ERROR: particles_in collection not found! Returning empty collections." << std::endl;
-
+            std::cerr << "ERROR: MCParticles collection not found! Returning empty collections." << std::endl;
+            
+            // Create empty output collections
             edm4hep::MCParticleCollection timeslice_particles_out;
-            edm4hep::EventHeaderCollection   timeslice_info_out;
-
-            // child.InsertCollection<edm4hep::MCParticle>(std::move(timeslice_particles_out),m_config.tag + "ts_MCParticles");
-            // child.InsertCollection<edm4hep::EventHeader>(std::move(timeslice_info_out),m_config.tag + "ts_info");
-            child.InsertCollection<edm4hep::MCParticle>(std::move(timeslice_particles_out),"ts_MCParticles");
-            child.InsertCollection<edm4hep::EventHeader>(std::move(timeslice_info_out),"ts_info");
+            edm4hep::EventHeaderCollection timeslice_info_out;
+            
+            child.InsertCollection<edm4hep::MCParticle>(std::move(timeslice_particles_out), "ts_MCParticles");
+            child.InsertCollection<edm4hep::EventHeader>(std::move(timeslice_info_out), "ts_info");
             
             return Result::NextChildNextParent;
         }
 
-        std::vector<edm4hep::MCParticle> particle_accumulator;
+        // Accumulate MCParticles - always needed for time offset calculation
+        AccumulateCollection<edm4hep::MCParticle>("MCParticles", parent);
+        
+        // Accumulate configured collections
+        for (const auto& coll_name : m_config.sim_tracker_hit_collections) {
+            AccumulateCollection<edm4hep::SimTrackerHit>(coll_name, parent);
+        }
+        
+        for (const auto& coll_name : m_config.vertex_collections) {
+            AccumulateCollection<edm4hep::Vertex>(coll_name, parent);
+        }
+        
+#ifdef HAVE_EDM4EIC
+        for (const auto& coll_name : m_config.reconstructed_particle_collections) {
+            AccumulateCollection<edm4eic::ReconstructedParticle>(coll_name, parent);
+        }
+        
+        // Also accumulate MCRecoParticleAssociations if available
+        AccumulateCollection<edm4eic::MCRecoParticleAssociation>("MCRecoParticleAssociations", parent);
+#endif
 
         std::cout << parent_idx << std::endl;
-
-        for (const auto& particle : *particles_in) {
-            LOG_DEBUG(GetLogger()) << "NParticles: " << particle_accumulator.size()
-                << "\nCurrent particles:\n"
-                << LOG_END;
-            particle_accumulator.push_back(particle);
-        }
-
-        event_accumulator.push_back(particle_accumulator);
-
-        std::cout << "AcumulatedParticles " << particle_accumulator.size() << std::endl;
         parent_idx++;
 
-        if (event_accumulator.size() < events_needed) {
-            // Not enough particles yet, keep accumulating
+        if (m_collection_data["MCParticles"].accumulated_events.size() < events_needed) {
             std::cout << "Not enough particles yet, keep accumulating (need " << events_needed << ", have " << parent_idx << ")" << std::endl;
-            
             return Result::KeepChildNextParent;
         } else if (!m_config.static_number_of_hits) {
             events_needed = poisson(gen);
-        } //TODO - Gracefully handle events_needed == 0 using Result::KeepChildNextParent
+        }
 
         parent_idx = 0;
 
-        edm4hep::MCParticleCollection    timeslice_particles_out;
-        edm4hep::EventHeaderCollection   timeslice_info_out;
+#ifdef HAVE_EDM4EIC
+        mcparticle_mapping.clear();
+#endif
 
-        // Now we have particles, build the timeslice
-        auto timeslice_nr = child_idx;//1000+parent.GetEventNumber() / 3;
+        // Build the timeslice
+        auto timeslice_nr = child_idx;
         child.SetEventNumber(timeslice_nr);
-        // child.SetParent(const_cast<JEvent*>(&parent));
-        // std::cout << "Number of parents " << child.GetParentNumber(JEventLevel::PhysicsEvent) << std::endl;
 
-        for (const auto& event : event_accumulator) {
-            // Distribute the time of the accumulated particle randomly uniformly throughout the timeslice_duration
+        size_t num_events = m_collection_data["MCParticles"].accumulated_events.size();
+        
+        for (size_t event_idx = 0; event_idx < num_events; ++event_idx) {
+            // Calculate time offset (based on MCParticles logic)
             float time_offset = uniform(gen);
-            // If use_bunch_crossing is enabled, apply bunch crossing period
+            
             if (m_config.use_bunch_crossing) {
                 time_offset = std::floor(time_offset / m_config.bunch_crossing_period) * m_config.bunch_crossing_period;
             }
-            // If attach_to_beam is enabled, apply Gaussian smearing and position based time offset
-            // TODO Make this more accurate and configurable.
+            
             if (m_config.attach_to_beam) {
                 time_offset += gaussian(gen);
-                // Find vertex of first particle with generator status of 1
-                auto first_particle = std::find_if(event.begin(), event.end(), [](const auto& p) {
-                    return p.getGeneratorStatus() == 1;
-                });
-                if (first_particle != event.end()) {
-                    // Calculate time offset based on distance to 0,0,0 and speed
+                
+                // Get MCParticles for this event to find vertex
+                auto& mcparticles_event = std::any_cast<std::vector<edm4hep::MCParticle>&>(
+                    m_collection_data["MCParticles"].accumulated_events[event_idx]);
+                    
+                auto first_particle = std::find_if(mcparticles_event.begin(), mcparticles_event.end(), 
+                    [](const auto& p) { return p.getGeneratorStatus() == 1; });
+                    
+                if (first_particle != mcparticles_event.end()) {
                     float distance = std::sqrt(std::pow(first_particle->getVertex().x, 2) +
                                                 std::pow(first_particle->getVertex().y, 2) +
                                                 std::pow(first_particle->getVertex().z, 2));
@@ -127,38 +273,43 @@ struct MyTimesliceBuilder : public JEventUnfolder {
                 }
             }
 
-            for (const auto& particle : event) {
-                auto new_time = particle.getTime() + time_offset;
-                auto new_particle = particle.clone();
-                new_particle.setTime(new_time);
-                new_particle.setGeneratorStatus(particle.getGeneratorStatus() + m_config.generator_status_offset);
-                timeslice_particles_out.push_back(new_particle);
+            // Process all accumulated collections with the same time offset
+            for (auto& [coll_name, coll_data] : m_collection_data) {
+                if (coll_data.type_index == std::type_index(typeid(edm4hep::MCParticle))) {
+                    ProcessAccumulatedCollection<edm4hep::MCParticle>(coll_name, child, time_offset, event_idx);
+                }
+                else if (coll_data.type_index == std::type_index(typeid(edm4hep::SimTrackerHit))) {
+                    ProcessAccumulatedCollection<edm4hep::SimTrackerHit>(coll_name, child, time_offset, event_idx);
+                }
+                else if (coll_data.type_index == std::type_index(typeid(edm4hep::Vertex))) {
+                    ProcessAccumulatedCollection<edm4hep::Vertex>(coll_name, child, time_offset, event_idx);
+                }
+#ifdef HAVE_EDM4EIC
+                else if (coll_data.type_index == std::type_index(typeid(edm4eic::ReconstructedParticle))) {
+                    ProcessAccumulatedCollection<edm4eic::ReconstructedParticle>(coll_name, child, time_offset, event_idx);
+                }
+                else if (coll_data.type_index == std::type_index(typeid(edm4eic::MCRecoParticleAssociation))) {
+                    ProcessAccumulatedCollection<edm4eic::MCRecoParticleAssociation>(coll_name, child, time_offset, event_idx);
+                }
+#endif
             }
         }
 
+        // Create timeslice info
         auto header = edm4hep::MutableEventHeader();
         header.setEventNumber(timeslice_nr);
         header.setRunNumber(0);
         header.setTimeStamp(timeslice_nr);
+        
+        edm4hep::EventHeaderCollection timeslice_info_out;
         timeslice_info_out.push_back(header);
+        child.InsertCollection<edm4hep::EventHeader>(std::move(timeslice_info_out), "ts_info");
 
-        // LOG_DEBUG(GetLogger()) << "MyTimesliceBuilder: Built timeslice " << timeslice_nr
-        //     << "\nTimeslice particles out:\n"
-        //     << TabulateParticlesEDM4HEP(&timeslice_particles_out)
-        //     << LOG_END;
-
-        child.InsertCollection<edm4hep::MCParticle>(std::move(timeslice_particles_out),"ts_MCParticles");
-        child.InsertCollection<edm4hep::EventHeader>(std::move(timeslice_info_out),"ts_info");
-        // child.InsertCollection<edm4hep::MCParticle>(std::move(timeslice_particles_out),m_config.tag + "ts_MCParticles");
-        // child.InsertCollection<edm4hep::EventHeader>(std::move(timeslice_info_out),m_config.tag + "ts_info");
-
-        event_accumulator.clear(); // Reset for next timeslice
-
-        // std::cout << "Number of parents " << child.GetParentNumber(JEventLevel::PhysicsEvent) << std::endl;
+        // Clear accumulators for next timeslice
+        for (auto& [coll_name, coll_data] : m_collection_data) {
+            coll_data.accumulated_events.clear();
+        }
 
         return Result::NextChildNextParent;
     }
 };
-
-
-
