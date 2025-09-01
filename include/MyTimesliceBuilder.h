@@ -115,15 +115,15 @@ struct MyTimesliceBuilder : public JEventUnfolder {
             if (m_config.attach_to_beam) {
                 time_offset += gaussian(gen);
                 // Find vertex of first particle with generator status of 1
-                const auto* first_particle = std::find_if(event.begin(), event.end(), [](const auto& p) {
+                auto first_particle = std::find_if(event.begin(), event.end(), [](const auto& p) {
                     return p.getGeneratorStatus() == 1;
                 });
                 if (first_particle != event.end()) {
                     // Calculate time offset based on distance to 0,0,0 and speed
-                    float distance = std::sqrt(std::pow(first_particle->getX(), 2) +
-                                                std::pow(first_particle->getY(), 2) +
-                                                std::pow(first_particle->getZ(), 2));
-                    time_offset += distance / m_config.beam_speed;                
+                    float distance = std::sqrt(std::pow(first_particle->getVertex().x, 2) +
+                                                std::pow(first_particle->getVertex().y, 2) +
+                                                std::pow(first_particle->getVertex().z, 2));
+                    time_offset += distance / m_config.beam_speed;
                 }
             }
 

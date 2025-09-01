@@ -33,11 +33,8 @@ struct MyEventFileReader : public JEventSource {
     }
 
     Result Emit(JEvent& event) override {
-        // if (m_event_counter >= m_total_events) {
-        //     return Result::Finished;
-        // }    
 
-        auto frame_data = m_reader.readNextEntry("events");//, m_collections_to_read);
+        auto frame_data = m_reader.readNextEntry("events");//, m_collections_to_read); // TODO update with newer podio version
         auto frame      = std::make_unique<podio::Frame>(std::move(frame_data));
         
 
