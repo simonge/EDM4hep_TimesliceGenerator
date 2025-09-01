@@ -11,6 +11,7 @@
 #include <edm4hep/EventHeaderCollection.h>
 #include <edm4hep/MCParticleCollection.h>
 #include <edm4hep/SimTrackerHitCollection.h>
+#include <edm4hep/VertexCollection.h>
 #include "CollectionTabulatorsEDM4HEP.h"
 #include "MyTimesliceBuilderConfig.h"
 
@@ -33,8 +34,12 @@ struct MyTimesliceBuilder : public JEventUnfolder {
         std::type_index type_index;
         std::string collection_name;
         
+        // Provide explicit constructors to avoid tuple construction issues
         CollectionData(std::type_index ti, const std::string& name) 
             : type_index(ti), collection_name(name) {}
+            
+        // Default constructor for map usage
+        CollectionData() : type_index(typeid(void)), collection_name("") {}
     };
     
     std::map<std::string, CollectionData> m_collection_data;
@@ -78,7 +83,7 @@ struct MyTimesliceBuilder : public JEventUnfolder {
     template<typename T>
     void RegisterCollectionType(const std::string& collection_name) {
         if (m_collection_data.find(collection_name) == m_collection_data.end()) {
-            m_collection_data.emplace(collection_name, CollectionData(std::type_index(typeid(T)), collection_name));
+            m_collection_data[collection_name] = CollectionData(std::type_index(typeid(T)), collection_name);
         }
     }
     
@@ -125,9 +130,31 @@ struct MyTimesliceBuilder : public JEventUnfolder {
                     auto new_time = obj.getTime() + time_offset;
                     auto new_obj = obj.clone();
                     new_obj.setTime(new_time);
+                    
+                    // Update MCParticle association if available
+                    auto original_mc = obj.getMCParticle();
+                    if (original_mc.isAvailable()) {
+#ifdef HAVE_EDM4EIC
+                        auto it = mcparticle_mapping.find(original_mc);
+                        if (it != mcparticle_mapping.end()) {
+                            new_obj.setMCParticle(it->second);
+                        }
+#endif
+                    }
+                    
                     timeslice_collection.push_back(new_obj);
                 }
                 child.InsertCollection<edm4hep::SimTrackerHit>(std::move(timeslice_collection), "ts_" + collection_name);
+            }
+            else if constexpr (std::is_same_v<T, edm4hep::Vertex>) {
+                auto timeslice_collection = edm4hep::VertexCollection();
+                for (const auto& obj : event_objects) {
+                    auto new_time = obj.getTime() + time_offset;
+                    auto new_obj = obj.clone();
+                    new_obj.setTime(new_time);
+                    timeslice_collection.push_back(new_obj);
+                }
+                child.InsertCollection<edm4hep::Vertex>(std::move(timeslice_collection), "ts_" + collection_name);
             }
 #ifdef HAVE_EDM4EIC
             else if constexpr (std::is_same_v<T, edm4eic::ReconstructedParticle>) {
@@ -177,14 +204,24 @@ struct MyTimesliceBuilder : public JEventUnfolder {
             return Result::NextChildNextParent;
         }
 
-        // Accumulate MCParticles
+        // Accumulate MCParticles - always needed for time offset calculation
         AccumulateCollection<edm4hep::MCParticle>("MCParticles", parent);
         
-        // Try to accumulate known collection types
-        AccumulateCollection<edm4hep::SimTrackerHit>("SimTrackerHits", parent);
+        // Accumulate configured collections
+        for (const auto& coll_name : m_config.sim_tracker_hit_collections) {
+            AccumulateCollection<edm4hep::SimTrackerHit>(coll_name, parent);
+        }
+        
+        for (const auto& coll_name : m_config.vertex_collections) {
+            AccumulateCollection<edm4hep::Vertex>(coll_name, parent);
+        }
         
 #ifdef HAVE_EDM4EIC
-        AccumulateCollection<edm4eic::ReconstructedParticle>("ReconstructedParticles", parent);
+        for (const auto& coll_name : m_config.reconstructed_particle_collections) {
+            AccumulateCollection<edm4eic::ReconstructedParticle>(coll_name, parent);
+        }
+        
+        // Also accumulate MCRecoParticleAssociations if available
         AccumulateCollection<edm4eic::MCRecoParticleAssociation>("MCRecoParticleAssociations", parent);
 #endif
 
@@ -243,6 +280,9 @@ struct MyTimesliceBuilder : public JEventUnfolder {
                 }
                 else if (coll_data.type_index == std::type_index(typeid(edm4hep::SimTrackerHit))) {
                     ProcessAccumulatedCollection<edm4hep::SimTrackerHit>(coll_name, child, time_offset, event_idx);
+                }
+                else if (coll_data.type_index == std::type_index(typeid(edm4hep::Vertex))) {
+                    ProcessAccumulatedCollection<edm4hep::Vertex>(coll_name, child, time_offset, event_idx);
                 }
 #ifdef HAVE_EDM4EIC
                 else if (coll_data.type_index == std::type_index(typeid(edm4eic::ReconstructedParticle))) {

@@ -43,7 +43,14 @@ void InitPlugin(JApplication *app) {
     config2.static_number_of_hits = true;
     config2.mean_hit_frequency = 0.1f; // Hz
     config2.bunch_crossing_period = 10.0f; // ns
-    config2.use_bunch_crossing = true;    
+    config2.use_bunch_crossing = true;
+    
+    // Configure collections to match what the file reader provides
+    // This should match the configuration in MyEventFileReaderGenerator
+    config2.sim_tracker_hit_collections = {"SimTrackerHits"};
+    config2.reconstructed_particle_collections = {"ReconstructedParticles"};
+    config2.vertex_collections = {"Vertices", "ReconstructedVertices", "PrimaryVertices"};
+    
     app->Add(new MyTimesliceBuilder(config2));
 
     // Collection Collector for the output...

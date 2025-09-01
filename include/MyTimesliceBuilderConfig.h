@@ -2,6 +2,7 @@
 #pragma once
 
 #include <string>
+#include <vector>
 #include <cstddef>
 #include <cstdint>
 
@@ -28,5 +29,10 @@ struct MyTimesliceBuilderConfig {
 
     // New generator status offset
     int32_t  generator_status_offset{0};
+
+    // Collection configuration - lists of collections to accumulate
+    std::vector<std::string> sim_tracker_hit_collections;
+    std::vector<std::string> reconstructed_particle_collections;
+    std::vector<std::string> vertex_collections;  // For timing information
 
 };

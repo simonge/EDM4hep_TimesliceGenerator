@@ -5,6 +5,7 @@
 #include <edm4hep/EventHeaderCollection.h>
 #include <edm4hep/MCParticleCollection.h>
 #include <edm4hep/SimTrackerHitCollection.h>
+#include <edm4hep/VertexCollection.h>
 #include <podio/ROOTReader.h>
 #include <iostream>
 #include <random>
@@ -31,6 +32,7 @@ struct MyEventFileReader : public JEventSource {
     // Collection lists for timeframe generation
     std::vector<std::string> m_sim_tracker_hit_collections;
     std::vector<std::string> m_reconstructed_particle_collections;
+    std::vector<std::string> m_vertex_collections;
 
     MyEventFileReader(const std::string& filename) : m_filename(filename) {
         SetTypeName(NAME_OF_THIS);
@@ -72,10 +74,31 @@ struct MyEventFileReader : public JEventSource {
         if (std::find(m_collections_to_read.begin(), m_collections_to_read.end(), assoc_name) == m_collections_to_read.end()) {
             m_collections_to_read.push_back(assoc_name);
         }
+        
+        // Auto-add vertex collections as they contain timing information
+        // Common vertex collection names in EDM4HEP/EDM4EIC
+        std::vector<std::string> vertex_collection_names = {"Vertices", "ReconstructedVertices", "PrimaryVertices"};
+        for (const auto& vertex_coll : vertex_collection_names) {
+            if (std::find(m_collections_to_read.begin(), m_collections_to_read.end(), vertex_coll) == m_collections_to_read.end()) {
+                m_collections_to_read.push_back(vertex_coll);
+                m_vertex_collections.push_back(vertex_coll);
+            }
+        }
+    }
+    
+    void SetVertexCollections(const std::vector<std::string>& collections) {
+        m_vertex_collections = collections;
+        // Add these collections to the read list
+        for (const auto& coll : collections) {
+            if (std::find(m_collections_to_read.begin(), m_collections_to_read.end(), coll) == m_collections_to_read.end()) {
+                m_collections_to_read.push_back(coll);
+            }
+        }
     }
     
     const std::vector<std::string>& GetSimTrackerHitCollections() const { return m_sim_tracker_hit_collections; }
     const std::vector<std::string>& GetReconstructedParticleCollections() const { return m_reconstructed_particle_collections; }
+    const std::vector<std::string>& GetVertexCollections() const { return m_vertex_collections; }
 
     void Open() override { /* Already opened in constructor */ }
     void Close() override { 
@@ -109,6 +132,9 @@ struct MyEventFileReader : public JEventSource {
             }
             else if(coll_type == "edm4hep::SimTrackerHit") {
                 event.InsertCollectionAlreadyInFrame<edm4hep::SimTrackerHit>(coll, coll_name);
+            }
+            else if(coll_type == "edm4hep::Vertex") {
+                event.InsertCollectionAlreadyInFrame<edm4hep::Vertex>(coll, coll_name);
             }
 #ifdef HAVE_EDM4EIC
             else if(coll_type == "edm4eic::ReconstructedParticle") {
