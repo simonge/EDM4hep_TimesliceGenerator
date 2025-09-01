@@ -1,19 +1,27 @@
 # TimeframeGenerator2 Enhanced Features
 
+# TimeframeGenerator2 Enhanced Features
+
 This enhanced version of TimeframeGenerator2 now supports additional EDM4HEP and EDM4EIC collection types beyond the original MCParticles.
 
-## New Configuration Options
+## New Architecture
 
-Add the following options to your `MyTimesliceBuilderConfig`:
+The configuration has been moved to the file reader level for better separation of concerns:
+
+- **MyEventFileReader**: Specifies which collections to read from input files
+- **MyTimesliceBuilder**: Generic processor that handles any collection types found in events
+
+## Configuration
+
+Configure which collections to include via the file reader:
 
 ```cpp
-MyTimesliceBuilderConfig config;
+// In MyEventFileReaderGenerator or during setup:
+std::vector<std::string> sim_tracker_hit_collections = {"SimTrackerHits", "OtherHits"};
+std::vector<std::string> reconstructed_particle_collections = {"ReconstructedParticles"};
 
-// Enable SimTrackerHits (edm4hep)
-config.include_sim_tracker_hits = true;
-
-// Enable ReconstructedParticles with associations (edm4eic) 
-config.include_reconstructed_particles = true;
+source->SetSimTrackerHitCollections(sim_tracker_hit_collections);
+source->SetReconstructedParticleCollections(reconstructed_particle_collections);
 ```
 
 ## Supported Collection Types
@@ -34,6 +42,8 @@ config.include_reconstructed_particles = true;
 
 3. **Conditional EDM4EIC Support**: The code automatically detects if EDM4EIC is available and enables/disables features accordingly.
 
+4. **Generic Processing**: The TimesliceBuilder automatically processes any collections specified in the file reader configuration.
+
 ## Build Requirements
 
 - EDM4HEP (required)
@@ -47,14 +57,12 @@ config.include_reconstructed_particles = true;
 #include "MyTimesliceBuilder.h"
 #include "MyTimesliceBuilderConfig.h"
 
-// Configure the builder
+// Configure the builder - now collection-agnostic
 MyTimesliceBuilderConfig config;
-config.include_sim_tracker_hits = true;
-config.include_reconstructed_particles = true;
 config.time_slice_duration = 20.0f;
 
-// Create and use the builder
+// Create the builder - collection selection happens at file reader level
 MyTimesliceBuilder builder(config);
 ```
 
-The timeframe output will contain all enabled collection types with consistent timing and maintained associations.
+The timeframe output will contain all collections configured in the file reader with consistent timing and maintained associations.
