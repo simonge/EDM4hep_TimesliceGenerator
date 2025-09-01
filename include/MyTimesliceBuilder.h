@@ -5,10 +5,22 @@
 
 #include <JANA/JEventUnfolder.h>
 #include <edm4hep/EventHeaderCollection.h>
+#include <edm4hep/MCParticleCollection.h>
+#include <edm4hep/SimTrackerHitCollection.h>
+#include <edm4hep/SimCalorimeterHitCollection.h>
+#include <edm4hep/CaloHitContributionCollection.h>
 #include "CollectionTabulatorsEDM4HEP.h"
 #include "MyTimesliceBuilderConfig.h"
 
 #include <random>
+
+struct event{
+    const edm4hep::MCParticleCollection* particles = nullptr;
+    std::map<std::string, const edm4hep::SimTrackerHitCollection*> trackerHits;
+    std::map<std::string, const edm4hep::SimCalorimeterHitCollection*> calorimeterHits;
+    std::map<std::string, const edm4hep::CaloHitContributionCollection*> caloContributions;
+
+};
 
 struct MyTimesliceBuilder : public JEventUnfolder {
 
@@ -16,7 +28,11 @@ struct MyTimesliceBuilder : public JEventUnfolder {
     // PodioOutput<edm4hep::MCParticle> m_timeslice_MCParticles_out {this, "ts_MCParticles"};
     // PodioOutput<edm4hep::EventHeader> m_timeslice_info_out {this, "ts_info"};
 
-    std::vector<std::vector<edm4hep::MCParticle>> event_accumulator;
+    std::vector<event> event_accumulator;
+    bool try_accumulating_hits_setup = true;
+    std::vector<std::string> tracker_hit_collection_names;
+    std::vector<std::string> calorimeter_hit_collection_names;
+
     size_t parent_idx    = 0;
     int    events_needed = 0;
 
@@ -44,9 +60,6 @@ struct MyTimesliceBuilder : public JEventUnfolder {
         } else {
             events_needed = poisson(gen);
         }
-        // m_event_MCParticles_in.SetCollectionName(m_config.tag + "MCParticles");
-        // m_timeslice_MCParticles_out.SetCollectionName(m_config.tag + "ts_MCParticles");
-        // m_timeslice_info_out.SetCollectionName(m_config.tag + "ts_info");
     }
 
     Result Unfold(const JEvent& parent, JEvent& child, int child_idx) override {
@@ -59,26 +72,54 @@ struct MyTimesliceBuilder : public JEventUnfolder {
             edm4hep::MCParticleCollection timeslice_particles_out;
             edm4hep::EventHeaderCollection   timeslice_info_out;
 
-            // child.InsertCollection<edm4hep::MCParticle>(std::move(timeslice_particles_out),m_config.tag + "ts_MCParticles");
-            // child.InsertCollection<edm4hep::EventHeader>(std::move(timeslice_info_out),m_config.tag + "ts_info");
             child.InsertCollection<edm4hep::MCParticle>(std::move(timeslice_particles_out),"ts_MCParticles");
             child.InsertCollection<edm4hep::EventHeader>(std::move(timeslice_info_out),"ts_info");
             
             return Result::NextChildNextParent;
         }
 
+        // Loop over all collections in the jana event checking if they are edm4hep::SimTrackerHit types
+        if (try_accumulating_hits_setup) {
+            for (const auto& coll_name : parent.GetAllCollectionNames()) {
+                const podio::CollectionBase* coll = parent.GetCollectionBase(coll_name);
+                const auto& coll_type = coll->getValueTypeName();
+
+                if (coll_type == "edm4hep::SimTrackerHit") {
+                    tracker_hit_collection_names.push_back(coll_name);
+                }
+                if (coll_type == "edm4hep::SimCalorimeterHit") {
+                    calorimeter_hit_collection_names.push_back(coll_name);
+                }
+
+            }
+            try_accumulating_hits_setup = false; // Only do this once
+        }
+
         std::vector<edm4hep::MCParticle> particle_accumulator;
 
         std::cout << parent_idx << std::endl;
 
-        for (const auto& particle : *particles_in) {
-            LOG_DEBUG(GetLogger()) << "NParticles: " << particle_accumulator.size()
-                << "\nCurrent particles:\n"
-                << LOG_END;
-            particle_accumulator.push_back(particle);
+        event evt;
+        // Store pointer to MCParticle collection (const)
+        evt.particles = particles_in;
+
+        // Store pointers to SimTrackerHit collections (const)
+        for (const auto& hit_collection_name : tracker_hit_collection_names) {
+            const auto& hit_collection = parent.GetCollection<edm4hep::SimTrackerHit>(hit_collection_name);
+            evt.trackerHits[hit_collection_name] = hit_collection;
         }
 
-        event_accumulator.push_back(particle_accumulator);
+        // Store pointers to SimCalorimeterHit collections (const)
+        for (const auto& hit_collection_name : calorimeter_hit_collection_names) {
+            const auto& hit_collection = parent.GetCollection<edm4hep::SimCalorimeterHit>(hit_collection_name);
+            evt.calorimeterHits[hit_collection_name] = hit_collection;
+            std::string hit_contribution_name = hit_collection_name + "Contributions";
+            const auto& hit_contribution = parent.GetCollection<edm4hep::CaloHitContribution>(hit_contribution_name);
+            evt.caloContributions[hit_collection_name] = hit_contribution;
+        }
+
+        // Add to accumulator
+        event_accumulator.push_back(std::move(evt));
 
         std::cout << "AcumulatedParticles " << particle_accumulator.size() << std::endl;
         parent_idx++;
@@ -96,12 +137,20 @@ struct MyTimesliceBuilder : public JEventUnfolder {
 
         edm4hep::MCParticleCollection    timeslice_particles_out;
         edm4hep::EventHeaderCollection   timeslice_info_out;
+        std::map<std::string, edm4hep::SimTrackerHitCollection> timeslice_tracker_hits_out;
+        for (const auto& name : tracker_hit_collection_names) {
+            timeslice_tracker_hits_out[name] = edm4hep::SimTrackerHitCollection();
+        }
+        std::map<std::string, edm4hep::SimCalorimeterHitCollection> timeslice_calorimeter_hits_out;
+        std::map<std::string, edm4hep::CaloHitContributionCollection> timeslice_calo_contributions_out;
+        for (const auto& name : calorimeter_hit_collection_names) {
+            timeslice_calorimeter_hits_out[name] = edm4hep::SimCalorimeterHitCollection();
+            timeslice_calo_contributions_out[name] = edm4hep::CaloHitContributionCollection();
+        }
 
         // Now we have particles, build the timeslice
         auto timeslice_nr = child_idx;//1000+parent.GetEventNumber() / 3;
         child.SetEventNumber(timeslice_nr);
-        // child.SetParent(const_cast<JEvent*>(&parent));
-        // std::cout << "Number of parents " << child.GetParentNumber(JEventLevel::PhysicsEvent) << std::endl;
 
         for (const auto& event : event_accumulator) {
             // Distribute the time of the accumulated particle randomly uniformly throughout the timeslice_duration
@@ -115,10 +164,10 @@ struct MyTimesliceBuilder : public JEventUnfolder {
             if (m_config.attach_to_beam) {
                 time_offset += gaussian(gen);
                 // Find vertex of first particle with generator status of 1
-                auto first_particle = std::find_if(event.begin(), event.end(), [](const auto& p) {
+                auto first_particle = std::find_if(event.particles->begin(), event.particles->end(), [](const auto& p) {
                     return p.getGeneratorStatus() == 1;
                 });
-                if (first_particle != event.end()) {
+                if (first_particle != event.particles->end()) {
                     // Calculate time offset based on distance to 0,0,0 and speed
                     float distance = std::sqrt(std::pow(first_particle->getVertex().x, 2) +
                                                 std::pow(first_particle->getVertex().y, 2) +
@@ -127,13 +176,57 @@ struct MyTimesliceBuilder : public JEventUnfolder {
                 }
             }
 
-            for (const auto& particle : event) {
+            std::map<edm4hep::MCParticle, edm4hep::MCParticle> new_old_particle_map;
+
+            // Create new MCParticles
+            for (const auto& particle : *(event.particles)) {
                 auto new_time = particle.getTime() + time_offset;
                 auto new_particle = particle.clone();
                 new_particle.setTime(new_time);
                 new_particle.setGeneratorStatus(particle.getGeneratorStatus() + m_config.generator_status_offset);
                 timeslice_particles_out.push_back(new_particle);
+                new_old_particle_map[particle] = new_particle;
             }
+
+            // Create new SimTrackerHits
+            for (const auto& [collection_name, hits_collection] : event.trackerHits) {                
+                for(const auto& hit : *hits_collection) {
+                    auto new_hit = hit.clone();
+                    //Update time and MCParticle association
+                    new_hit.setTime(hit.getTime() + time_offset);
+                    // Use getParticle instead of deprecated getMCParticle
+                    auto orig_particle = hit.getParticle();
+                    if (new_old_particle_map.count(orig_particle)) {
+                        new_hit.setParticle(new_old_particle_map[orig_particle]);
+                    }
+                    timeslice_tracker_hits_out[collection_name].push_back(new_hit);
+                }
+            }
+
+            // Create new CaloHits
+            for (const auto& [collection_name, hits_collection] : event.calorimeterHits) {
+                for (const auto& hit : *hits_collection) {
+                    edm4hep::MutableSimCalorimeterHit new_hit;
+                    new_hit.setEnergy(hit.getEnergy());
+                    new_hit.setPosition(hit.getPosition());
+                    new_hit.setCellID(hit.getCellID());
+
+                    // Loop through contributions, cloning, setting new time, MCParticle and replacing in the list
+                    for (const auto& contrib : hit.getContributions()) {
+                        auto new_contrib = contrib.clone();
+                        new_contrib.setTime(contrib.getTime() + time_offset);
+                        // Use getParticle instead of deprecated getMCParticle
+                        auto orig_particle = contrib.getParticle();
+                        if (new_old_particle_map.count(orig_particle)) {
+                            new_contrib.setParticle(new_old_particle_map[orig_particle]);
+                        }
+                        timeslice_calo_contributions_out[collection_name].push_back(new_contrib);
+                        new_hit.addToContributions(new_contrib);
+                    }
+                    timeslice_calorimeter_hits_out[collection_name].push_back(new_hit);
+                }
+            }
+
         }
 
         auto header = edm4hep::MutableEventHeader();
@@ -149,11 +242,21 @@ struct MyTimesliceBuilder : public JEventUnfolder {
 
         child.InsertCollection<edm4hep::MCParticle>(std::move(timeslice_particles_out),"ts_MCParticles");
         child.InsertCollection<edm4hep::EventHeader>(std::move(timeslice_info_out),"ts_info");
+        for(auto& [collection_name, hit_collection] : timeslice_tracker_hits_out) {
+            child.InsertCollection<edm4hep::SimTrackerHit>(std::move(hit_collection), "ts_" + collection_name);
+        }
+        for (auto& [collection_name, hit_collection] : timeslice_calorimeter_hits_out) {
+            child.InsertCollection<edm4hep::SimCalorimeterHit>(std::move(hit_collection), "ts_" + collection_name);
+        }
+        for (auto& [collection_name, hit_collection] : timeslice_calo_contributions_out) {
+            child.InsertCollection<edm4hep::CaloHitContribution>(std::move(hit_collection), "ts_" + collection_name+"Contributions");
+        }
+
         // child.InsertCollection<edm4hep::MCParticle>(std::move(timeslice_particles_out),m_config.tag + "ts_MCParticles");
         // child.InsertCollection<edm4hep::EventHeader>(std::move(timeslice_info_out),m_config.tag + "ts_info");
 
         event_accumulator.clear(); // Reset for next timeslice
-
+        
         // std::cout << "Number of parents " << child.GetParentNumber(JEventLevel::PhysicsEvent) << std::endl;
 
         return Result::NextChildNextParent;

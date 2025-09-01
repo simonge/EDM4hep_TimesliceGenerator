@@ -4,6 +4,10 @@
 #include <JANA/Components/JPodioOutput.h>
 #include <edm4hep/EventHeaderCollection.h>
 #include <edm4hep/MCParticleCollection.h>
+#include <edm4hep/SimTrackerHitCollection.h>
+#include <edm4hep/SimCalorimeterHitCollection.h>
+#include <edm4hep/CaloHitContributionCollection.h>
+
 #include <podio/ROOTReader.h>
 #include <iostream>
 #include <random>
@@ -19,7 +23,9 @@ struct MyEventFileReader : public JEventSource {
     size_t m_total_events = 0;
     bool m_loop_forever = true;
     std::vector<size_t> event_indices;
-    std::vector<std::string> m_collections_to_read {"MCParticles", "EventHeader"};
+    std::vector<std::string> m_collections_to_read {"MCParticles", "EventHeader"};    
+    std::vector<std::string> m_sim_tracker_hit_collections;
+    std::vector<std::string> m_sim_calorimeter_hit_collections;
 
     MyEventFileReader(const std::string& filename) : m_filename(filename) {
         SetTypeName(NAME_OF_THIS);
@@ -53,7 +59,7 @@ struct MyEventFileReader : public JEventSource {
 
         auto frame_data = m_reader.readEntry("events", event_indices[m_event_in_file_counter]);//, m_collections_to_read); // TODO update with newer podio version
         auto frame      = std::make_unique<podio::Frame>(std::move(frame_data));
-        
+
 
         for (const std::string& coll_name : m_collections_to_read) {
             const podio::CollectionBase* coll = frame->get(coll_name);
@@ -71,13 +77,59 @@ struct MyEventFileReader : public JEventSource {
 
         }
 
-        // const auto& mc_particles = frame->get<edm4hep::MCParticleCollection>("MCParticles");
+        
+        // If m_sim_tracker_hit_collections is empty, loop over all collection in the frame, finding those which are edm4hep::SimTrackerHits and inserting them into the event
+        if (m_sim_tracker_hit_collections.empty()) {
+            for (const auto& coll_name : frame->getAvailableCollections()) {
+                const podio::CollectionBase* coll = frame->get(coll_name);
+                const auto& coll_type = coll->getValueTypeName();
 
-        // const auto& event_headers = frame->get<edm4hep::EventHeaderCollection>("EventHeader");
+                if (coll_type == "edm4hep::SimTrackerHit") {
+                    event.InsertCollectionAlreadyInFrame<edm4hep::SimTrackerHit>(coll, coll_name);
+                }
+            }
+        } else {
+            for (const auto& coll_name : m_sim_tracker_hit_collections) {
+                const podio::CollectionBase* coll = frame->get(coll_name);
+                if (coll) {
+                    event.InsertCollectionAlreadyInFrame<edm4hep::SimTrackerHit>(coll, coll_name);
+                }
+            }
+        }
 
-        // event.InsertCollection<edm4hep::MCParticle>(std::move(mc_particles), "MCParticles");
-        // event.InsertCollection<edm4hep::EventHeader>(std::move(event_headers), "EventHeader");
+        // If m_sim_calorimeter_hit_collections is empty, loop over all collection in the frame, finding those which are edm4hep::SimCalorimeterHits and inserting them into the event
+        if (m_sim_calorimeter_hit_collections.empty()) {
+            for (const auto& coll_name : frame->getAvailableCollections()) {
+                const podio::CollectionBase* coll = frame->get(coll_name);
+                const auto& coll_type = coll->getValueTypeName();
 
+                if (coll_type == "edm4hep::SimCalorimeterHit") {
+                    // Ensure there is an edm4hep::CalorimeterHitContribution collection associated with this collection                    
+                    std::string contribution_name = coll_name + "Contributions";
+                    std::cout << "Looking for contribution collection: " << contribution_name << std::endl;
+
+                    const podio::CollectionBase* contribution_coll = frame->get(contribution_name);
+                    if (contribution_coll) {
+                        event.InsertCollectionAlreadyInFrame<edm4hep::CaloHitContribution>(contribution_coll, contribution_name);
+                        event.InsertCollectionAlreadyInFrame<edm4hep::SimCalorimeterHit>(coll, coll_name);
+                    }
+                }
+               
+            }
+        } else {
+            for (const auto& coll_name : m_sim_calorimeter_hit_collections) {
+                const podio::CollectionBase* coll = frame->get(coll_name);
+                if (coll) {
+                    // Ensure there is an edm4hep::CalorimeterHitContribution collection associated with this collection                    
+                    std::string contribution_name = coll_name + "Contribution";
+                    const podio::CollectionBase* contribution_coll = frame->get(contribution_name);
+                    if (contribution_coll) {
+                        event.InsertCollectionAlreadyInFrame<edm4hep::CaloHitContribution>(contribution_coll, contribution_name);
+                        event.InsertCollectionAlreadyInFrame<edm4hep::SimCalorimeterHit>(coll, coll_name);
+                    }
+                }
+            }
+        }
 
         event.Insert(frame.release());
         // std::cout << "Read event " << m_event_counter << " from " << m_filename << std::endl;

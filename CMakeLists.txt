@@ -14,6 +14,17 @@ find_package(podio REQUIRED)
 # Find EDM4HEP
 find_package(EDM4HEP REQUIRED)
 
+# Find EDM4EIC (optional)
+find_package(EDM4EIC QUIET)
+if(EDM4EIC_FOUND)
+    message(STATUS "Found EDM4EIC, enabling EDM4EIC support")
+    add_definitions(-DHAVE_EDM4EIC)
+    set(EDM4EIC_LIBRARIES EDM4EIC::edm4eic)
+else()
+    message(STATUS "EDM4EIC not found, disabling EDM4EIC support")
+    set(EDM4EIC_LIBRARIES "")
+endif()
+
 # Include directories
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
 
@@ -47,6 +58,7 @@ target_link_libraries(TimesliceCreator PUBLIC
     podio::podioRootIO
     EDM4HEP::edm4hep
     EDM4HEP::edm4hepDict
+    ${EDM4EIC_LIBRARIES}
 )
 
 # Link against PODIO and EDM4HEP

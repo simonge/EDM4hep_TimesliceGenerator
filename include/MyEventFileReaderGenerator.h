@@ -17,6 +17,14 @@ class MyEventFileReaderGenerator : public JEventSourceGenerator {
         source->SetTag(tag);
 
         source->SetLevel(JEventLevel::PhysicsEvent);
+        
+        // Configure collections to include in timeframes
+        // Example configuration - this would typically come from command-line parameters or config files
+        std::vector<std::string> sim_tracker_hit_collections = {"SiBarrelHits","VertexBarrelHits","TrackerEndcapHits"};  // Add more as needed
+        // std::vector<std::string> reconstructed_particle_collections = {"ReconstructedParticles"};  // Add more as needed
+        
+        // source->SetSimTrackerHitCollections(sim_tracker_hit_collections); // TODO: Add later to configure to stop all simhits being added
+        // source->SetReconstructedParticleCollections(reconstructed_particle_collections);
 
         // if(tag=="det1") source->SetLevel(JEventLevel::PhysicsEvent);
         // if(tag=="det2") source->SetLevel(JEventLevel::Subevent);
