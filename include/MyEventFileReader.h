@@ -6,14 +6,19 @@
 #include <edm4hep/MCParticleCollection.h>
 #include <podio/ROOTReader.h>
 #include <iostream>
+#include <random>
+#include <numeric>
 
 struct MyEventFileReader : public JEventSource {
 
     std::string m_tag{""};
     std::string m_filename;
     podio::ROOTReader m_reader;
-    int m_event_counter = 0;
-    int m_total_events = 0;
+    size_t m_event_counter = 0;
+    size_t m_event_in_file_counter = 0;
+    size_t m_total_events = 0;
+    bool m_loop_forever = true;
+    std::vector<size_t> event_indices;
     std::vector<std::string> m_collections_to_read {"MCParticles", "EventHeader"};
 
     MyEventFileReader(const std::string& filename) : m_filename(filename) {
@@ -22,6 +27,9 @@ struct MyEventFileReader : public JEventSource {
         SetCallbackStyle(CallbackStyle::ExpertMode);
         m_reader.openFile(m_filename);
         m_total_events = m_reader.getEntries("events");
+        event_indices.resize(m_total_events);
+        std::iota(event_indices.begin(), event_indices.end(), 0);
+        // std::shuffle(event_indices.begin(), event_indices.end(), std::mt19937{std::random_device{}()});
     }
 
     void SetTag(std::string tag) { m_tag = std::move(tag); }
@@ -34,7 +42,16 @@ struct MyEventFileReader : public JEventSource {
 
     Result Emit(JEvent& event) override {
 
-        auto frame_data = m_reader.readNextEntry("events");//, m_collections_to_read); // TODO update with newer podio version
+        if(m_event_in_file_counter >= m_total_events) {
+            if(m_loop_forever) {
+                m_event_in_file_counter = 0;
+                // std::shuffle(event_indices.begin(), event_indices.end(), std::mt19937{std::random_device{}()}); //Shuffling and reading out of order is a bad plan
+            } else {
+                return Result::FailureFinished;
+            }
+        }
+
+        auto frame_data = m_reader.readEntry("events", event_indices[m_event_in_file_counter]);//, m_collections_to_read); // TODO update with newer podio version
         auto frame      = std::make_unique<podio::Frame>(std::move(frame_data));
         
 
@@ -65,6 +82,7 @@ struct MyEventFileReader : public JEventSource {
         event.Insert(frame.release());
         // std::cout << "Read event " << m_event_counter << " from " << m_filename << std::endl;
         m_event_counter++;
+        m_event_in_file_counter++;
         return Result::Success;
     }
 };
