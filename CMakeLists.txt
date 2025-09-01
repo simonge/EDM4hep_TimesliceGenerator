@@ -51,8 +51,6 @@ add_jana_plugin(TimesliceMerger
         include/MyTimesliceFileReaderGenerator.h
         include/MyFileReaderGeneratorEDM4HEP.h
         include/MyFileWriterEDM4HEP.h
-        include/MyTimesliceBuilderEDM4HEP.h
-        include/SimTrackerHitCollector_factory.h
 )
 
 # Link against PODIO and EDM4HEP
