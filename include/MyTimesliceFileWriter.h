@@ -7,8 +7,6 @@
 #include <JANA/Components/JHasInputs.h>
 #include <JANA/Components/JPodioOutput.h>
 #include <edm4hep/MCParticleCollection.h>
-#include "CollectionTabulatorsEDM4HEP.h"
-
 #include <podio/podioVersion.h>
 #include <podio/ROOTWriter.h>
 

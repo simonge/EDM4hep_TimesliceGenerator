@@ -9,7 +9,6 @@
 #include <edm4hep/SimTrackerHitCollection.h>
 #include <edm4hep/SimCalorimeterHitCollection.h>
 #include <edm4hep/CaloHitContributionCollection.h>
-#include "CollectionTabulatorsEDM4HEP.h"
 #include "MyTimesliceBuilderConfig.h"
 
 #include <random>
@@ -186,7 +185,8 @@ struct MyTimesliceBuilder : public JEventUnfolder {
                 new_particle.setGeneratorStatus(particle.getGeneratorStatus() + m_config.generator_status_offset);
                 timeslice_particles_out.push_back(new_particle);
                 new_old_particle_map[particle] = new_particle;
-            }
+            } //TODO: update parent/child map too
+            
 
             // Create new SimTrackerHits
             for (const auto& [collection_name, hits_collection] : event.trackerHits) {                
@@ -235,10 +235,6 @@ struct MyTimesliceBuilder : public JEventUnfolder {
         header.setTimeStamp(timeslice_nr);
         timeslice_info_out.push_back(header);
 
-        // LOG_DEBUG(GetLogger()) << "MyTimesliceBuilder: Built timeslice " << timeslice_nr
-        //     << "\nTimeslice particles out:\n"
-        //     << TabulateParticlesEDM4HEP(&timeslice_particles_out)
-        //     << LOG_END;
 
         child.InsertCollection<edm4hep::MCParticle>(std::move(timeslice_particles_out),"ts_MCParticles");
         child.InsertCollection<edm4hep::EventHeader>(std::move(timeslice_info_out),"ts_info");
