@@ -81,20 +81,20 @@ struct MyTimesliceFileWriter : public JEventProcessor {
             } else {
                 LOG_WARN(GetLogger()) << "MyTimesliceFileWriter: No timeslice frame available for timeslice event " << event.GetEventNumber() << LOG_END;
             }
-                // Optionally write the raw parent event frame if requested
-                if (m_write_event_frame) {
-                    //Loop over JEvent levels checking if the frame has a parent
-                    for(auto level : {JEventLevel::PhysicsEvent, JEventLevel::Subrun}) {
-                        if (event.HasParent(level)) {
-                            auto& parent = event.GetParent(level);
-                            auto* parent_frame = parent.GetSingle<podio::Frame>();
-                            if (parent_frame) {
-                                m_writer->writeFrame(*parent_frame, "events");
-                                LOG_INFO(GetLogger()) << "MyTimesliceFileWriter: Wrote parent PhysicsEvent frame for event " << parent.GetEventNumber() << LOG_END;
-                            }
-                        }
-                    }
-                }
+            // Optionally write the raw parent event frame if requested
+            // if (m_write_event_frame) {
+            //     //Loop over JEvent levels checking if the frame has a parent
+            //     for(auto level : {JEventLevel::PhysicsEvent, JEventLevel::Subrun}) {
+            //         if (event.HasParent(level)) {
+            //             auto& parent = event.GetParent(level);
+            //             auto* parent_frame = parent.GetSingle<podio::Frame>();
+            //             if (parent_frame) {
+            //                 m_writer->writeFrame(*parent_frame, "events");
+            //                 LOG_INFO(GetLogger()) << "MyTimesliceFileWriter: Wrote parent PhysicsEvent frame for event " << parent.GetEventNumber() << LOG_END;
+            //             }
+            //         }
+            //     }
+            // }
         }
     }
 

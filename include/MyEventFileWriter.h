@@ -11,7 +11,7 @@
 #include <limits>
 #include <map>
 
-struct MyFileWriterEDM4HEP : public JEventProcessor {
+struct MyEventFileWriter : public JEventProcessor {
 
     std::unique_ptr<podio::ROOTWriter> m_writer = nullptr;
     std::string m_output_filename = "merged_output.root";
@@ -29,7 +29,7 @@ struct MyFileWriterEDM4HEP : public JEventProcessor {
     size_t m_timeslices_processed = 0;
     size_t m_timeslices_per_merge = 1; // How many timeslices to accumulate before writing
 
-    MyFileWriterEDM4HEP() {
+    MyEventFileWriter() {
         SetTypeName(NAME_OF_THIS);
     }
 
@@ -42,7 +42,7 @@ struct MyFileWriterEDM4HEP : public JEventProcessor {
 
         m_writer = std::make_unique<podio::ROOTWriter>(m_output_filename);
         
-        LOG_INFO(GetLogger()) << "MyFileWriterEDM4HEP: Initialized with output file " << m_output_filename 
+        LOG_INFO(GetLogger()) << "MyEventFileWriter: Initialized with output file " << m_output_filename 
                               << ", merging " << m_timeslices_per_merge << " timeslices at a time" << LOG_END;
     }
 
@@ -131,7 +131,7 @@ struct MyFileWriterEDM4HEP : public JEventProcessor {
                     m_timeslices_processed = 0;
                 }
             } else {
-                LOG_WARN(GetLogger()) << "MyFileWriterEDM4HEP: No timeslice frame available for timeslice event " << event.GetEventNumber() << LOG_END;
+                LOG_WARN(GetLogger()) << "MyEventFileWriter: No timeslice frame available for timeslice event " << event.GetEventNumber() << LOG_END;
             }
         }
     }
@@ -181,6 +181,6 @@ struct MyFileWriterEDM4HEP : public JEventProcessor {
         if (m_writer) {
             m_writer->finish();
         }
-        LOG_INFO(GetLogger()) << "MyFileWriterEDM4HEP: Wrote " << m_written_count << " merged frames to " << m_output_filename << LOG_END;
+        LOG_INFO(GetLogger()) << "MyEventFileWriter: Wrote " << m_written_count << " merged frames to " << m_output_filename << LOG_END;
     }
 };

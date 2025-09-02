@@ -19,7 +19,6 @@ struct MyTimesliceFileReader : public JEventSource {
     std::string m_filename;
     podio::ROOTReader m_reader;
     size_t m_event_counter = 0;
-    size_t m_event_in_file_counter = 0;
     size_t m_total_timeslices = 0;
     bool m_loop_forever = false; // Don't loop for merger - process each file once
     std::vector<size_t> timeslice_indices;
@@ -34,7 +33,6 @@ struct MyTimesliceFileReader : public JEventSource {
         m_reader.openFile(m_filename);
         m_total_timeslices = m_reader.getEntries("timeslices");
         timeslice_indices.resize(m_total_timeslices);
-        std::iota(timeslice_indices.begin(), timeslice_indices.end(), 0);
     }
 
     void SetTag(std::string tag) { m_tag = std::move(tag); }
@@ -48,14 +46,10 @@ struct MyTimesliceFileReader : public JEventSource {
     Result Emit(JEvent& event) override {
 
         if(m_event_in_file_counter >= m_total_timeslices) {
-            if(m_loop_forever) {
-                m_event_in_file_counter = 0;
-            } else {
-                return Result::FailureFinished;
-            }
+            return Result::FailureFinished;
         }
 
-        auto frame_data = m_reader.readEntry("timeslices", timeslice_indices[m_event_in_file_counter]);
+        auto frame_data = m_reader.readNextEntry("timeslices", timeslice_indices);
         auto frame      = std::make_unique<podio::Frame>(std::move(frame_data));
 
         // Read all available collections from the timeslice frame
@@ -78,8 +72,8 @@ struct MyTimesliceFileReader : public JEventSource {
                 const podio::CollectionBase* contribution_coll = frame->get(contribution_name);
                 if (contribution_coll) {
                     event.InsertCollectionAlreadyInFrame<edm4hep::CaloHitContribution>(contribution_coll, contribution_name);
+                    event.InsertCollectionAlreadyInFrame<edm4hep::SimCalorimeterHit>(coll, coll_name);
                 }
-                event.InsertCollectionAlreadyInFrame<edm4hep::SimCalorimeterHit>(coll, coll_name);
             }
             else if (coll_type == "edm4hep::CaloHitContribution") {
                 // Skip - handled with SimCalorimeterHit
@@ -92,7 +86,6 @@ struct MyTimesliceFileReader : public JEventSource {
 
         event.Insert(frame.release());
         m_event_counter++;
-        m_event_in_file_counter++;
         return Result::Success;
     }
 };
