@@ -8,7 +8,6 @@
 #include <JANA/Components/JPodioOutput.h>
 #include <edm4hep/EventHeaderCollection.h>
 #include <edm4hep/MCParticleCollection.h>
-#include "CollectionTabulatorsEDM4HEP.h"
 
 #include <random>
 
@@ -51,10 +50,6 @@ struct MyEventGenerator : public JEventSource {
         mc_particle1.setPDG(22);
         mc_particle1.setTime(time);
         mc_particles_out.push_back(mc_particle1);
-
-        // LOG_DEBUG(GetLogger()) << "MySource: Emitted " << GetLevel() << " " << event.GetEventNumber() << "\n"
-        //     << TabulateParticlesEDM4HEP(&mc_particles_out)
-        //     << LOG_END;
 
         std::cout << "Emitting event " << event_nr << " with " << mc_particles_out.size() << " particles." << std::endl;
         std::cout << "At Level " << static_cast<int>(event.GetLevel()) << " Tag " << m_tag << std::endl;
