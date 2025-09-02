@@ -186,7 +186,8 @@ struct MyTimesliceBuilder : public JEventUnfolder {
                 new_particle.setGeneratorStatus(particle.getGeneratorStatus() + m_config.generator_status_offset);
                 timeslice_particles_out.push_back(new_particle);
                 new_old_particle_map[particle] = new_particle;
-            }
+            } //TODO: update parent/child map too
+            
 
             // Create new SimTrackerHits
             for (const auto& [collection_name, hits_collection] : event.trackerHits) {                
