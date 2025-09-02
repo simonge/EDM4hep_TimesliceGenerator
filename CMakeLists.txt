@@ -32,9 +32,7 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
 add_jana_plugin(TimesliceCreator
     SOURCES
         src/TimesliceCreator.cc
-        src/CollectionTabulatorsEDM4HEP.cc
     PUBLIC_HEADER
-        include/CollectionTabulatorsEDM4HEP.h
         include/MyEventFileReader.h
         include/MyEventFileReaderGenerator.h
         include/MyTimesliceFileWriter.h
