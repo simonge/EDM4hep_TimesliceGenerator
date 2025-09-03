@@ -51,24 +51,15 @@ struct MyTimesliceFileWriter : public JEventProcessor {
             if (app) app->Stop();
             return;
         }
-        std::cout << "Processing seq event " << event.GetEventNumber() << std::endl;
+        // std::cout << "Processing seq event " << event.GetEventNumber() << std::endl;
         LOG_INFO(GetLogger()) << "MyTimesliceFileWriter::ProcessSequential called for event " << event.GetEventNumber() << LOG_END;
         std::lock_guard<std::mutex> guard(m_mutex);
 
-        std::cout << "Event " << event.GetEventNumber() << " at level " << event.GetLevel() << std::endl;
-
-        std::cout << "Number of parents " << event.GetParentNumber(JEventLevel::PhysicsEvent) << std::endl;
         // If this is a timeslice event, write the timeslice frame
         if (event.GetLevel() == JEventLevel::Timeslice) {
-            std::cout << "Writing timeslice event " << event.GetEventNumber() << " with " << m_ts_MCParticles_in()->size() << " particles." << std::endl;
             const auto& ts_frames = m_ts_frame_in();
             if (!ts_frames.empty()) {
-                std::cout << "Writing timeslice event " << event.GetEventNumber() << std::endl;
                 auto names = ts_frames.at(0)->getAvailableCollections();
-                std::cout << "Timeslice frame collections: ";
-                for (const auto& n : names) std::cout << n << " ";
-                std::ostringstream oss; for (auto& n : names) oss << n << " ";
-                LOG_DEBUG(GetLogger()) << "MyTimesliceFileWriter: Timeslice frame collections: " << oss.str() << LOG_END;
                 m_writer->writeFrame(*(ts_frames.at(0)), "events");
                 m_written_count++;
             } else {
