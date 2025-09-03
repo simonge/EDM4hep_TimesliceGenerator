@@ -12,7 +12,7 @@
 #include "MyTimesliceBuilderConfig.h"
 
 #include <random>
-#include <map>
+#include <unordered_map>
 
 // Remove the event struct since we'll store parent event pointers directly
 
@@ -87,10 +87,6 @@ struct MyTimesliceBuilder : public JEventUnfolder {
             try_accumulating_hits_setup = false; // Only do this once
         }
 
-        //Print how many particles have been accumulated so far
-        for(const auto& parent_event : parent_event_accumulator) {
-            auto* particles = parent_event->GetCollection<edm4hep::MCParticle>("MCParticles");
-        }
 
         // Add parent event pointer to accumulator
         parent_event_accumulator.push_back(&parent);
@@ -110,12 +106,12 @@ struct MyTimesliceBuilder : public JEventUnfolder {
 
         edm4hep::MCParticleCollection    timeslice_particles_out;
         edm4hep::EventHeaderCollection   timeslice_info_out;
-        std::map<std::string, edm4hep::SimTrackerHitCollection> timeslice_tracker_hits_out;
+        std::unordered_map<std::string, edm4hep::SimTrackerHitCollection> timeslice_tracker_hits_out;
         for (const auto& name : tracker_hit_collection_names) {
             timeslice_tracker_hits_out[name] = edm4hep::SimTrackerHitCollection();
         }
-        std::map<std::string, edm4hep::SimCalorimeterHitCollection> timeslice_calorimeter_hits_out;
-        std::map<std::string, edm4hep::CaloHitContributionCollection> timeslice_calo_contributions_out;
+        std::unordered_map<std::string, edm4hep::SimCalorimeterHitCollection> timeslice_calorimeter_hits_out;
+        std::unordered_map<std::string, edm4hep::CaloHitContributionCollection> timeslice_calo_contributions_out;
         for (const auto& name : calorimeter_hit_collection_names) {
             timeslice_calorimeter_hits_out[name] = edm4hep::SimCalorimeterHitCollection();
             timeslice_calo_contributions_out[name] = edm4hep::CaloHitContributionCollection();
@@ -146,15 +142,15 @@ struct MyTimesliceBuilder : public JEventUnfolder {
                 });
                 if (first_particle != particles->end()) {
                     // Calculate time offset based on distance to 0,0,0 and speed
-                    float distance = std::sqrt(std::pow(first_particle->getVertex().x, 2) +
-                                                std::pow(first_particle->getVertex().y, 2) +
-                                                std::pow(first_particle->getVertex().z, 2));
+                    float distance = std::sqrt(first_particle->getVertex().x*first_particle->getVertex().x +
+                                                first_particle->getVertex().y*first_particle->getVertex().y +
+                                                first_particle->getVertex().z*first_particle->getVertex().z);
                     time_offset += distance / m_config.beam_speed;
                 }
             }
 
             // Map from original particle handle -> cloned particle handle
-            std::map<edm4hep::MCParticle, edm4hep::MCParticle> new_old_particle_map;
+            std::unordered_map<const edm4hep::MCParticle*, edm4hep::MCParticle> new_old_particle_map;
 
             // Create new MCParticles
             for (const auto& particle : *particles) {
@@ -163,7 +159,7 @@ struct MyTimesliceBuilder : public JEventUnfolder {
                 new_particle.setTime(new_time);
                 new_particle.setGeneratorStatus(particle.getGeneratorStatus() + m_config.generator_status_offset);
                 timeslice_particles_out.push_back(new_particle);
-                new_old_particle_map[particle] = new_particle;
+                new_old_particle_map[&particle] = new_particle;
             } //TODO: update parent/child map too
 
             // Create new SimTrackerHits
@@ -173,10 +169,7 @@ struct MyTimesliceBuilder : public JEventUnfolder {
                     auto new_hit = hit.clone();
                     new_hit.setTime(hit.getTime() + time_offset);
                     auto orig_particle = hit.getParticle();
-                    auto it = new_old_particle_map.find(orig_particle);
-                    if (it != new_old_particle_map.end()) {
-                        new_hit.setParticle(it->second);
-                    }
+                    new_hit.setParticle(new_old_particle_map[&orig_particle]);
                     timeslice_tracker_hits_out[collection_name].push_back(new_hit);
                 }
             }
@@ -196,10 +189,7 @@ struct MyTimesliceBuilder : public JEventUnfolder {
                         new_contrib.setTime(contrib.getTime() + time_offset);
                         // Use getParticle instead of deprecated getMCParticle
                         auto orig_particle = contrib.getParticle();
-                        auto itc = new_old_particle_map.find(orig_particle);
-                        if (itc != new_old_particle_map.end()) {
-                            new_contrib.setParticle(itc->second);
-                        }
+                        new_contrib.setParticle(new_old_particle_map[&orig_particle]);
                         timeslice_calo_contributions_out[collection_name].push_back(new_contrib);
                         new_hit.addToContributions(new_contrib);
                     }
@@ -231,7 +221,7 @@ struct MyTimesliceBuilder : public JEventUnfolder {
         events_generated++;
 
         parent_event_accumulator.clear(); // Reset for next timeslice
-        parent_event_accumulator.shrink_to_fit();
+        // parent_event_accumulator.shrink_to_fit();
 
         return Result::NextChildNextParent;
     }
