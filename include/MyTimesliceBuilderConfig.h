@@ -4,9 +4,9 @@
 struct MyTimesliceBuilderConfig {
     JEventLevel parent_level{JEventLevel::PhysicsEvent};
     float  time_slice_duration{20.0f};
-    bool   static_number_of_hits{false};
-    size_t static_hits_per_timeslice{1};
-    float  mean_hit_frequency{1.0f};
+    bool   static_number_of_events{false};
+    size_t static_events_per_timeslice{1};
+    float  mean_event_frequency{1.0f};
     float  bunch_crossing_period{10.0f};
     bool   use_bunch_crossing{false};
 
