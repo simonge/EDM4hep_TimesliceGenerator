@@ -31,7 +31,7 @@ struct MyEventFileReader : public JEventSource {
         SetTypeName(NAME_OF_THIS);
         SetResourceName(filename);
         SetCallbackStyle(CallbackStyle::ExpertMode);
-        m_reader.openFile(m_filename);
+        m_reader.openFile(filename);
         m_total_events = m_reader.getEntries("events");
         event_indices.resize(m_total_events);
         std::iota(event_indices.begin(), event_indices.end(), 0);
@@ -130,6 +130,7 @@ struct MyEventFileReader : public JEventSource {
                 }
             }
         }
+
 
         event.Insert(frame.release());
         // std::cout << "Read event " << m_event_counter << " from " << m_filename << std::endl;

@@ -14,7 +14,6 @@ class MyTimesliceFileReaderGenerator : public JEventSourceGenerator {
         std::string tag = p.stem().string();
         source->SetTag(tag);
 
-        source->SetLevel(JEventLevel::Timeslice);
 
         std::cout << "MyTimesliceFileReaderGenerator: Created JEventSource for timeslice file " << resource_name << " with tag " << tag << std::endl;
         return source;

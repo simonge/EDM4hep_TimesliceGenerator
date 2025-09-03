@@ -4,6 +4,8 @@
 
 #include "MyTimesliceFileReaderGenerator.h"
 #include "MyEventFileWriter.h"
+#include "MyTimesliceFileWriter.h"
+#include "FrameMergerFactory.h"
 
 #include <JANA/Components/JOmniFactoryGeneratorT.h>
 
@@ -19,24 +21,25 @@ void InitPlugin(JApplication *app) {
 
     bool default_write_event_frame = false;
     app->SetDefaultParameter("writer:write_event_frame", default_write_event_frame, "Write parent event frame");
-    
+
+    std::set<std::string> input_files = {"oiutput.root"};
+    app->SetDefaultParameter("reader:input_files", input_files,
+                             "Comma separated list of files to merge");
+
     // Event source generator that reads timeslice files output from TimesliceCreator
     // This will read each timeslice file and make the collections available at timeslice level
     app->Add(new MyTimesliceFileReaderGenerator());
 
-    // Create subset of collections for output
-    // app->Add(new JOmniFactoryGeneratorT<Collector_factory>(
-    //     {.tag                   = "ts_hits",
-    //     .level = JEventLevel::Timeslice,
-    //     .variadic_input_names  = {{"ts_info"}},
-    //     .output_names = {"MCParticles"},
-    //     }
-    //     ));
 
+
+    // Create merger factories to combine collections from all timeslice sources
+    // DISABLED: Moving merging logic directly into MyEventFileWriter to avoid dependency cycles
+    // app->Add(new JOmniFactoryGeneratorT<FrameMergerFactory>());
 
     // Event processor that reads timeslices from multiple files and writes merged output
     // The merging happens in the file writer which combines collections from all sources
     app->Add(new MyEventFileWriter());
+    // app->Add(new MyTimesliceFileWriter());
 
 }
 } // "C"

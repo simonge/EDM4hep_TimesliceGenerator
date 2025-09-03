@@ -45,3 +45,7 @@ echo ""
 echo "Example with a real file from dtn-eic:"
 
 echo " jana -Pplugins=TimesliceCreator -Pwriter:nevents=100 -Pwriter:write_event_frame=false -Pjana:debug_plugin_loading=1 -Pjana:loglevel=info root://dtn-eic.jlab.org//volatile/eic/EPIC/RECO/25.04.1/epic_craterlake/DIS/CC/18x275/minQ2=100/pythia8CCDIS_18x275_minQ2=100_beamEffects_xAngle=-0.025_hiDiv_5.1953.eicrecon.edm4eic.root"
+
+echo ""
+echo "Afterwards try merging files"
+echo " jana -Pplugins=TimesliceMerger -Pwriter:nevents=10 -Pwriter:output_filename=merged_output.root -Pjana:debug_plugin_loading=1 -Pjana:loglevel=info output.root"
