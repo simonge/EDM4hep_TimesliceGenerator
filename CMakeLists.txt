@@ -39,16 +39,6 @@ add_jana_plugin(TimesliceCreator
         include/MyTimesliceBuilder.h
 )
 
-# Create the plugin
-# add_jana_plugin(TimesliceMerger
-#     SOURCES
-#         src/TimesliceMerger.cc
-#     PUBLIC_HEADER
-#         include/MyTimesliceFileReader.h
-#         include/MyTimesliceFileReaderGenerator.h
-#         include/MyEventFileWriter.h
-#         include/FrameMergerFactory.h
-# )
 
 # Link against PODIO and EDM4HEP
 target_link_libraries(TimesliceCreator PUBLIC
@@ -58,22 +48,9 @@ target_link_libraries(TimesliceCreator PUBLIC
     ${EDM4EIC_LIBRARIES}
 )
 
-# Link against PODIO and EDM4HEP
-# target_link_libraries(TimesliceMerger PUBLIC
-#     podio::podioRootIO
-#     EDM4HEP::edm4hep
-#     EDM4HEP::edm4hepDict
-#     ${EDM4EIC_LIBRARIES}
-# )
 
 # Set install prefix if not specified
 if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
     set(CMAKE_INSTALL_PREFIX "${CMAKE_CURRENT_SOURCE_DIR}/install" CACHE PATH "Installation directory" FORCE)
 endif()
 
-# Add tests (optional)
-add_test(NAME timeslice-example-simple-test
-    COMMAND ${CMAKE_INSTALL_PREFIX}/bin/jana -Pplugins=EDM4HEPTimesliceExample -Pjana:nevents=10 events.root)
-
-add_test(NAME timeslice-example-complex-test
-    COMMAND ${CMAKE_INSTALL_PREFIX}/bin/jana -Pplugins=EDM4HEPTimesliceExample -Pjana:nevents=10 timeslices.root)
