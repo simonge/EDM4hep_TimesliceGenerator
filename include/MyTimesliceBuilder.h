@@ -24,8 +24,6 @@ struct event{
 struct MyTimesliceBuilder : public JEventUnfolder {
 
     PodioInput<edm4hep::MCParticle> m_event_MCParticles_in {this, {.name = "MCParticles", .is_optional = true}};
-    // PodioOutput<edm4hep::MCParticle> m_timeslice_MCParticles_out {this, "ts_MCParticles"};
-    // PodioOutput<edm4hep::EventHeader> m_timeslice_info_out {this, "ts_info"};
 
     std::vector<event> event_accumulator;
     bool try_accumulating_hits_setup = true;
@@ -236,25 +234,20 @@ struct MyTimesliceBuilder : public JEventUnfolder {
         timeslice_info_out.push_back(header);
 
 
-        child.InsertCollection<edm4hep::MCParticle>(std::move(timeslice_particles_out),"ts_MCParticles");
-        child.InsertCollection<edm4hep::EventHeader>(std::move(timeslice_info_out),"ts_info");
+        child.InsertCollection<edm4hep::MCParticle>(std::move(timeslice_particles_out),"MCParticles");
+        child.InsertCollection<edm4hep::EventHeader>(std::move(timeslice_info_out),"info");
         for(auto& [collection_name, hit_collection] : timeslice_tracker_hits_out) {
-            child.InsertCollection<edm4hep::SimTrackerHit>(std::move(hit_collection), "ts_" + collection_name);
+            child.InsertCollection<edm4hep::SimTrackerHit>(std::move(hit_collection), collection_name);
         }
         for (auto& [collection_name, hit_collection] : timeslice_calorimeter_hits_out) {
-            child.InsertCollection<edm4hep::SimCalorimeterHit>(std::move(hit_collection), "ts_" + collection_name);
+            child.InsertCollection<edm4hep::SimCalorimeterHit>(std::move(hit_collection), collection_name);
         }
         for (auto& [collection_name, hit_collection] : timeslice_calo_contributions_out) {
-            child.InsertCollection<edm4hep::CaloHitContribution>(std::move(hit_collection), "ts_" + collection_name+"Contributions");
+            child.InsertCollection<edm4hep::CaloHitContribution>(std::move(hit_collection), collection_name+"Contributions");
         }
-
-        // child.InsertCollection<edm4hep::MCParticle>(std::move(timeslice_particles_out),m_config.tag + "ts_MCParticles");
-        // child.InsertCollection<edm4hep::EventHeader>(std::move(timeslice_info_out),m_config.tag + "ts_info");
 
         event_accumulator.clear(); // Reset for next timeslice
         
-        // std::cout << "Number of parents " << child.GetParentNumber(JEventLevel::PhysicsEvent) << std::endl;
-
         return Result::NextChildNextParent;
     }
 };

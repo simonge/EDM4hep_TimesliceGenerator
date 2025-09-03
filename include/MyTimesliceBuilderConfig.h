@@ -2,7 +2,6 @@
 #pragma once
 
 struct MyTimesliceBuilderConfig {
-    std::string tag{"det1"};
     JEventLevel parent_level{JEventLevel::PhysicsEvent};
     float  time_slice_duration{20.0f};
     bool   static_number_of_hits{false};

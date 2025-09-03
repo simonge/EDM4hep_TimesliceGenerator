@@ -1,4 +1,6 @@
 input_files:
-  - input1.root
+  - input.root
   - input2.root
-  - input3.root
+output_file: merged_timeslices.root
+timeslice_duration: 10000.0 # ns
+bunch_crossing_period: 1000.0 # ns

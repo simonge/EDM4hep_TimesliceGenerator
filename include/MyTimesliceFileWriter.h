@@ -12,14 +12,7 @@
 
 struct MyTimesliceFileWriter : public JEventProcessor {
 
-    // Trigger the creation of clusters
-    // PodioInput<edm4hep::MCParticle> m_evt_MCParticles_in {this, {.name="MCParticles", .level = JEventLevel::PhysicsEvent}};
-    PodioInput<edm4hep::MCParticle> m_ts_MCParticles_in  {this, {.name="ts_MCParticles", .level = JEventLevel::Timeslice}};
-
-    // Retrieve the PODIO frame so we can write it directly
-    // Input<podio::Frame> m_evt_frame_in {this, {.name = "", 
-    //                                            .level = JEventLevel::PhysicsEvent,
-    //                                            .is_optional = true }};
+    PodioInput<edm4hep::MCParticle> m_ts_MCParticles_in  {this, {.name="MCParticles", .level = JEventLevel::Timeslice}};
 
     Input<podio::Frame> m_ts_frame_in {this, {.name = "", 
                                               .level = JEventLevel::Timeslice}};
@@ -43,8 +36,7 @@ struct MyTimesliceFileWriter : public JEventProcessor {
         auto* app = GetApplication();
         if (app) {
             m_output_name = app->GetParameterValue<std::string>("output_file");
-            m_max_events = app->GetParameterValue<size_t>("writer:nevents");
-            m_write_event_frame = app->GetParameterValue<bool>("writer:write_event_frame");
+            m_max_events  = app->GetParameterValue<size_t>("writer:nevents");
             LOG_INFO(GetLogger()) << "MyTimesliceFileWriter: Output event limit set to " << m_max_events << LOG_END;
             LOG_INFO(GetLogger()) << "MyTimesliceFileWriter: Write parent event frame: " << m_write_event_frame << LOG_END;
         }
@@ -77,25 +69,11 @@ struct MyTimesliceFileWriter : public JEventProcessor {
                 for (const auto& n : names) std::cout << n << " ";
                 std::ostringstream oss; for (auto& n : names) oss << n << " ";
                 LOG_DEBUG(GetLogger()) << "MyTimesliceFileWriter: Timeslice frame collections: " << oss.str() << LOG_END;
-                m_writer->writeFrame(*(ts_frames.at(0)), "timeslices");
+                m_writer->writeFrame(*(ts_frames.at(0)), "events");
                 m_written_count++;
             } else {
                 LOG_WARN(GetLogger()) << "MyTimesliceFileWriter: No timeslice frame available for timeslice event " << event.GetEventNumber() << LOG_END;
             }
-            // Optionally write the raw parent event frame if requested
-            // if (m_write_event_frame) {
-            //     //Loop over JEvent levels checking if the frame has a parent
-            //     for(auto level : {JEventLevel::PhysicsEvent, JEventLevel::Subrun}) {
-            //         if (event.HasParent(level)) {
-            //             auto& parent = event.GetParent(level);
-            //             auto* parent_frame = parent.GetSingle<podio::Frame>();
-            //             if (parent_frame) {
-            //                 m_writer->writeFrame(*parent_frame, "events");
-            //                 LOG_INFO(GetLogger()) << "MyTimesliceFileWriter: Wrote parent PhysicsEvent frame for event " << parent.GetEventNumber() << LOG_END;
-            //             }
-            //         }
-            //     }
-            // }
         }
     }
 
