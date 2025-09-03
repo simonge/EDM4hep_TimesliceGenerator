@@ -7,6 +7,12 @@ class MyEventFileReaderGenerator : public JEventSourceGenerator {
 
     JEventSource* MakeJEventSource(std::string resource_name) override {
 
+        // auto app = GetApplication();
+        // auto input_files = app->GetParameter<std::vector<std::string>>("reader:input_files");
+
+        //Get a list of files from a string command line input
+        // std::vector<std::string> input_files = {resource_name};
+
         auto source = new MyEventFileReader(resource_name);
         // source->SetResourceName(resource_name);
 
@@ -20,7 +26,7 @@ class MyEventFileReaderGenerator : public JEventSourceGenerator {
         
         // Configure collections to include in timeframes
         // Example configuration - this would typically come from command-line parameters or config files
-        std::vector<std::string> sim_tracker_hit_collections = {"SiBarrelHits","VertexBarrelHits","TrackerEndcapHits"};  // Add more as needed
+        // std::vector<std::string> sim_tracker_hit_collections = {"SiBarrelHits","VertexBarrelHits","TrackerEndcapHits"};  // Add more as needed
         // std::vector<std::string> reconstructed_particle_collections = {"ReconstructedParticles"};  // Add more as needed
         
         // source->SetSimTrackerHitCollections(sim_tracker_hit_collections); // TODO: Add later to configure to stop all simhits being added

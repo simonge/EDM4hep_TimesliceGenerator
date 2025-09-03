@@ -43,12 +43,11 @@ add_jana_plugin(TimesliceCreator
 # add_jana_plugin(TimesliceMerger
 #     SOURCES
 #         src/TimesliceMerger.cc
-#         src/CollectionTabulatorsEDM4HEP.cc
 #     PUBLIC_HEADER
 #         include/MyTimesliceFileReader.h
 #         include/MyTimesliceFileReaderGenerator.h
-#         include/MyFileWriterEDM4HEP.h
-#         include/SimTrackerHitCollector_factory.h
+#         include/MyEventFileWriter.h
+#         include/FrameMergerFactory.h
 # )
 
 # Link against PODIO and EDM4HEP
@@ -64,6 +63,7 @@ target_link_libraries(TimesliceCreator PUBLIC
 #     podio::podioRootIO
 #     EDM4HEP::edm4hep
 #     EDM4HEP::edm4hepDict
+#     ${EDM4EIC_LIBRARIES}
 # )
 
 # Set install prefix if not specified
