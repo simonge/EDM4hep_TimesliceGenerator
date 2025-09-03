@@ -1,6 +1,14 @@
-input_files:
-  - input.root
-  - input2.root
 output_file: merged_timeslices.root
+n_events: 100
 timeslice_duration: 10000.0 # ns
 bunch_crossing_period: 1000.0 # ns
+inputs:
+  - input_file: input.root
+    use_bunch_crossing: true
+    static_number_of_events: true
+    static_events_per_timeslice: 1
+  - input_file: input2.root
+    use_bunch_crossing: false
+    static_number_of_events: false
+    mean_event_frequency: 0.05 # events per ns
+    generator_status_offset: 1000

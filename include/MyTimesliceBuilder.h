@@ -46,14 +46,14 @@ struct MyTimesliceBuilder : public JEventUnfolder {
           : m_config(config), 
             gen(rd()),
             uniform(0.0f, config.time_slice_duration),
-            poisson(config.time_slice_duration * config.mean_hit_frequency),
+            poisson(config.time_slice_duration * config.mean_event_frequency),
             gaussian(0.0f, config.beam_spread)
     {
         SetTypeName(NAME_OF_THIS);
         SetChildLevel(JEventLevel::Timeslice);
         SetParentLevel(m_config.parent_level);
-        if(m_config.static_number_of_hits) {
-            events_needed = m_config.static_hits_per_timeslice;
+        if(m_config.static_number_of_events) {
+            events_needed = m_config.static_events_per_timeslice;
         } else {
             events_needed = poisson(gen);
         }
@@ -94,7 +94,7 @@ struct MyTimesliceBuilder : public JEventUnfolder {
 
         std::vector<edm4hep::MCParticle> particle_accumulator;
 
-        std::cout << parent_idx << std::endl;
+        // std::cout << parent_idx << std::endl;
 
         event evt;
         // Store pointer to MCParticle collection (const)
@@ -118,7 +118,7 @@ struct MyTimesliceBuilder : public JEventUnfolder {
         // Add to accumulator
         event_accumulator.push_back(std::move(evt));
 
-        std::cout << "AcumulatedParticles " << particle_accumulator.size() << std::endl;
+        std::cout << "AcumulatedEvents " << event_accumulator.size() << std::endl;
         parent_idx++;
 
         if (event_accumulator.size() < events_needed) {
@@ -126,7 +126,7 @@ struct MyTimesliceBuilder : public JEventUnfolder {
             std::cout << "Not enough particles yet, keep accumulating (need " << events_needed << ", have " << parent_idx << ")" << std::endl;
             
             return Result::KeepChildNextParent;
-        } else if (!m_config.static_number_of_hits) {
+        } else if (!m_config.static_number_of_events) {
             events_needed = poisson(gen);
         } //TODO - Gracefully handle events_needed == 0 using Result::KeepChildNextParent
 
@@ -150,8 +150,10 @@ struct MyTimesliceBuilder : public JEventUnfolder {
         child.SetEventNumber(timeslice_nr);
 
         for (const auto& event : event_accumulator) {
+
             // Distribute the time of the accumulated particle randomly uniformly throughout the timeslice_duration
             float time_offset = uniform(gen);
+            std::cout << "Time offset for event " << &event - &event_accumulator[0] << ": " << time_offset << std::endl;
             // If use_bunch_crossing is enabled, apply bunch crossing period
             if (m_config.use_bunch_crossing) {
                 time_offset = std::floor(time_offset / m_config.bunch_crossing_period) * m_config.bunch_crossing_period;
@@ -175,8 +177,11 @@ struct MyTimesliceBuilder : public JEventUnfolder {
 
             std::map<edm4hep::MCParticle, edm4hep::MCParticle> new_old_particle_map;
 
+            std::cout << "Creating " << event.particles->size() << " new MCParticles." << std::endl;
+
             // Create new MCParticles
             for (const auto& particle : *(event.particles)) {
+                // std::cout << "Creating new MCParticle from original with time offset: " << time_offset << std::endl;
                 auto new_time = particle.getTime() + time_offset;
                 auto new_particle = particle.clone();
                 new_particle.setTime(new_time);
@@ -184,7 +189,6 @@ struct MyTimesliceBuilder : public JEventUnfolder {
                 timeslice_particles_out.push_back(new_particle);
                 new_old_particle_map[particle] = new_particle;
             } //TODO: update parent/child map too
-            
 
             // Create new SimTrackerHits
             for (const auto& [collection_name, hits_collection] : event.trackerHits) {                
