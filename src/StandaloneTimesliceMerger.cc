@@ -41,42 +41,59 @@ void StandaloneTimesliceMerger::processInputFiles() {
     for (const auto& input_file : m_config.input_files) {
         std::cout << "Processing input file: " << input_file << std::endl;
         
-        podio::ROOTReader reader;
-        reader.openFile(input_file);
-        
-        auto tree_names = reader.getAvailableCategories();
-        std::string tree_name = "events"; // Default
-        for (const auto& name : tree_names) {
-            if (name.find("event") != std::string::npos) {
-                tree_name = name;
-                break;
-            }
-        }
-        
-        size_t num_entries = reader.getEntries(tree_name);
-        std::cout << "Found " << num_entries << " entries in tree: " << tree_name << std::endl;
-        
-        for (size_t i = 0; i < num_entries && events_generated < m_config.max_events; ++i) {
-            auto frame_data = reader.readEntry(tree_name, i);
-            auto frame = std::make_unique<podio::Frame>(std::move(frame_data));
+        try {
+            podio::ROOTReader reader;
+            reader.openFile(input_file);
             
-            accumulated_frames.push_back(std::move(frame));
-            
-            if (accumulated_frames.size() >= events_needed) {
-                auto merged_frame = createMergedTimeslice();
-                writeOutput(writer, std::move(merged_frame));
-                
-                accumulated_frames.clear();
-                events_generated++;
-                
-                if (!m_config.static_number_of_events) {
-                    events_needed = poisson(gen);
-                }
-                
-                if (events_generated >= m_config.max_events) {
+            auto tree_names = reader.getAvailableCategories();
+            std::string tree_name = "events"; // Default
+            for (const auto& name : tree_names) {
+                if (name.find("event") != std::string::npos) {
+                    tree_name = name;
                     break;
                 }
             }
+            
+            size_t num_entries = reader.getEntries(tree_name);
+            std::cout << "Found " << num_entries << " entries in tree: " << tree_name << std::endl;
+            
+            if (num_entries == 0) {
+                std::cout << "Warning: No entries found in " << input_file << ", skipping..." << std::endl;
+                continue;
+            }
+        
+        for (size_t i = 0; i < num_entries && events_generated < m_config.max_events; ++i) {
+            try {
+                auto frame_data = reader.readEntry(tree_name, i);
+                auto frame = std::make_unique<podio::Frame>(std::move(frame_data));
+                
+                accumulated_frames.push_back(std::move(frame));
+                
+                if (accumulated_frames.size() >= events_needed) {
+                    auto merged_frame = createMergedTimeslice();
+                    writeOutput(writer, std::move(merged_frame));
+                    
+                    accumulated_frames.clear();
+                    events_generated++;
+                    
+                    if (!m_config.static_number_of_events) {
+                        events_needed = poisson(gen);
+                        if (events_needed == 0) events_needed = 1; // Ensure at least 1 event
+                    }
+                    
+                    if (events_generated >= m_config.max_events) {
+                        break;
+                    }
+                }
+            } catch (const std::exception& e) {
+                std::cout << "Warning: Failed to read entry " << i << " from " << input_file 
+                          << ": " << e.what() << std::endl;
+                continue;
+            }
+        }
+        } catch (const std::exception& e) {
+            std::cout << "Error: Failed to process file " << input_file << ": " << e.what() << std::endl;
+            continue;
         }
     }
     
