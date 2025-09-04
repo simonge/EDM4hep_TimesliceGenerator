@@ -23,9 +23,8 @@ struct MyEventFileReader : public JEventSource {
     size_t m_total_events = 0;
     bool m_loop_forever = true;
     std::vector<size_t> event_indices;
-    std::vector<std::string> m_collections_to_read {"MCParticles", "EventHeader"};    
-    std::vector<std::string> m_sim_tracker_hit_collections;
-    std::vector<std::string> m_sim_calorimeter_hit_collections;
+    std::vector<std::pair<std::string, std::string>> m_collections_to_read;// {{"MCParticles", "edm4hep::MCParticle"}, {"EventHeader", "edm4hep::EventHeader"}};    
+
 
     MyEventFileReader(const std::string& filename) : m_filename(filename) {
         SetTypeName(NAME_OF_THIS);
@@ -47,6 +46,8 @@ struct MyEventFileReader : public JEventSource {
     }
 
     Result Emit(JEvent& event) override {
+        using clock = std::chrono::high_resolution_clock;
+        auto t_emit_start = clock::now();
 
         if(m_event_in_file_counter >= m_total_events) {
             if(m_loop_forever) {
@@ -57,85 +58,65 @@ struct MyEventFileReader : public JEventSource {
             }
         }
 
-        auto frame_data = m_reader.readEntry("events", event_indices[m_event_in_file_counter]);//, m_collections_to_read); // TODO update with newer podio version
-        auto frame      = std::make_unique<podio::Frame>(std::move(frame_data));
+    // auto t_read_start = clock::now();
+    auto frame_data = m_reader.readEntry("events", event_indices[m_event_in_file_counter]);//, m_collections_to_read); // TODO update with newer podio version
+    // auto t_read_end = clock::now();
+    // std::cout << "[MyEventFileReader] Time to readEntry: " << std::chrono::duration<double, std::milli>(t_read_end - t_read_start).count() << " ms\n";
 
+    // auto t_frame_start = clock::now();
+    auto frame      = std::make_unique<podio::Frame>(std::move(frame_data));
+    // auto t_frame_end = clock::now();
+    // std::cout << "[MyEventFileReader] Time to construct Frame: " << std::chrono::duration<double, std::milli>(t_frame_end - t_frame_start).count() << " ms\n";
 
-        for (const std::string& coll_name : m_collections_to_read) {
+    // auto t_collections_start = clock::now();
+    // For the first event fill pairs of collection names and types to move to JEvent
+    if(m_collections_to_read.empty()) {
+        for (const auto& coll_name : frame->getAvailableCollections()) {
             const podio::CollectionBase* coll = frame->get(coll_name);
             const auto& coll_type = coll->getValueTypeName();
+            if(coll_type == "edm4hep::MCParticle" || coll_type == "edm4hep::EventHeader" || coll_type == "edm4hep::SimTrackerHit" || coll_type == "edm4hep::SimCalorimeterHit" || coll_type == "edm4hep::CaloHitContribution") {
+                m_collections_to_read.push_back({std::string(coll_name), std::string(coll_type)});
+            }
+        }
+    }
+    
+    // auto t_collections_end = clock::now();
+    // std::cout << "[MyEventFileReader] Time to identify collections to read: " << std::chrono::duration<double, std::milli>(t_collections_end - t_collections_start).count() << " ms\n";
+    for (const auto& [coll_name, coll_type] : m_collections_to_read) {
+        // auto t_coll_start = clock::now();
 
             if(coll_type == "edm4hep::MCParticle") {
-                event.InsertCollectionAlreadyInFrame<edm4hep::MCParticle>(coll, coll_name);
+                event.InsertCollectionAlreadyInFrame<edm4hep::MCParticle>(frame->get(coll_name), coll_name);
             }
             else if(coll_type == "edm4hep::EventHeader") {
-                event.InsertCollectionAlreadyInFrame<edm4hep::EventHeader>(coll, coll_name);
+                event.InsertCollectionAlreadyInFrame<edm4hep::EventHeader>(frame->get(coll_name), coll_name);
             }
+            else if (coll_type == "edm4hep::SimTrackerHit") {
+                event.InsertCollectionAlreadyInFrame<edm4hep::SimTrackerHit>(frame->get(coll_name), coll_name);
+            }
+            else if (coll_type == "edm4hep::SimCalorimeterHit") {
+                event.InsertCollectionAlreadyInFrame<edm4hep::SimCalorimeterHit>(frame->get(coll_name), coll_name);
+            }
+            else if (coll_type == "edm4hep::CaloHitContribution")
+            {
+                event.InsertCollectionAlreadyInFrame<edm4hep::CaloHitContribution>(frame->get(coll_name), coll_name);
+            }
+            
             else {
                 std::cerr << "Warning: Unhandled collection type '" << coll_type << "' for collection '" << coll_name << "'" << std::endl;
             }
+            // auto t_coll_end = clock::now();
+            // std::cout << "[MyEventFileReader] Time to handle collection '" << coll_name << "': " << std::chrono::duration<double, std::milli>(t_coll_end - t_coll_start).count() << " ms\n";
 
         }
 
-        
-        // If m_sim_tracker_hit_collections is empty, loop over all collection in the frame, finding those which are edm4hep::SimTrackerHits and inserting them into the event
-        if (m_sim_tracker_hit_collections.empty()) {
-            for (const auto& coll_name : frame->getAvailableCollections()) {
-                const podio::CollectionBase* coll = frame->get(coll_name);
-                const auto& coll_type = coll->getValueTypeName();
 
-                if (coll_type == "edm4hep::SimTrackerHit") {
-                    event.InsertCollectionAlreadyInFrame<edm4hep::SimTrackerHit>(coll, coll_name);
-                }
-            }
-        } else {
-            for (const auto& coll_name : m_sim_tracker_hit_collections) {
-                const podio::CollectionBase* coll = frame->get(coll_name);
-                if (coll) {
-                    event.InsertCollectionAlreadyInFrame<edm4hep::SimTrackerHit>(coll, coll_name);
-                }
-            }
-        }
-
-        // If m_sim_calorimeter_hit_collections is empty, loop over all collection in the frame, finding those which are edm4hep::SimCalorimeterHits and inserting them into the event
-        if (m_sim_calorimeter_hit_collections.empty()) {
-            for (const auto& coll_name : frame->getAvailableCollections()) {
-                const podio::CollectionBase* coll = frame->get(coll_name);
-                const auto& coll_type = coll->getValueTypeName();
-
-                if (coll_type == "edm4hep::SimCalorimeterHit") {
-                    // Ensure there is an edm4hep::CalorimeterHitContribution collection associated with this collection                    
-                    std::string contribution_name = coll_name + "Contributions";
-                    std::cout << "Looking for contribution collection: " << contribution_name << std::endl;
-
-                    const podio::CollectionBase* contribution_coll = frame->get(contribution_name);
-                    if (contribution_coll) {
-                        event.InsertCollectionAlreadyInFrame<edm4hep::CaloHitContribution>(contribution_coll, contribution_name);
-                        event.InsertCollectionAlreadyInFrame<edm4hep::SimCalorimeterHit>(coll, coll_name);
-                    }
-                }
-               
-            }
-        } else {
-            for (const auto& coll_name : m_sim_calorimeter_hit_collections) {
-                const podio::CollectionBase* coll = frame->get(coll_name);
-                if (coll) {
-                    // Ensure there is an edm4hep::CalorimeterHitContribution collection associated with this collection                    
-                    std::string contribution_name = coll_name + "Contribution";
-                    const podio::CollectionBase* contribution_coll = frame->get(contribution_name);
-                    if (contribution_coll) {
-                        event.InsertCollectionAlreadyInFrame<edm4hep::CaloHitContribution>(contribution_coll, contribution_name);
-                        event.InsertCollectionAlreadyInFrame<edm4hep::SimCalorimeterHit>(coll, coll_name);
-                    }
-                }
-            }
-        }
-
-
-        event.Insert(frame.release());
-        // std::cout << "Read event " << m_event_counter << " from " << m_filename << std::endl;
-        m_event_counter++;
-        m_event_in_file_counter++;
-        return Result::Success;
+    // auto t_emit_end = clock::now();
+    event.Insert(frame.release());
+    // std::cout << "[MyEventFileReader] Total time to emit event: " << std::chrono::duration<double, std::milli>(t_emit_end - t_emit_start).count() << " ms\n";
+    // std::cout << "Read event " << m_event_counter << " from " << m_filename << std::endl;
+    m_event_counter++;
+    m_event_in_file_counter++;
+    return Result::Success;
     }
 };

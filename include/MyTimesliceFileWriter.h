@@ -59,7 +59,7 @@ struct MyTimesliceFileWriter : public JEventProcessor {
         if (event.GetLevel() == JEventLevel::Timeslice) {
             const auto& ts_frames = m_ts_frame_in();
             if (!ts_frames.empty()) {
-                auto names = ts_frames.at(0)->getAvailableCollections();
+                // auto names = ts_frames.at(0)->getAvailableCollections();
                 m_writer->writeFrame(*(ts_frames.at(0)), "events");
                 m_written_count++;
             } else {

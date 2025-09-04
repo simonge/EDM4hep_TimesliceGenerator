@@ -13,6 +13,7 @@
 
 #include <random>
 #include <unordered_map>
+#include <chrono>
 
 // Remove the event struct since we'll store parent event pointers directly
 
@@ -27,6 +28,7 @@ struct MyTimesliceBuilder : public JEventUnfolder {
 
     int    events_needed    = 0;
     size_t events_generated = 0;
+    size_t events_consumed  = 0;
 
     MyTimesliceBuilderConfig m_config;
 
@@ -36,6 +38,10 @@ struct MyTimesliceBuilder : public JEventUnfolder {
     std::uniform_real_distribution<float> uniform;
     std::poisson_distribution<> poisson;
     std::normal_distribution<> gaussian;
+
+    //Temp timing debugging
+    std::chrono::high_resolution_clock::time_point t_start;
+    std::chrono::high_resolution_clock::time_point t_keepchild_returned;
 
     MyTimesliceBuilder(MyTimesliceBuilderConfig config)  
           : m_config(config), 
@@ -55,6 +61,13 @@ struct MyTimesliceBuilder : public JEventUnfolder {
     }
 
     Result Unfold(const JEvent& parent, JEvent& child, int child_idx) override {
+        if(t_start == std::chrono::high_resolution_clock::time_point()) t_start = std::chrono::high_resolution_clock::now();
+        // Log time since last KeepChildNextParent return
+        if (t_keepchild_returned != std::chrono::high_resolution_clock::time_point()) {
+            auto t_now = std::chrono::high_resolution_clock::now();
+            std::cout << "Time since last KeepChildNextParent: " << std::chrono::duration<double, std::milli>(t_now - t_keepchild_returned).count() << " ms" << std::endl;
+            t_keepchild_returned = std::chrono::high_resolution_clock::time_point();
+        }
 
         // Accumulate particles from each parent event
         auto* particles_in = m_event_MCParticles_in();
@@ -92,17 +105,19 @@ struct MyTimesliceBuilder : public JEventUnfolder {
         parent_event_accumulator.push_back(&parent);
 
         // std::cout << "AccumulatedEvents " << parent_event_accumulator.size() << std::endl;
-        
+        events_consumed++;
 
         if (parent_event_accumulator.size() < events_needed) {
             // Not enough events yet, keep accumulating
             // std::cout << "Not enough events yet, keep accumulating (need " << events_needed << ", have " << parent_event_accumulator.size() << ")" << std::endl;
-            
+            t_keepchild_returned = std::chrono::high_resolution_clock::now();
             return Result::KeepChildNextParent;
         } else if (!m_config.static_number_of_events) {
             events_needed = poisson(gen);
         } //TODO - Gracefully handle events_needed == 0 using Result::KeepChildNextParent
 
+        std::chrono::high_resolution_clock::time_point t_middle = std::chrono::high_resolution_clock::now();
+        std::cout << "Time to accumulate events: " << (t_middle - t_start).count() * 1e-6 << " ms" << std::endl;
 
         edm4hep::MCParticleCollection    timeslice_particles_out;
         edm4hep::EventHeaderCollection   timeslice_info_out;
@@ -154,10 +169,18 @@ struct MyTimesliceBuilder : public JEventUnfolder {
 
             // Create new MCParticles
             for (const auto& particle : *particles) {
-                auto new_time = particle.getTime() + time_offset;
-                auto new_particle = particle.clone();
-                new_particle.setTime(new_time);
+                edm4hep::MutableMCParticle new_particle;
+                new_particle.setPDG(particle.getPDG());
                 new_particle.setGeneratorStatus(particle.getGeneratorStatus() + m_config.generator_status_offset);
+                new_particle.setSimulatorStatus(particle.getSimulatorStatus());
+                new_particle.setCharge(particle.getCharge());
+                new_particle.setTime(particle.getTime() + time_offset);
+                new_particle.setMass(particle.getMass());
+                new_particle.setVertex(particle.getVertex());
+                new_particle.setEndpoint(particle.getEndpoint());
+                new_particle.setMomentum(particle.getMomentum());
+                new_particle.setMomentumAtEndpoint(particle.getMomentumAtEndpoint());
+                // new_particle.setHelicity(particle.getHelicity());
                 timeslice_particles_out.push_back(new_particle);
                 new_old_particle_map[&particle] = new_particle;
             } //TODO: update parent/child map too
@@ -166,8 +189,14 @@ struct MyTimesliceBuilder : public JEventUnfolder {
             for (const auto& collection_name : tracker_hit_collection_names) {
                 const auto* hits_collection = parent_event->GetCollection<edm4hep::SimTrackerHit>(collection_name);                
                 for(const auto& hit : *hits_collection) {
-                    auto new_hit = hit.clone();
+                    edm4hep::MutableSimTrackerHit new_hit;
+                    new_hit.setCellID(hit.getCellID());
+                    new_hit.setEDep(hit.getEDep());
                     new_hit.setTime(hit.getTime() + time_offset);
+                    new_hit.setPathLength(hit.getPathLength());
+                    new_hit.setQuality(hit.getQuality());
+                    new_hit.setPosition(hit.getPosition());
+                    new_hit.setMomentum(hit.getMomentum());
                     auto orig_particle = hit.getParticle();
                     new_hit.setParticle(new_old_particle_map[&orig_particle]);
                     timeslice_tracker_hits_out[collection_name].push_back(new_hit);
@@ -185,8 +214,12 @@ struct MyTimesliceBuilder : public JEventUnfolder {
 
                     // Loop through contributions, cloning, setting new time, MCParticle and replacing in the list
                     for (const auto& contrib : hit.getContributions()) {
-                        auto new_contrib = contrib.clone();
+                        edm4hep::MutableCaloHitContribution new_contrib;
+                        new_contrib.setPDG(contrib.getPDG());
+                        new_contrib.setEnergy(contrib.getEnergy());
                         new_contrib.setTime(contrib.getTime() + time_offset);
+                        new_contrib.setStepPosition(contrib.getStepPosition());
+                        // new_contrib.setStepLength(contrib.getStepLength());
                         // Use getParticle instead of deprecated getMCParticle
                         auto orig_particle = contrib.getParticle();
                         new_contrib.setParticle(new_old_particle_map[&orig_particle]);
@@ -207,7 +240,7 @@ struct MyTimesliceBuilder : public JEventUnfolder {
 
 
         child.InsertCollection<edm4hep::MCParticle>(std::move(timeslice_particles_out),"MCParticles");
-        child.InsertCollection<edm4hep::EventHeader>(std::move(timeslice_info_out),"info");
+        child.InsertCollection<edm4hep::EventHeader>(std::move(timeslice_info_out),"EventHeader");
         for(auto& [collection_name, hit_collection] : timeslice_tracker_hits_out) {
             child.InsertCollection<edm4hep::SimTrackerHit>(std::move(hit_collection), collection_name);
         }
@@ -220,9 +253,16 @@ struct MyTimesliceBuilder : public JEventUnfolder {
 
         events_generated++;
 
+        std::cout << "Generated timeslice event " << events_generated 
+                  << " using " << parent_event_accumulator.size() << " parent events, "
+                  << " total parent events consumed: " << events_consumed << std::endl;
+
         parent_event_accumulator.clear(); // Reset for next timeslice
         // parent_event_accumulator.shrink_to_fit();
 
+        std::chrono::high_resolution_clock::time_point t_end = std::chrono::high_resolution_clock::now();
+        std::cout << "Total time to create timeslice: " << (t_end - t_middle).count() * 1e-6 << " ms" << std::endl;
+        t_start = std::chrono::high_resolution_clock::time_point(); // Reset timer
         return Result::NextChildNextParent;
     }
 };
