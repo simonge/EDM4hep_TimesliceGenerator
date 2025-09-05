@@ -4,6 +4,7 @@ max_events: 100
 time_slice_duration: 20.0
 bunch_crossing_period: 10.0
 introduce_offsets: true
+merge_mode: edm4hep  # "edm4hep" for hit collections, "edm4eic" for MCParticles and Vertices
 sources:
   - input_files:
       - input3.root

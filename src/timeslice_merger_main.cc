@@ -17,6 +17,7 @@ void printUsage(const char* program_name) {
               << "  -b, --use-bunch-crossing    Enable bunch crossing logic\n"
               << "  -s, --static-events         Use static number of events per timeslice\n"
               << "  -e, --events-per-slice N    Static events per timeslice (default: 1)\n"
+              << "  -m, --merge-mode MODE       Merge mode: 'edm4hep' (hit collections) or 'edm4eic' (MCParticles/Vertices) (default: edm4hep)\n"
               << "  --beam-attachment           Enable beam attachment with Gaussian smearing\n"
               << "  --beam-speed SPEED          Beam speed in ns/mm (default: 299792.458)\n"
               << "  --beam-spread SPREAD        Beam spread for Gaussian smearing (default: 0.0)\n"
@@ -39,6 +40,7 @@ int main(int argc, char* argv[]) {
         {"use-bunch-crossing", no_argument, 0, 'b'},
         {"static-events", no_argument, 0, 's'},
         {"events-per-slice", required_argument, 0, 'e'},
+        {"merge-mode", required_argument, 0, 'm'},
         {"beam-attachment", no_argument, 0, 1000},
         {"beam-speed", required_argument, 0, 1001},
         {"beam-spread", required_argument, 0, 1002},
@@ -50,7 +52,7 @@ int main(int argc, char* argv[]) {
     int opt;
     int option_index = 0;
     
-    while ((opt = getopt_long(argc, argv, "o:n:d:f:p:bse:h", long_options, &option_index)) != -1) {
+    while ((opt = getopt_long(argc, argv, "o:n:d:f:p:bse:m:h", long_options, &option_index)) != -1) {
         switch (opt) {
             case 1004:
                 config_file = optarg;
@@ -78,6 +80,9 @@ int main(int argc, char* argv[]) {
                 break;
             case 'e':
                 default_source.static_events_per_timeslice = std::stoul(optarg);
+                break;
+            case 'm':
+                config.merge_mode = optarg;
                 break;
             case 1000:
                 default_source.attach_to_beam = true;
@@ -108,6 +113,7 @@ int main(int argc, char* argv[]) {
         if (yaml["time_slice_duration"]) config.time_slice_duration = yaml["time_slice_duration"].as<float>();
         if (yaml["bunch_crossing_period"]) config.bunch_crossing_period = yaml["bunch_crossing_period"].as<float>();
         if (yaml["introduce_offsets"]) config.introduce_offsets = yaml["introduce_offsets"].as<bool>();
+        if (yaml["merge_mode"]) config.merge_mode = yaml["merge_mode"].as<std::string>();
         
         if (yaml["sources"]) {
             config.sources.clear();
@@ -181,6 +187,7 @@ int main(int argc, char* argv[]) {
     std::cout << "Timeslice duration: " << config.time_slice_duration << " ns" << std::endl;
     std::cout << "Bunch crossing period: " << config.bunch_crossing_period << " ns" << std::endl;
     std::cout << "Introduce offsets: " << (config.introduce_offsets ? "true" : "false") << std::endl;
+    std::cout << "Merge mode: " << config.merge_mode << std::endl;
     std::cout << "================================================" << std::endl;
     
     try {

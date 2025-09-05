@@ -8,6 +8,8 @@ A standalone application for merging multiple physics events into timeslices usi
 - **Configurable Timing**: Full control over timeslice duration, bunch crossing periods, and time offset generation
 - **Beam Physics**: Support for beam attachment with Gaussian smearing and configurable beam parameters
 - **Multiple Input Formats**: Handles both event files and pre-existing timeslice files
+- **Dual Merge Modes**: Support for both EDM4HEP hit collections and EDM4EIC MCParticles/Vertices merging
+- **Optimized I/O**: Automatic detection and use of newer Podio collection-list reading when available
 - **Comprehensive Configuration**: Command line interface with extensive parameter options
 - **Error Handling**: Graceful handling of missing collections and invalid parameters
 
@@ -15,6 +17,7 @@ A standalone application for merging multiple physics events into timeslices usi
 
 - **PODIO library and headers** - Required for data I/O operations
 - **EDM4HEP library and headers** - Required for the EDM4HEP data model
+- **EDM4EIC library and headers** - Optional, required for EDM4EIC merge mode
 - **yaml-cpp library** - Required for configuration file support
 - **CMake 3.16 or later** - Required for building
 - **C++20 compatible compiler** - Required for compilation
@@ -93,6 +96,11 @@ make install
 |--------|-------------|---------|
 | `--generator-status-offset <value>` | Offset added to MCParticle generator status | `0` |
 
+#### Merge Mode Options
+| Option | Description | Default |
+|--------|-------------|---------|
+| `-m, --merge-mode <mode>` | Merge mode: 'edm4hep' or 'edm4eic' | `edm4hep` |
+
 #### Utility Options
 | Option | Description |
 |--------|-------------|
@@ -106,6 +114,13 @@ make install
 Merge events using default settings:
 ```bash
 ./install/bin/timeslice_merger input_events.root
+```
+
+### EDM4EIC Mode
+
+Merge EDM4EIC MCParticles and Vertices instead of hit collections:
+```bash
+./install/bin/timeslice_merger -m edm4eic input_events.root
 ```
 
 ### Static Event Count
@@ -144,6 +159,38 @@ Process large number of events with custom output:
   --use-bunch-crossing \
   --bunch-period 2000.0 \
   input1.root input2.root input3.root
+```
+
+### YAML Configuration File
+
+Create a configuration file for complex setups:
+```yaml
+# config.yml
+output_file: merged_timeslices.root
+max_events: 100
+time_slice_duration: 20.0
+bunch_crossing_period: 10.0
+introduce_offsets: true
+merge_mode: edm4eic  # Use EDM4EIC mode for MCParticles and Vertices
+
+sources:
+  - input_files:
+      - input1.root
+      - input2.root
+    static_number_of_events: false
+    mean_event_frequency: 1.5
+    use_bunch_crossing: true
+    generator_status_offset: 0
+  - input_files:
+      - background.root
+    static_number_of_events: true
+    static_events_per_timeslice: 2
+    generator_status_offset: 1000
+```
+
+Use with:
+```bash
+./install/bin/timeslice_merger --config config.yml
 ```
 
 ## Configuration Parameters Details
@@ -188,11 +235,31 @@ The output ROOT file contains:
 
 ### Supported Collection Types
 
+#### EDM4HEP Mode (default)
 The merger processes the following EDM4HEP collection types:
 - **MCParticle**: Time and generator status updates
 - **SimTrackerHit**: Time updates and particle reference mapping
 - **SimCalorimeterHit**: Time updates and contribution processing
 - **CaloHitContribution**: Time updates with proper particle references
+
+#### EDM4EIC Mode
+The merger processes the following EDM4EIC collection types:
+- **MCParticle**: Time and generator status updates (similar to EDM4HEP)
+- **Vertex**: Time updates applied in exactly the same way as hits
+
+### Merge Modes
+
+#### EDM4HEP Mode (`--merge-mode edm4hep`)
+- Merges hit collections (SimTrackerHit, SimCalorimeterHit)
+- Adjusts timing for hits and their contributions
+- Maintains particle references between hits and MCParticles
+- Default mode for backward compatibility
+
+#### EDM4EIC Mode (`--merge-mode edm4eic`)
+- Merges MCParticles and Vertex collections
+- Adjusts vertex timing in exactly the same way as hit timing
+- Optimized for EDM4EIC data model workflows
+- Requires EDM4EIC library at build time
 
 ## Technical Implementation
 
