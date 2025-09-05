@@ -34,7 +34,7 @@ void StandaloneTimesliceMerger::setupRandomGenerators() {
 }
 
 void StandaloneTimesliceMerger::run() {
-    std::cout << "Starting standalone timeslice merger..." << std::endl;
+    std::cout << "Starting timeslice merger..." << std::endl;
     std::cout << "Sources: " << m_config.sources.size() << std::endl;
     std::cout << "Output file: " << m_config.output_file << std::endl;
     std::cout << "Max events: " << m_config.max_events << std::endl;

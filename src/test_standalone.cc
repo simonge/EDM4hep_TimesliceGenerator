@@ -52,14 +52,14 @@ void testMergerCreation() {
 }
 
 int main() {
-    std::cout << "=== Standalone Timeslice Merger Tests ===" << std::endl;
+    std::cout << "=== Timeslice Merger Tests ===" << std::endl;
     
     testConfiguration();
     testMergerCreation();
     
     std::cout << "All tests completed!" << std::endl;
     std::cout << "\nNote: Full functionality tests require Podio and EDM4HEP libraries." << std::endl;
-    std::cout << "Build with proper dependencies using: ./build_standalone.sh" << std::endl;
+    std::cout << "Build with proper dependencies using: ./build.sh" << std::endl;
     
     return 0;
 }

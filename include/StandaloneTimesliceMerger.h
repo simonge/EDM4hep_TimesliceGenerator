@@ -42,7 +42,7 @@ private:
     std::unique_ptr<podio::Frame> createMergedTimeslice();
     void writeOutput(std::unique_ptr<podio::ROOTWriter>& writer, std::unique_ptr<podio::Frame> frame);
     
-    // Helper methods to replicate JANA merging logic
+    // Helper methods for timeslice merging logic
     void mergeCollections(const std::vector<std::unique_ptr<podio::Frame>>& frames, 
                          edm4hep::MCParticleCollection& out_particles,
                          std::unordered_map<std::string, edm4hep::SimTrackerHitCollection>& out_tracker_hits,
