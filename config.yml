@@ -1,31 +1,20 @@
-# Timeslice Merger Configuration
-# This file shows the configuration options available for the timeslice merger
-
-# Output settings
-output_file: "merged_timeslices.root"
+# Example configuration for the standalone podio timeslice merger
+output_file: merged_timeslices.root
 max_events: 100
-
-# Timeslice settings  
-time_slice_duration: 20000.0  # ns
-mean_event_frequency: 0.001   # events per ns
-
-# Static vs dynamic event allocation
-static_number_of_events: true
-static_events_per_timeslice: 2
-
-# Bunch crossing settings
-use_bunch_crossing: false
-bunch_crossing_period: 1000.0  # ns
-
-# Beam attachment settings
-attach_to_beam: false
-beam_speed: 299792.458         # ns/mm (speed of light)
-beam_spread: 0.0               # Gaussian spread
-
-# Generator status
-generator_status_offset: 0
-
-# Input files (can also be specified on command line)
-input_files:
-  - "input1.root"
-  - "input2.root"
+time_slice_duration: 20.0
+bunch_crossing_period: 10.0
+introduce_offsets: true
+sources:
+  - input_files:
+      - input3.root
+      - input3.root
+    static_number_of_events: false
+    mean_event_frequency: 1.0
+    use_bunch_crossing: true
+    generator_status_offset: 0
+  - input_files:
+      - input3.root
+    static_number_of_events: true
+    static_events_per_timeslice: 1
+    use_bunch_crossing: true
+    generator_status_offset: 1000
