@@ -16,12 +16,12 @@
 
 class StandaloneTimesliceMerger {
 public:
-    StandaloneTimesliceMerger(const StandaloneMergerConfig& config);
+    StandaloneTimesliceMerger(const MergerConfig& config);
     
     void run();
 
 private:
-    StandaloneMergerConfig m_config;
+    MergerConfig m_config;
     
     // Random number generator members
     std::random_device rd;
@@ -34,7 +34,9 @@ private:
     std::vector<std::unique_ptr<podio::Frame>> accumulated_frames;
     int events_needed;
     size_t events_generated;
-    
+    int inputEventsConsumed;
+    std::vector<int> eventsConsumedPerSource;
+
     void setupRandomGenerators();
     void processInputFiles();
     std::unique_ptr<podio::Frame> createMergedTimeslice();
