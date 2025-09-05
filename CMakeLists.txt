@@ -1,56 +1,42 @@
 cmake_minimum_required(VERSION 3.16)
-project(TimesliceGenerator VERSION 1.0.0)
+project(StandaloneTimesliceMerger VERSION 1.0.0)
 
 # Set C++ standard
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# Find JANA
-find_package(JANA REQUIRED)
+link_directories(/opt/local/lib)
 
-# Find PODIO (required for TimesliceGenerator)
+# Find PODIO (required for standalone merger)
 find_package(podio REQUIRED)
 
 # Find EDM4HEP
 find_package(EDM4HEP REQUIRED)
 
-# Find EDM4EIC (optional)
-find_package(EDM4EIC QUIET)
-if(EDM4EIC_FOUND)
-    message(STATUS "Found EDM4EIC, enabling EDM4EIC support")
-    add_definitions(-DHAVE_EDM4EIC)
-    set(EDM4EIC_LIBRARIES EDM4EIC::edm4eic)
-else()
-    message(STATUS "EDM4EIC not found, disabling EDM4EIC support")
-    set(EDM4EIC_LIBRARIES "")
-endif()
+# Find yaml-cpp
+find_package(yaml-cpp REQUIRED)
 
 # Include directories
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
 
-# Create the plugin
-add_jana_plugin(TimesliceCreator
-    SOURCES
-        src/TimesliceCreator.cc
-    PUBLIC_HEADER
-        include/MyEventFileReader.h
-        include/MyEventFileReaderGenerator.h
-        include/MyTimesliceFileWriter.h
-        include/MyTimesliceBuilder.h
+# Create the standalone executable
+add_executable(timeslice_merger
+    src/StandaloneTimesliceMerger.cc
+    src/timeslice_merger_main.cc
 )
 
-
 # Link against PODIO and EDM4HEP
-target_link_libraries(TimesliceCreator PUBLIC
+target_link_libraries(timeslice_merger
     podio::podioRootIO
     EDM4HEP::edm4hep
     EDM4HEP::edm4hepDict
-    ${EDM4EIC_LIBRARIES}
+    yaml-cpp
 )
-
 
 # Set install prefix if not specified
 if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
     set(CMAKE_INSTALL_PREFIX "${CMAKE_CURRENT_SOURCE_DIR}/install" CACHE PATH "Installation directory" FORCE)
 endif()
 
+# Install the executable
+install(TARGETS timeslice_merger DESTINATION bin)

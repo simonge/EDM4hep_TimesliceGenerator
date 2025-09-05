@@ -1,6 +1,22 @@
 # Standalone TimesliceExample Plugin
 
-This is a standalone version of the JANA2 TimesliceExample plugin that can be compiled independently of the JANA2 source tree.
+This repository contains two implementations for merging events into timeslices:
+
+1. **JANA-based TimesliceCreator Plugin** - Uses the JANA event processing framework
+2. **Standalone Timeslice Merger** - Direct Podio-based implementation without JANA dependencies
+
+Both implementations provide identical merging logic and configuration parameters.
+
+## Which Version to Use?
+
+- **Use the JANA plugin** if you're already using JANA or need integration with other JANA plugins
+- **Use the standalone merger** if you want minimal dependencies or simpler deployment
+
+See [COMPARISON.md](COMPARISON.md) for detailed comparison and migration guide.
+
+## JANA-based TimesliceCreator Plugin
+
+This is the original JANA2 TimesliceCreator plugin that can be compiled independently of the JANA2 source tree.
 
 ## Prerequisites
 
@@ -9,7 +25,18 @@ This is a standalone version of the JANA2 TimesliceExample plugin that can be co
 - CMake 3.16 or later
 - C++17 compatible compiler
 
-## Building
+## Standalone Timeslice Merger
+
+For the standalone Podio-based version:
+
+```bash
+./build_standalone.sh
+./install_standalone/bin/timeslice_merger [options] input_file.root
+```
+
+See [README_Standalone.md](README_Standalone.md) for detailed standalone usage instructions.
+
+## JANA Plugin Building
 
 1. Create a build directory:
 ```bash

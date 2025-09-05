@@ -1,12 +1,18 @@
 # Build and install artifacts
 build/
+build_standalone/
 install/
+install_standalone/
 
 # CMake files
 CMakeFiles/
 CMakeCache.txt
 cmake_install.cmake
 Makefile
+
+# Compiled headers
+*.gch
+*.pch
 
 # VS Code settings
 .vscode/
