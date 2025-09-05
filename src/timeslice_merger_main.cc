@@ -158,7 +158,7 @@ int main(int argc, char* argv[]) {
     }
     
     // Print configuration
-    std::cout << "=== Standalone Timeslice Merger Configuration ===" << std::endl;
+    std::cout << "=== Timeslice Merger Configuration ===" << std::endl;
     std::cout << "Sources: " << config.sources.size() << std::endl;
     for (size_t i = 0; i < config.sources.size(); ++i) {
         const auto& source = config.sources[i];

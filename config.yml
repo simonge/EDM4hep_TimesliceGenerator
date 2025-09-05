@@ -1,14 +1,20 @@
+# Example configuration for the standalone podio timeslice merger
 output_file: merged_timeslices.root
-n_events: 100
-timeslice_duration: 10000.0 # ns
-bunch_crossing_period: 1000.0 # ns
-inputs:
-  - input_file: input.root
-    use_bunch_crossing: "true"
-    static_number_of_events: "true"
+max_events: 100
+time_slice_duration: 20.0
+bunch_crossing_period: 10.0
+introduce_offsets: true
+sources:
+  - input_files:
+      - input3.root
+      - input3.root
+    static_number_of_events: false
+    mean_event_frequency: 1.0
+    use_bunch_crossing: true
+    generator_status_offset: 0
+  - input_files:
+      - input3.root
+    static_number_of_events: true
     static_events_per_timeslice: 1
-  - input_file: input2.root
-    use_bunch_crossing: "false"
-    static_number_of_events: "false"
-    mean_event_frequency: 0.005 # events per ns
+    use_bunch_crossing: true
     generator_status_offset: 1000
