@@ -7,6 +7,9 @@ struct MergerConfig {
     bool   introduce_offsets{true};
     float  time_slice_duration{20.0f};
     float  bunch_crossing_period{10.0f};
+    
+    // Merge mode: "edm4hep" for hit collections, "edm4eic" for MCParticles and Vertices
+    std::string merge_mode{"edm4hep"};
 
     // Config per source
     std::vector<struct SourceConfig> sources;

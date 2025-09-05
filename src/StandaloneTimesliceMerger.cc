@@ -10,6 +10,20 @@ StandaloneTimesliceMerger::StandaloneTimesliceMerger(const MergerConfig& config)
     // Initialize per-source event tracking
     eventsConsumedPerSource.resize(m_config.sources.size(), 0);
     
+    // Initialize collection lists for each source
+    collections_per_source.resize(m_config.sources.size());
+    
+    // Validate merge mode
+    if (m_config.merge_mode != "edm4hep" && m_config.merge_mode != "edm4eic") {
+        throw std::runtime_error("Invalid merge_mode: " + m_config.merge_mode + ". Must be 'edm4hep' or 'edm4eic'");
+    }
+    
+#ifndef HAVE_EDM4EIC
+    if (m_config.merge_mode == "edm4eic") {
+        throw std::runtime_error("edm4eic merge mode requested but edm4eic headers not available");
+    }
+#endif
+    
     // For now, use first source config for events_needed calculation
     if (!m_config.sources.empty()) {
         const auto& first_source = m_config.sources[0];
@@ -39,8 +53,17 @@ void StandaloneTimesliceMerger::run() {
     std::cout << "Output file: " << m_config.output_file << std::endl;
     std::cout << "Max events: " << m_config.max_events << std::endl;
     std::cout << "Timeslice duration: " << m_config.time_slice_duration << std::endl;
+    std::cout << "Merge mode: " << m_config.merge_mode << std::endl;
     
     auto writer = std::make_unique<podio::ROOTWriter>(m_config.output_file);
+    
+    // Build collection lists for optimized reading when available
+#ifdef HAVE_PODIO_COLLECTION_LIST
+    std::cout << "Using optimized collection reading (podio version supports collection lists)" << std::endl;
+    buildCollectionLists();
+#else
+    std::cout << "Using standard collection reading (podio version does not support collection lists)" << std::endl;
+#endif
     
     processInputFiles();
     
@@ -87,7 +110,17 @@ void StandaloneTimesliceMerger::processInputFiles() {
                 if (source.already_merged) {
                     // Check if this source actually has SubEventHeaders
                     try {
-                        auto frame_data = source_readers[source_idx].reader.readEntry(source_readers[source_idx].tree_name, 0);
+                        auto frame_data = [&](){
+#ifdef HAVE_PODIO_COLLECTION_LIST
+                            if (!collections_per_source[source_idx].empty()) {
+                                return source_readers[source_idx].reader.readEntry(source_readers[source_idx].tree_name, 0, collections_per_source[source_idx]);
+                            } else {
+                                return source_readers[source_idx].reader.readEntry(source_readers[source_idx].tree_name, 0);
+                            }
+#else
+                            return source_readers[source_idx].reader.readEntry(source_readers[source_idx].tree_name, 0);
+#endif
+                        }();
                         auto test_frame = std::make_unique<podio::Frame>(std::move(frame_data));
                         const auto& sub_headers = test_frame->get<edm4hep::EventHeaderCollection>("SubEventHeaders");
                         std::cout << "Source " << source_idx << ": Verified as already-merged with " 
@@ -179,7 +212,17 @@ void StandaloneTimesliceMerger::processInputFiles() {
                               << " with " << source_reader.total_entries << " entries" << std::endl;
                 }
                 if (source_reader.current_entry_index < source_reader.total_entries) {
-                    auto frame_data = source_reader.reader.readEntry(source_reader.tree_name, source_reader.current_entry_index);
+                    auto frame_data = [&](){
+#ifdef HAVE_PODIO_COLLECTION_LIST
+                        if (!collections_per_source[source_idx].empty()) {
+                            return source_reader.reader.readEntry(source_reader.tree_name, source_reader.current_entry_index, collections_per_source[source_idx]);
+                        } else {
+                            return source_reader.reader.readEntry(source_reader.tree_name, source_reader.current_entry_index);
+                        }
+#else
+                        return source_reader.reader.readEntry(source_reader.tree_name, source_reader.current_entry_index);
+#endif
+                    }();
                     auto frame = std::make_unique<podio::Frame>(std::move(frame_data));
                     inputEventsConsumed++;
                     eventsConsumedPerSource[source_idx]++;
@@ -235,112 +278,179 @@ void StandaloneTimesliceMerger::processInputFiles() {
 }std::unique_ptr<podio::Frame> StandaloneTimesliceMerger::createMergedTimeslice() {
     auto output_frame = std::make_unique<podio::Frame>();
     
-    edm4hep::MCParticleCollection timeslice_particles_out;
-    edm4hep::EventHeaderCollection timeslice_info_out;
-    edm4hep::EventHeaderCollection sub_event_headers_out;
-    std::unordered_map<std::string, edm4hep::SimTrackerHitCollection> timeslice_tracker_hits_out;
-    std::unordered_map<std::string, edm4hep::SimCalorimeterHitCollection> timeslice_calorimeter_hits_out;
-    std::unordered_map<std::string, edm4hep::CaloHitContributionCollection> timeslice_calo_contributions_out;
-    
-    // Get collection names from first frame
-    if (!accumulated_frames.empty()) {
-        auto tracker_collections = getCollectionNames(*accumulated_frames[0], "edm4hep::SimTrackerHit");
-        auto calo_collections = getCollectionNames(*accumulated_frames[0], "edm4hep::SimCalorimeterHit");
+    if (m_config.merge_mode == "edm4hep") {
+        // EDM4HEP mode - merge hit collections
+        edm4hep::MCParticleCollection timeslice_particles_out;
+        edm4hep::EventHeaderCollection timeslice_info_out;
+        edm4hep::EventHeaderCollection sub_event_headers_out;
+        std::unordered_map<std::string, edm4hep::SimTrackerHitCollection> timeslice_tracker_hits_out;
+        std::unordered_map<std::string, edm4hep::SimCalorimeterHitCollection> timeslice_calorimeter_hits_out;
+        std::unordered_map<std::string, edm4hep::CaloHitContributionCollection> timeslice_calo_contributions_out;
         
-        for (const auto& name : tracker_collections) {
-            timeslice_tracker_hits_out[name] = edm4hep::SimTrackerHitCollection();
+        // Get collection names from first frame
+        if (!accumulated_frames.empty()) {
+            auto tracker_collections = getCollectionNames(*accumulated_frames[0], "edm4hep::SimTrackerHit");
+            auto calo_collections = getCollectionNames(*accumulated_frames[0], "edm4hep::SimCalorimeterHit");
+            
+            for (const auto& name : tracker_collections) {
+                timeslice_tracker_hits_out[name] = edm4hep::SimTrackerHitCollection();
+            }
+            for (const auto& name : calo_collections) {
+                timeslice_calorimeter_hits_out[name] = edm4hep::SimCalorimeterHitCollection();
+                timeslice_calo_contributions_out[name] = edm4hep::CaloHitContributionCollection();
+            }
         }
-        for (const auto& name : calo_collections) {
-            timeslice_calorimeter_hits_out[name] = edm4hep::SimCalorimeterHitCollection();
-            timeslice_calo_contributions_out[name] = edm4hep::CaloHitContributionCollection();
+        
+        // Track first MCParticle index for each sub-event
+        size_t mcparticle_index = 0;
+        std::vector<float> time_offsets;
+        // Merge collections and collect time offsets
+        for (size_t i = 0; i < accumulated_frames.size(); ++i) {
+            float time_offset = generateTimeOffset();
+            time_offsets.push_back(time_offset);
         }
-    }
-    
-    // Track first MCParticle index for each sub-event
-    size_t mcparticle_index = 0;
-    std::vector<float> time_offsets;
-    // Merge collections and collect time offsets
-    for (size_t i = 0; i < accumulated_frames.size(); ++i) {
-        float time_offset = generateTimeOffset();
-        time_offsets.push_back(time_offset);
-    }
-    mergeCollections(accumulated_frames, timeslice_particles_out, 
-                    timeslice_tracker_hits_out, timeslice_calorimeter_hits_out, 
-                    timeslice_calo_contributions_out);
+        mergeCollections(accumulated_frames, timeslice_particles_out, 
+                        timeslice_tracker_hits_out, timeslice_calorimeter_hits_out, 
+                        timeslice_calo_contributions_out);
 
-    // Create main timeslice header
-    auto header = edm4hep::MutableEventHeader();
-    header.setEventNumber(events_generated);
-    header.setRunNumber(0);
-    header.setTimeStamp(events_generated);
-    timeslice_info_out.push_back(header);
+        // Create main timeslice header
+        auto header = edm4hep::MutableEventHeader();
+        header.setEventNumber(events_generated);
+        header.setRunNumber(0);
+        header.setTimeStamp(events_generated);
+        timeslice_info_out.push_back(header);
 
-    // Create SubEventHeaders
-    mcparticle_index = 0;
-    for (size_t i = 0; i < accumulated_frames.size(); ++i) {
-        const auto& frame = accumulated_frames[i];
-        
-        // Check if this frame already has SubEventHeaders (already merged source)
-        bool has_sub_headers = false;
-        try {
-            const auto& existing_sub_headers = frame->get<edm4hep::EventHeaderCollection>("SubEventHeaders");
-            has_sub_headers = !existing_sub_headers.empty();
-        } catch (...) {
-            has_sub_headers = false;
-        }
-        
-        if (has_sub_headers) {
-            // Copy existing SubEventHeaders and update MCParticle indices
+        // Create SubEventHeaders
+        mcparticle_index = 0;
+        for (size_t i = 0; i < accumulated_frames.size(); ++i) {
+            const auto& frame = accumulated_frames[i];
+            
+            // Check if this frame already has SubEventHeaders (already merged source)
+            bool has_sub_headers = false;
             try {
                 const auto& existing_sub_headers = frame->get<edm4hep::EventHeaderCollection>("SubEventHeaders");
-                for (const auto& existing_header : existing_sub_headers) {
-                    auto sub_header = existing_header.clone();
-                    // Update the timestamp to reflect the new MCParticle index offset
-                    sub_header.setTimeStamp(mcparticle_index + existing_header.getTimeStamp());
-                    sub_event_headers_out.push_back(sub_header);
+                has_sub_headers = !existing_sub_headers.empty();
+            } catch (...) {
+                has_sub_headers = false;
+            }
+            
+            if (has_sub_headers) {
+                // Copy existing SubEventHeaders and update MCParticle indices
+                try {
+                    const auto& existing_sub_headers = frame->get<edm4hep::EventHeaderCollection>("SubEventHeaders");
+                    for (const auto& existing_header : existing_sub_headers) {
+                        auto sub_header = existing_header.clone();
+                        // Update the timestamp to reflect the new MCParticle index offset
+                        sub_header.setTimeStamp(mcparticle_index + existing_header.getTimeStamp());
+                        sub_event_headers_out.push_back(sub_header);
+                    }
+                    // Count MCParticles in this already-merged frame
+                    try {
+                        const auto& particles = frame->get<edm4hep::MCParticleCollection>("MCParticles");
+                        mcparticle_index += particles.size();
+                    } catch (...) {
+                        // If no MCParticles, index remains unchanged
+                    }
+                } catch (const std::exception& e) {
+                    std::cout << "Warning: Could not process existing SubEventHeaders: " << e.what() << std::endl;
                 }
-                // Count MCParticles in this already-merged frame
+            } else {
+                // Create new SubEventHeader for regular source
+                auto sub_header = edm4hep::MutableEventHeader();
+                sub_header.setEventNumber(i); // sub-event number
+                sub_header.setRunNumber(0);
+                sub_header.setTimeStamp(mcparticle_index); // index of first MCParticle for this sub-event
+                sub_header.setWeight(time_offsets[i]); // time offset
+                // Count MCParticles in this frame
                 try {
                     const auto& particles = frame->get<edm4hep::MCParticleCollection>("MCParticles");
                     mcparticle_index += particles.size();
                 } catch (...) {
                     // If no MCParticles, index remains unchanged
                 }
-            } catch (const std::exception& e) {
-                std::cout << "Warning: Could not process existing SubEventHeaders: " << e.what() << std::endl;
+                sub_event_headers_out.push_back(sub_header);
             }
-        } else {
-            // Create new SubEventHeader for regular source
+        }
+
+        // Insert collections into frame
+        output_frame->put(std::move(timeslice_particles_out), "MCParticles");
+        output_frame->put(std::move(timeslice_info_out), "EventHeader");
+        output_frame->put(std::move(sub_event_headers_out), "SubEventHeaders");
+
+        for(auto& [collection_name, hit_collection] : timeslice_tracker_hits_out) {
+            output_frame->put(std::move(hit_collection), collection_name);
+        }
+        for (auto& [collection_name, hit_collection] : timeslice_calorimeter_hits_out) {
+            output_frame->put(std::move(hit_collection), collection_name);
+        }
+        for (auto& [collection_name, hit_collection] : timeslice_calo_contributions_out) {
+            output_frame->put(std::move(hit_collection), collection_name + "Contributions");
+        }
+    }
+#ifdef HAVE_EDM4EIC
+    else if (m_config.merge_mode == "edm4eic") {
+        // EDM4EIC mode - merge MCParticles and Vertices
+        edm4eic::MCParticleCollection timeslice_particles_out;
+        edm4hep::EventHeaderCollection timeslice_info_out;
+        edm4hep::EventHeaderCollection sub_event_headers_out;
+        std::unordered_map<std::string, edm4eic::VertexCollection> timeslice_vertices_out;
+        
+        // Get vertex collection names from first frame
+        if (!accumulated_frames.empty()) {
+            auto vertex_collections = getCollectionNames(*accumulated_frames[0], "edm4eic::Vertex");
+            for (const auto& name : vertex_collections) {
+                timeslice_vertices_out[name] = edm4eic::VertexCollection();
+            }
+        }
+        
+        // Merge edm4eic collections
+        mergeEdm4eicCollections(accumulated_frames, timeslice_particles_out, timeslice_vertices_out);
+
+        // Create main timeslice header
+        auto header = edm4hep::MutableEventHeader();
+        header.setEventNumber(events_generated);
+        header.setRunNumber(0);
+        header.setTimeStamp(events_generated);
+        timeslice_info_out.push_back(header);
+
+        // Create SubEventHeaders (similar to edm4hep mode)
+        size_t mcparticle_index = 0;
+        std::vector<float> time_offsets;
+        for (size_t i = 0; i < accumulated_frames.size(); ++i) {
+            float time_offset = generateTimeOffset();
+            time_offsets.push_back(time_offset);
+        }
+        
+        for (size_t i = 0; i < accumulated_frames.size(); ++i) {
+            const auto& frame = accumulated_frames[i];
+            
+            // Create new SubEventHeader
             auto sub_header = edm4hep::MutableEventHeader();
-            sub_header.setEventNumber(i); // sub-event number
+            sub_header.setEventNumber(i);
             sub_header.setRunNumber(0);
-            sub_header.setTimeStamp(mcparticle_index); // index of first MCParticle for this sub-event
-            sub_header.setWeight(time_offsets[i]); // time offset
+            sub_header.setTimeStamp(mcparticle_index);
+            sub_header.setWeight(time_offsets[i]);
+            
             // Count MCParticles in this frame
             try {
-                const auto& particles = frame->get<edm4hep::MCParticleCollection>("MCParticles");
+                const auto& particles = frame->get<edm4eic::MCParticleCollection>("MCParticles");
                 mcparticle_index += particles.size();
             } catch (...) {
                 // If no MCParticles, index remains unchanged
             }
             sub_event_headers_out.push_back(sub_header);
         }
-    }
 
-    // Insert collections into frame
-    output_frame->put(std::move(timeslice_particles_out), "MCParticles");
-    output_frame->put(std::move(timeslice_info_out), "EventHeader");
-    output_frame->put(std::move(sub_event_headers_out), "SubEventHeaders");
+        // Insert collections into frame
+        output_frame->put(std::move(timeslice_particles_out), "MCParticles");
+        output_frame->put(std::move(timeslice_info_out), "EventHeader");
+        output_frame->put(std::move(sub_event_headers_out), "SubEventHeaders");
 
-    for(auto& [collection_name, hit_collection] : timeslice_tracker_hits_out) {
-        output_frame->put(std::move(hit_collection), collection_name);
+        for(auto& [collection_name, vertex_collection] : timeslice_vertices_out) {
+            output_frame->put(std::move(vertex_collection), collection_name);
+        }
     }
-    for (auto& [collection_name, hit_collection] : timeslice_calorimeter_hits_out) {
-        output_frame->put(std::move(hit_collection), collection_name);
-    }
-    for (auto& [collection_name, hit_collection] : timeslice_calo_contributions_out) {
-        output_frame->put(std::move(hit_collection), collection_name + "Contributions");
-    }
+#endif
 
     return output_frame;
 }
@@ -475,3 +585,90 @@ std::vector<std::string> StandaloneTimesliceMerger::getCollectionNames(const pod
 void StandaloneTimesliceMerger::writeOutput(std::unique_ptr<podio::ROOTWriter>& writer, std::unique_ptr<podio::Frame> frame) {
     writer->writeFrame(*frame, "events");
 }
+
+void StandaloneTimesliceMerger::buildCollectionLists() {
+    // Build collection lists for each source based on merge mode
+    for (size_t source_idx = 0; source_idx < m_config.sources.size(); ++source_idx) {
+        std::vector<std::string>& collections = collections_per_source[source_idx];
+        collections.clear();
+        
+        if (m_config.merge_mode == "edm4hep") {
+            // Standard EDM4HEP collections
+            collections.push_back("MCParticles");
+            // Add hit collection names - these would need to be determined dynamically
+            // For now, we'll add them during the first read
+        } else if (m_config.merge_mode == "edm4eic") {
+            // EDM4EIC collections
+            collections.push_back("MCParticles");
+            collections.push_back("Vertices");
+        }
+        
+        // Check if this source has SubEventHeaders (for already_merged sources)
+        const auto& source = m_config.sources[source_idx];
+        if (source.already_merged) {
+            collections.push_back("SubEventHeaders");
+        }
+    }
+}
+
+#ifdef HAVE_EDM4EIC
+void StandaloneTimesliceMerger::mergeEdm4eicCollections(
+    const std::vector<std::unique_ptr<podio::Frame>>& frames,
+    edm4eic::MCParticleCollection& out_particles,
+    std::unordered_map<std::string, edm4eic::VertexCollection>& out_vertices) {
+    
+    for (size_t frame_idx = 0; frame_idx < frames.size(); ++frame_idx) {
+        const auto& frame = frames[frame_idx];
+        float time_offset = 0.0f;
+        
+        // Check if this frame is from an already merged source
+        bool already_merged = false;
+        try {
+            const auto& sub_headers = frame->get<edm4hep::EventHeaderCollection>("SubEventHeaders");
+            already_merged = !sub_headers.empty();
+        } catch (...) {
+            already_merged = false;
+        }
+        
+        if (!already_merged) {
+            time_offset = generateTimeOffset();
+        }
+
+        // Map from original particle handle -> cloned particle handle
+        std::unordered_map<const edm4eic::MCParticle*, edm4eic::MCParticle> new_old_particle_map;
+
+        // Process EDM4EIC MCParticles
+        try {
+            const auto& particles = frame->get<edm4eic::MCParticleCollection>("MCParticles");
+            for (const auto& particle : particles) {
+                auto new_particle = particle.clone();
+                new_particle.setTime(particle.getTime() + time_offset);
+                // Use first source for generator status offset
+                int status_offset = m_config.sources.empty() ? 0 : m_config.sources[0].generator_status_offset;
+                new_particle.setGeneratorStatus(particle.getGeneratorStatus() + status_offset);
+                out_particles.push_back(new_particle);
+                new_old_particle_map[&particle] = new_particle;
+            }
+        } catch (const std::exception& e) {
+            std::cout << "Warning: Could not process EDM4EIC MCParticles: " << e.what() << std::endl;
+        }
+
+        // Process EDM4EIC Vertices
+        for (auto& [collection_name, vertex_collection] : out_vertices) {
+            try {
+                const auto& vertices = frame->get<edm4eic::VertexCollection>(collection_name);
+                for (const auto& vertex : vertices) {
+                    auto new_vertex = vertex.clone();
+                    // Adjust vertex time in the same way as hits
+                    new_vertex.setTime(vertex.getTime() + time_offset);
+                    // Update particle references if they exist
+                    // Note: vertex-particle relationships might need special handling
+                    vertex_collection.push_back(new_vertex);
+                }
+            } catch (const std::exception& e) {
+                // Collection may not exist in this frame - that's okay
+            }
+        }
+    }
+}
+#endif

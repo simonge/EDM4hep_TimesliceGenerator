@@ -6,9 +6,23 @@
 #include <edm4hep/SimTrackerHitCollection.h>
 #include <edm4hep/SimCalorimeterHitCollection.h>
 #include <edm4hep/CaloHitContributionCollection.h>
+
+// Try to include edm4eic headers if available
+#ifdef HAVE_EDM4EIC
+#include <edm4eic/MCParticleCollection.h>
+#include <edm4eic/VertexCollection.h>
+#endif
+
 #include <podio/ROOTReader.h>
 #include <podio/ROOTWriter.h>
 #include <podio/Frame.h>
+
+// Check for newer podio readEntry API
+#include <podio/version.h>
+#if PODIO_VERSION_MAJOR > 0 || (PODIO_VERSION_MAJOR == 0 && PODIO_VERSION_MINOR >= 17)
+#define HAVE_PODIO_COLLECTION_LIST
+#endif
+
 #include <random>
 #include <unordered_map>
 #include <vector>
@@ -36,6 +50,9 @@ private:
     size_t events_generated;
     int inputEventsConsumed;
     std::vector<int> eventsConsumedPerSource;
+    
+    // Collection lists for optimized reading (when HAVE_PODIO_COLLECTION_LIST is available)
+    std::vector<std::vector<std::string>> collections_per_source;
 
     void setupRandomGenerators();
     void processInputFiles();
@@ -48,7 +65,14 @@ private:
                          std::unordered_map<std::string, edm4hep::SimTrackerHitCollection>& out_tracker_hits,
                          std::unordered_map<std::string, edm4hep::SimCalorimeterHitCollection>& out_calo_hits,
                          std::unordered_map<std::string, edm4hep::CaloHitContributionCollection>& out_calo_contributions);
+
+#ifdef HAVE_EDM4EIC
+    void mergeEdm4eicCollections(const std::vector<std::unique_ptr<podio::Frame>>& frames,
+                                edm4eic::MCParticleCollection& out_particles,
+                                std::unordered_map<std::string, edm4eic::VertexCollection>& out_vertices);
+#endif
                          
     float generateTimeOffset();
     std::vector<std::string> getCollectionNames(const podio::Frame& frame, const std::string& type);
+    void buildCollectionLists();
 };

@@ -13,6 +13,15 @@ find_package(podio REQUIRED)
 # Find EDM4HEP
 find_package(EDM4HEP REQUIRED)
 
+# Try to find EDM4EIC (optional)
+find_package(EDM4EIC QUIET)
+if(EDM4EIC_FOUND)
+    message(STATUS "EDM4EIC found - enabling edm4eic merge mode support")
+    add_compile_definitions(HAVE_EDM4EIC)
+else()
+    message(STATUS "EDM4EIC not found - edm4eic merge mode will not be available")
+endif()
+
 # Find yaml-cpp
 find_package(yaml-cpp REQUIRED)
 
@@ -32,6 +41,11 @@ target_link_libraries(timeslice_merger
     EDM4HEP::edm4hepDict
     yaml-cpp
 )
+
+# Link against EDM4EIC if available
+if(EDM4EIC_FOUND)
+    target_link_libraries(timeslice_merger EDM4EIC::edm4eic)
+endif()
 
 # Set install prefix if not specified
 if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
