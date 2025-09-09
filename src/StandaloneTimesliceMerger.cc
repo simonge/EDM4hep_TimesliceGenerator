@@ -1,4 +1,5 @@
 #include "StandaloneTimesliceMerger.h"
+#include "SourceReader.h"
 #include <iostream>
 #include <algorithm>
 #include <cmath>
@@ -44,97 +45,51 @@ std::vector<SourceReader> StandaloneTimesliceMerger::initializeInputFiles() {
 
     for (auto& source_reader : source_readers) {
         const auto& source = m_config.sources[source_idx];
-        source_reader.config = &source;
+        source_reader.initialize(source);
 
-        if (!source.input_files.empty()) {
-            try {
-                source_reader.reader.openFiles(source.input_files);
+        if (source.hasInputFiles()) {
+            source_reader.openFiles();
 
-                auto tree_names = source_reader.reader.getAvailableCategories();
-
-                // Use treename from config, check it exists
-                if (std::find(tree_names.begin(), tree_names.end(), source.tree_name) == tree_names.end()) {
-                    throw std::runtime_error("ERROR: Tree name '" + source.tree_name + "' not found in file for source " + std::to_string(source_idx));
+            // Check collections_to_merge are present in this source
+            for (const auto& coll_name : collections_to_merge) {
+                if (source_idx == 0) {
+                    collections_to_read.push_back(coll_name);
                 }
+            }
 
-                source_reader.total_entries = source_reader.reader.getEntries(source.tree_name);                
-
+            // If not merging particles, we need to ensure we have the right hit collections
+            if (!m_config.merge_particles) {
                 // Read the first frame to get collection names and types
-                auto frame_data = source_reader.reader.readEntry(source.tree_name, 0);
+                auto frame_data = source_reader.getReader().readEntry(source.getTreeName(), 0);
                 podio::Frame frame(std::move(frame_data));
                 auto available_collections = frame.getAvailableCollections();
-                      
 
-                // Check collections_to_merge are present in this source
-                for (const auto& coll_name : collections_to_merge) {
-                    if (std::find(available_collections.begin(), available_collections.end(), coll_name) == available_collections.end()) {
-                        throw std::runtime_error("ERROR: Collection '" + coll_name + "' not found in source " + std::to_string(source_idx));
-                    } else {
-                        source_reader.collection_names_to_read.push_back(coll_name);
-                        const auto* coll = frame.get(coll_name);
-                        source_reader.collection_types_to_read.push_back(std::string(coll->getValueTypeName()));
-                        if(source_idx == 0) {
+                // Check hit collections are present in this source
+                for (const auto& coll_name : available_collections) {
+                    const auto* coll = frame.get(coll_name);
+                    auto coll_type = std::string(coll->getValueTypeName());
+                    // check if coll type is in the hit collection types
+                    auto it = std::find(hit_collection_types.begin(), hit_collection_types.end(), coll_type);
+                    if (it != hit_collection_types.end()) {
+                        source_reader.addCollectionToRead(coll_name, coll_type);
+                        if (source_idx == 0) {
                             collections_to_read.push_back(coll_name);
                         }
                     }
                 }
+            }
 
-                // If not merging particles, we need to ensure we have the right hit collections
-                if(!m_config.merge_particles) {
-                    // Check hit collections are present in this source
-                    for (const auto& coll_name : available_collections) {
-                        const auto* coll = frame.get(coll_name);
-                        auto coll_type = std::string(coll->getValueTypeName());
-                        // check if coll type is in the hit collection types
-                        auto it = std::find(hit_collection_types.begin(), hit_collection_types.end(), coll_type);
-                        if (it != hit_collection_types.end()) {
-                            source_reader.collection_names_to_read.push_back(coll_name);
-                            source_reader.collection_types_to_read.push_back(coll_type);
-                            if(source_idx == 0) {
-                                collections_to_read.push_back(coll_name);
-                            }                            
-                        }
+            // Validate collections for this source
+            source_reader.validateCollections(collections_to_merge);
+
+            // Ensure the collections from this source match those from the first source
+            if (source_idx > 0) {
+                for (const auto& coll_name : collections_to_read) {
+                    const auto& reader_collections = source_reader.getCollectionNamesToRead();
+                    if (std::find(reader_collections.begin(), reader_collections.end(), coll_name) == reader_collections.end()) {
+                        throw std::runtime_error("ERROR: Collection '" + coll_name + "' not found in source " + std::to_string(source_idx));
                     }
                 }
-
-                // If merging particles, we need to ensure we have the right collections
-                // if(m_config.merge_particles) {
-                //     for (const auto& part_type : particle_collection_types) {
-                //         for (size_t i = 0; i < available_collections.size(); ++i) {
-                //             if (i < source_reader.collection_types_to_read.size() && source_reader.collection_types_to_read[i] == part_type) {
-                //                 const auto& coll_name = available_collections[i];
-                //                 source_reader.collection_names_to_read.push_back(coll_name);
-                //                 if(source_idx == 0) {
-                //                     collections_to_read.push_back(coll_name);
-                //                 }
-                //             }
-                //         }
-                //     }
-                // }
-
-                // Ensure the collections from this source match those from the first source
-                if (source_idx > 0) {
-                    for (const auto& coll_name : collections_to_read) {
-                        if (std::find(source_reader.collection_names_to_read.begin(), source_reader.collection_names_to_read.end(), coll_name) == source_reader.collection_names_to_read.end()) {
-                            throw std::runtime_error("ERROR: Collection '" + coll_name + "' not found in source " + std::to_string(source_idx));
-                        }
-                    }
-                }
-
-                // Validate already_merged source has SubEventHeaders collection and regular source has no SubEventHeaders collection
-                bool has_sub_event_headers = std::find(available_collections.begin(), available_collections.end(), "SubEventHeaders") != available_collections.end();
-
-                if (source.already_merged && !has_sub_event_headers) {
-                    throw std::runtime_error("ERROR: Tree name '" + source.tree_name + "' not found in file for source " + std::to_string(source_idx));
-                } else if (!source.already_merged && has_sub_event_headers) {
-                    throw std::runtime_error("ERROR: Source " + std::to_string(source_idx) + " is marked as not already_merged but has SubEventHeaders collection.");
-                } else if( has_sub_event_headers ) {
-                    source_reader.collection_names_to_read.push_back("SubEventHeaders");
-                    source_reader.collection_types_to_read.push_back("edm4hep::EventHeader");
-                }
-
-            } catch (const std::exception& e) {
-                throw std::runtime_error("ERROR: Could not open input files for source " + std::to_string(source_idx) + ": " + e.what());
             }
         }
         ++source_idx;
@@ -148,24 +103,24 @@ std::vector<SourceReader> StandaloneTimesliceMerger::initializeInputFiles() {
 void StandaloneTimesliceMerger::updateInputNEvents(std::vector<SourceReader>& inputs) {
 
     for (auto& source_reader : inputs) {
-        const auto& config = source_reader.config;
+        const auto& config = source_reader.getConfig();
         // Generate new number of events needed for this source
-        if (config->already_merged) {
+        if (config.isAlreadyMerged()) {
             // Already merged sources should only contribute 1 event (which is already a full timeslice)
-            source_reader.entries_needed = 1;
-        } else if (config->static_number_of_events) {
-            source_reader.entries_needed = config->static_events_per_timeslice;
+            source_reader.setEntriesNeeded(1);
+        } else if (config.useStaticNumberOfEvents()) {
+            source_reader.setEntriesNeeded(config.getStaticEventsPerTimeslice());
         } else {
             // Use Poisson for this source
-            float mean_freq = config->mean_event_frequency;
+            float mean_freq = config.getMeanEventFrequency();
             std::poisson_distribution<> poisson_dist(m_config.time_slice_duration * mean_freq);
             size_t n = poisson_dist(gen);
-            source_reader.entries_needed = (n == 0) ? 1 : n;
+            source_reader.setEntriesNeeded((n == 0) ? 1 : n);
         }
         
         // Check enough events are available in this source
-        if ((source_reader.current_entry_index + source_reader.entries_needed) > source_reader.total_entries) {
-            throw std::runtime_error("ERROR: Not enough events available in source " + config->name);
+        if (!source_reader.canReadRequiredEntries()) {
+            throw std::runtime_error("ERROR: Not enough events available in source " + config.getName());
         }
     }
 
@@ -207,22 +162,22 @@ std::unique_ptr<podio::Frame> StandaloneTimesliceMerger::createMergedTimeslice(s
     // Loop over sources and read needed events, filling the frame
     for(auto& source: inputs) {
 
-        const auto& config = source.config;
+        const auto& config = source.getConfig();
         int sourceEventsConsumed = 0;
 
-        for (size_t i = 0; i < source.entries_needed; ++i) {
+        for (size_t i = 0; i < source.getEntriesNeeded(); ++i) {
 
-            auto frame_data = source.reader.readEntry(config->tree_name, source.current_entry_index);
+            auto frame_data = source.getReader().readEntry(config.getTreeName(), source.getCurrentEntryIndex());
             auto frame      = std::make_unique<podio::Frame>(std::move(frame_data));
 
-            mergeCollections(frame, *config, timeslice_particles_out, sub_event_headers_out, timeslice_tracker_hits_out, timeslice_calorimeter_hits_out, timeslice_calo_contributions_out);
+            mergeCollections(frame, config, timeslice_particles_out, sub_event_headers_out, timeslice_tracker_hits_out, timeslice_calorimeter_hits_out, timeslice_calo_contributions_out);
 
-            source.current_entry_index++;
+            source.advanceEntry();
             sourceEventsConsumed++;
             totalEventsConsumed++;
         }
 
-        std::cout << "Merged " << sourceEventsConsumed << " events, totalling " << source.current_entry_index << " from source " << config->name << std::endl;
+        std::cout << "Merged " << sourceEventsConsumed << " events, totalling " << source.getCurrentEntryIndex() << " from source " << config.getName() << std::endl;
 
     }
 
@@ -262,8 +217,8 @@ void StandaloneTimesliceMerger::mergeCollections(
 
     float time_offset = 0.0f;
     float distance = 0.0f; // Placeholder for distance-based time offset calculation
-    if(!sourceConfig.already_merged) {
-        if(sourceConfig.attach_to_beam) {
+    if(!sourceConfig.isAlreadyMerged()) {
+        if(sourceConfig.attachToBeam()) {
             // Get position of first particle with generatorStatus 1
             try {
                 const auto& particles = frame->get<edm4hep::MCParticleCollection>("MCParticles");
@@ -272,7 +227,7 @@ void StandaloneTimesliceMerger::mergeCollections(
                         auto pos = particle.getVertex();
                         // Distance is dot product of position vector relative to rotation around y of beam relative to z-axis
                         // Needs to be negative if beam is travelling in -z direction
-                        distance = pos.z * std::cos(sourceConfig.beam_angle) + pos.x * std::sin(sourceConfig.beam_angle);
+                        distance = pos.z * std::cos(sourceConfig.getBeamAngle()) + pos.x * std::sin(sourceConfig.getBeamAngle());
                         break;
                     }
                 }
@@ -296,7 +251,7 @@ void StandaloneTimesliceMerger::mergeCollections(
             auto new_particle = particle.clone();
             new_particle.setTime(particle.getTime() + time_offset);
             // Use first source for generator status offset
-            int status_offset = m_config.sources.empty() ? 0 : m_config.sources[0].generator_status_offset;
+            int status_offset = m_config.sources.empty() ? 0 : m_config.sources[0].getGeneratorStatusOffset();
             new_particle.setGeneratorStatus(particle.getGeneratorStatus() + status_offset);
             out_particles.push_back(new_particle);
             new_old_particle_map[&particle] = new_particle;
@@ -307,7 +262,7 @@ void StandaloneTimesliceMerger::mergeCollections(
     }
 
     // Process SubEventHeaders, creating them if they don't exist, otherwise updating existing ones 
-    if (sourceConfig.already_merged) {
+    if (sourceConfig.isAlreadyMerged()) {
         const auto& existing_sub_headers = frame->get<edm4hep::EventHeaderCollection>("SubEventHeaders");
         for (const auto& existing_header : existing_sub_headers) {
             auto sub_header = existing_header.clone();
@@ -379,21 +334,21 @@ void StandaloneTimesliceMerger::mergeCollections(
     
 }
 
-float StandaloneTimesliceMerger::generateTimeOffset(SourceConfig sourceConfig, float distance) {
+float StandaloneTimesliceMerger::generateTimeOffset(const SourceConfig& sourceConfig, float distance) {
 
     std::uniform_real_distribution<float> uniform(0.0f, m_config.time_slice_duration);
     float time_offset = uniform(gen);
     
     // Apply bunch crossing if enabled
-    if (sourceConfig.use_bunch_crossing) {
+    if (sourceConfig.useBunchCrossing()) {
         time_offset = std::floor(time_offset / m_config.bunch_crossing_period) * m_config.bunch_crossing_period;
     }
     
     // Apply beam effects if enabled
-    if (sourceConfig.attach_to_beam) {
-        std::normal_distribution<float> gaussian(0.0f, sourceConfig.beam_spread);
+    if (sourceConfig.attachToBeam()) {
+        std::normal_distribution<float> gaussian(0.0f, sourceConfig.getBeamSpread());
         time_offset += gaussian(gen);
-        time_offset += distance / sourceConfig.beam_speed;
+        time_offset += distance / sourceConfig.getBeamSpeed();
     }
 
     return time_offset;
@@ -403,11 +358,14 @@ std::vector<std::string> StandaloneTimesliceMerger::getCollectionNames(const Sou
     std::vector<std::string> names;
 
     // Iterate through the collection names and types to find matches with type
-    for (size_t i = 0; i < reader.collection_names_to_read.size(); ++i) {
-        const auto& coll_name = reader.collection_names_to_read[i];
+    const auto& collection_names = reader.getCollectionNamesToRead();
+    const auto& collection_types = reader.getCollectionTypesToRead();
+    
+    for (size_t i = 0; i < collection_names.size(); ++i) {
+        const auto& coll_name = collection_names[i];
         // Here we would need a way to get the type of the collection by name
         // Assuming we have a method in SourceReader to get types by name
-        if (i < reader.collection_types_to_read.size() && reader.collection_types_to_read[i] == type) {
+        if (i < collection_types.size() && collection_types[i] == type) {
             names.push_back(coll_name);
         }
     }
