@@ -26,8 +26,6 @@ private:
     // Random number generator members
     std::random_device rd;
     std::mt19937 gen;
-    std::uniform_real_distribution<float> uniform;
-    std::poisson_distribution<> poisson;
     std::normal_distribution<> gaussian;
     
     // State variables

@@ -10,24 +10,10 @@ StandaloneTimesliceMerger::StandaloneTimesliceMerger(const MergerConfig& config)
     // Initialize per-source event tracking
     eventsConsumedPerSource.resize(m_config.sources.size(), 0);
     
-    // For now, use first source config for events_needed calculation
-    if (!m_config.sources.empty()) {
-        const auto& first_source = m_config.sources[0];
-        if(first_source.static_number_of_events) {
-            events_needed = first_source.static_events_per_timeslice;
-        } else {
-            events_needed = poisson(gen);
-        }
-    } else {
-        events_needed = 1;
-    }
 }
 
 void StandaloneTimesliceMerger::setupRandomGenerators() {
-    uniform = std::uniform_real_distribution<float>(0.0f, m_config.time_slice_duration);
     // Use first source for frequency if available
-    float mean_freq = m_config.sources.empty() ? 1.0f : m_config.sources[0].mean_event_frequency;
-    poisson = std::poisson_distribution<>(m_config.time_slice_duration * mean_freq);
     // Use first source for beam spread if available
     float beam_spread = m_config.sources.empty() ? 0.0f : m_config.sources[0].beam_spread;
     gaussian = std::normal_distribution<>(0.0f, beam_spread);
@@ -435,6 +421,8 @@ void StandaloneTimesliceMerger::mergeCollections(
 }
 
 float StandaloneTimesliceMerger::generateTimeOffset() {
+
+    std::uniform_real_distribution<float> uniform(0.0f, m_config.time_slice_duration);
     float time_offset = uniform(gen);
     
     if (!m_config.sources.empty()) {
