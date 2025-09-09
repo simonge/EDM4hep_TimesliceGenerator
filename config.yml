@@ -8,12 +8,14 @@ sources:
   - input_files:
       - input3.root
       - input3.root
+    name: signal
     static_number_of_events: false
     mean_event_frequency: 1.0
     use_bunch_crossing: true
     generator_status_offset: 0
   - input_files:
       - input3.root
+    name: background
     static_number_of_events: true
     static_events_per_timeslice: 1
     use_bunch_crossing: true

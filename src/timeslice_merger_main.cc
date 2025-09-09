@@ -118,6 +118,7 @@ int main(int argc, char* argv[]) {
                         source.input_files.push_back(f.as<std::string>());
                     }
                 }
+                if (source_yaml["name"]) source.name = source_yaml["name"].as<std::string>();
                 if (source_yaml["static_number_of_events"]) source.static_number_of_events = source_yaml["static_number_of_events"].as<bool>();
                 if (source_yaml["static_events_per_timeslice"]) source.static_events_per_timeslice = source_yaml["static_events_per_timeslice"].as<size_t>();
                 if (source_yaml["mean_event_frequency"]) source.mean_event_frequency = source_yaml["mean_event_frequency"].as<float>();
@@ -161,12 +162,13 @@ int main(int argc, char* argv[]) {
     std::cout << "=== Timeslice Merger Configuration ===" << std::endl;
     std::cout << "Sources: " << config.sources.size() << std::endl;
     for (size_t i = 0; i < config.sources.size(); ++i) {
-        const auto& source = config.sources[i];
+        const auto& source = config.sources[i];        
         std::cout << "Source " << i << " input files: ";
         for (const auto& file : source.input_files) {
             std::cout << file << " ";
         }
         std::cout << std::endl;
+        std::cout << "  Name: " << source.name << std::endl;
         std::cout << "  Static number of events: " << (source.static_number_of_events ? "true" : "false") << std::endl;
         std::cout << "  Events per timeslice: " << source.static_events_per_timeslice << std::endl;
         std::cout << "  Mean event frequency: " << source.mean_event_frequency << " events/ns" << std::endl;

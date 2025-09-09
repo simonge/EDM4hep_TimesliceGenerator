@@ -14,11 +14,13 @@ struct MergerConfig {
     // Input/output configuration
     std::string output_file{"merged_timeslices.root"};
     size_t max_events{100};
+    bool   merge_particles{false};
 };
 
 struct SourceConfig {
     // Input/output configuration
     std::vector<std::string> input_files;
+    std::string name{"signal"};
 
     bool   already_merged{false};
     bool   static_number_of_events{false};
