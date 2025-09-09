@@ -1,7 +1,7 @@
 # Example configuration for the standalone podio timeslice merger
 output_file: merged_timeslices.root
 max_events: 100
-time_slice_duration: 20.0
+time_slice_duration: 200.0
 bunch_crossing_period: 10.0
 introduce_offsets: true
 sources:
@@ -10,7 +10,7 @@ sources:
       - input3.root
     name: signal
     static_number_of_events: false
-    mean_event_frequency: 1.0
+    mean_event_frequency: 0.1
     use_bunch_crossing: true
     generator_status_offset: 0
   - input_files:
