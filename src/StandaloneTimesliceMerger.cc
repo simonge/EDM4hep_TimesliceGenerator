@@ -27,75 +27,73 @@ void StandaloneTimesliceMerger::run() {
     std::cout << "Timeslice duration: " << m_config.time_slice_duration << std::endl;
     
     auto writer = std::make_unique<podio::ROOTWriter>(m_config.output_file);
-    
-    processInputFiles();
+
+    auto inputs = initializeInputFiles();
+
+    processInputs(inputs,writer);
     
     writer->finish();
     std::cout << "Generated " << events_generated << " timeslices" << std::endl;
 }
 
-void StandaloneTimesliceMerger::processInputFiles() {
-    auto writer = std::make_unique<podio::ROOTWriter>(m_config.output_file);
-    
-    // Setup readers for each source
-    struct SourceReader {
-        podio::ROOTReader reader;
-        size_t current_file_index = 0;
-        size_t current_entry_index = 0;
-        size_t total_entries = 0;
-        std::string tree_name = "events";
-        bool finished = false;
-        const SourceConfig* config;
-    };
-    
+// Initialize input files and validate sources
+std::vector<SourceReader> StandaloneTimesliceMerger::initializeInputFiles() {
     std::vector<SourceReader> source_readers(m_config.sources.size());
     
-    // Initialize readers for each source
-    for (size_t source_idx = 0; source_idx < m_config.sources.size(); ++source_idx) {
+    // Initialize readers for each source using modern C++ indexed iteration
+    size_t source_idx = 0;
+    for (auto& source_reader : source_readers) {
         const auto& source = m_config.sources[source_idx];
-        source_readers[source_idx].config = &source;
-        
+        source_reader.config = &source;
+
         if (!source.input_files.empty()) {
             try {
-                source_readers[source_idx].reader.openFile(source.input_files[0]);
-                
-                auto tree_names = source_readers[source_idx].reader.getAvailableCategories();
+                source_reader.reader.openFiles(source.input_files);
+
+                auto tree_names = source_reader.reader.getAvailableCategories();
                 for (const auto& name : tree_names) {
-                    if (name.find("event") != std::string::npos) {
-                        source_readers[source_idx].tree_name = name;
+                    if (name.find((source_reader.config->tree_name) != std::string::npos) {
+                        source_reader.tree_name = name;
                         break;
                     }
                 }
-                
-                source_readers[source_idx].total_entries = source_readers[source_idx].reader.getEntries(source_readers[source_idx].tree_name);
-                
+
+                source_reader.total_entries = source_reader.reader.getEntries(source_reader.tree_name);                
+
                 // Validate already_merged sources
                 if (source.already_merged) {
                     // Check if this source actually has SubEventHeaders
                     try {
-                        auto frame_data = source_readers[source_idx].reader.readEntry(source_readers[source_idx].tree_name, 0);
+                        auto frame_data = source_reader.reader.readEntry(source_reader.tree_name, 0);
                         auto test_frame = std::make_unique<podio::Frame>(std::move(frame_data));
                         const auto& sub_headers = test_frame->get<edm4hep::EventHeaderCollection>("SubEventHeaders");
-                        std::cout << "Source " << source_idx << ": Verified as already-merged with " 
+                        std::cout << "Source " << source_idx << ": Verified as already-merged with "
                                   << sub_headers.size() << " SubEventHeaders" << std::endl;
                     } catch (const std::exception& e) {
-                        std::cout << "ERROR: Source " << source_idx << " is marked as already_merged but has no SubEventHeaders. " 
+                        std::cout << "ERROR: Source " << source_idx << " is marked as already_merged but has no SubEventHeaders. "
                                   << "Set already_merged=false or provide a properly merged file." << std::endl;
                         std::exit(1);
                     }
                 }
-                
-                std::cout << "Source " << source_idx << ": Opened " << source.input_files[0] 
-                          << " with " << source_readers[source_idx].total_entries << " entries" << std::endl;
+
+                std::cout << "Source " << source_idx << ": Opened " << source.input_files[0]
+                          << " with " << source_reader.total_entries << " entries" << std::endl;
             } catch (const std::exception& e) {
                 std::cout << "Error: Failed to open first file for source " << source_idx << ": " << e.what() << std::endl;
-                source_readers[source_idx].finished = true;
+                source_reader.finished = true;
             }
         } else {
-            source_readers[source_idx].finished = true;
+            source_reader.finished = true;
         }
+        ++source_idx;
     }
-    
+
+    return source_readers;
+}
+
+
+void StandaloneTimesliceMerger::processInputs(const std::vector<SourceReader>& inputs, std::unique_ptr<podio::ROOTWriter>& writer) {
+           
     // Track per-source events needed for each timeslice
     std::vector<size_t> events_needed_per_source(m_config.sources.size(), 1);
     std::vector<size_t> events_read_this_slice(m_config.sources.size(), 0);

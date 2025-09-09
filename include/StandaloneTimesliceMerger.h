@@ -14,6 +14,11 @@
 #include <vector>
 #include <string>
 
+struct SourceReader {
+    podio::ROOTReader reader;
+    const SourceConfig* config;
+};
+
 class StandaloneTimesliceMerger {
 public:
     StandaloneTimesliceMerger(const MergerConfig& config);
@@ -36,7 +41,8 @@ private:
     std::vector<int> eventsConsumedPerSource;
 
     void setupRandomGenerators();
-    void processInputFiles();
+    std::vector<SourceReader> initializeInputFiles();
+    void processInputs(const std::vector<SourceReader>& inputs, std::unique_ptr<podio::ROOTWriter>& writer);
     std::unique_ptr<podio::Frame> createMergedTimeslice();
     void writeOutput(std::unique_ptr<podio::ROOTWriter>& writer, std::unique_ptr<podio::Frame> frame);
     

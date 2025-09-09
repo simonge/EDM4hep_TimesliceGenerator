@@ -34,4 +34,5 @@ struct SourceConfig {
 
     // New generator status offset
     int32_t  generator_status_offset{0};
+    std::string tree_name{"events"};
 };
