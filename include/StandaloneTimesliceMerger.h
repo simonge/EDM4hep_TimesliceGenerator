@@ -1,6 +1,7 @@
 #pragma once
 
 #include "StandaloneMergerConfig.h"
+#include "SourceReader.h"
 #include <edm4hep/EventHeaderCollection.h>
 #include <edm4hep/MCParticleCollection.h>
 #include <edm4hep/SimTrackerHitCollection.h>
@@ -13,16 +14,6 @@
 #include <unordered_map>
 #include <vector>
 #include <string>
-
-struct SourceReader {
-    podio::ROOTReader reader;
-    size_t total_entries{0};
-    size_t current_entry_index{0};
-    size_t entries_needed{1};
-    std::vector<std::string> collection_names_to_read;
-    std::vector<std::string> collection_types_to_read;
-    const SourceConfig* config;
-};
 
 class StandaloneTimesliceMerger {
 public:
@@ -64,6 +55,6 @@ private:
                          std::unordered_map<std::string, edm4hep::SimCalorimeterHitCollection>& out_calo_hits,
                          std::unordered_map<std::string, edm4hep::CaloHitContributionCollection>& out_calo_contributions);
                          
-    float generateTimeOffset(SourceConfig sourceConfig, float distance);
+    float generateTimeOffset(const SourceConfig& sourceConfig, float distance);
     std::vector<std::string> getCollectionNames(const SourceReader& reader, const std::string& type);
 };

@@ -65,31 +65,31 @@ int main(int argc, char* argv[]) {
                 config.time_slice_duration = std::stof(optarg);
                 break;
             case 'f':
-                default_source.mean_event_frequency = std::stof(optarg);
+                default_source.setMeanEventFrequency(std::stof(optarg));
                 break;
             case 'p':
                 config.bunch_crossing_period = std::stof(optarg);
                 break;
             case 'b':
-                default_source.use_bunch_crossing = true;
+                default_source.setUseBunchCrossing(true);
                 break;
             case 's':
-                default_source.static_number_of_events = true;
+                default_source.setStaticNumberOfEvents(true);
                 break;
             case 'e':
-                default_source.static_events_per_timeslice = std::stoul(optarg);
+                default_source.setStaticEventsPerTimeslice(std::stoul(optarg));
                 break;
             case 1000:
-                default_source.attach_to_beam = true;
+                default_source.setAttachToBeam(true);
                 break;
             case 1001:
-                default_source.beam_speed = std::stof(optarg);
+                default_source.setBeamSpeed(std::stof(optarg));
                 break;
             case 1002:
-                default_source.beam_spread = std::stof(optarg);
+                default_source.setBeamSpread(std::stof(optarg));
                 break;
             case 1003:
-                default_source.generator_status_offset = std::stoi(optarg);
+                default_source.setGeneratorStatusOffset(std::stoi(optarg));
                 break;
             case 'h':
                 printUsage(argv[0]);
@@ -114,20 +114,22 @@ int main(int argc, char* argv[]) {
             for (const auto& source_yaml : yaml["sources"]) {
                 SourceConfig source;
                 if (source_yaml["input_files"]) {
+                    std::vector<std::string> files;
                     for (const auto& f : source_yaml["input_files"]) {
-                        source.input_files.push_back(f.as<std::string>());
+                        files.push_back(f.as<std::string>());
                     }
+                    source.setInputFiles(files);
                 }
-                if (source_yaml["name"]) source.name = source_yaml["name"].as<std::string>();
-                if (source_yaml["static_number_of_events"]) source.static_number_of_events = source_yaml["static_number_of_events"].as<bool>();
-                if (source_yaml["static_events_per_timeslice"]) source.static_events_per_timeslice = source_yaml["static_events_per_timeslice"].as<size_t>();
-                if (source_yaml["mean_event_frequency"]) source.mean_event_frequency = source_yaml["mean_event_frequency"].as<float>();
-                if (source_yaml["use_bunch_crossing"]) source.use_bunch_crossing = source_yaml["use_bunch_crossing"].as<bool>();
-                if (source_yaml["attach_to_beam"]) source.attach_to_beam = source_yaml["attach_to_beam"].as<bool>();
-                if (source_yaml["beam_angle"]) source.beam_angle = source_yaml["beam_angle"].as<float>();
-                if (source_yaml["beam_speed"]) source.beam_speed = source_yaml["beam_speed"].as<float>();
-                if (source_yaml["beam_spread"]) source.beam_spread = source_yaml["beam_spread"].as<float>();
-                if (source_yaml["generator_status_offset"]) source.generator_status_offset = source_yaml["generator_status_offset"].as<int32_t>();
+                if (source_yaml["name"]) source.setName(source_yaml["name"].as<std::string>());
+                if (source_yaml["static_number_of_events"]) source.setStaticNumberOfEvents(source_yaml["static_number_of_events"].as<bool>());
+                if (source_yaml["static_events_per_timeslice"]) source.setStaticEventsPerTimeslice(source_yaml["static_events_per_timeslice"].as<size_t>());
+                if (source_yaml["mean_event_frequency"]) source.setMeanEventFrequency(source_yaml["mean_event_frequency"].as<float>());
+                if (source_yaml["use_bunch_crossing"]) source.setUseBunchCrossing(source_yaml["use_bunch_crossing"].as<bool>());
+                if (source_yaml["attach_to_beam"]) source.setAttachToBeam(source_yaml["attach_to_beam"].as<bool>());
+                if (source_yaml["beam_angle"]) source.setBeamAngle(source_yaml["beam_angle"].as<float>());
+                if (source_yaml["beam_speed"]) source.setBeamSpeed(source_yaml["beam_speed"].as<float>());
+                if (source_yaml["beam_spread"]) source.setBeamSpread(source_yaml["beam_spread"].as<float>());
+                if (source_yaml["generator_status_offset"]) source.setGeneratorStatusOffset(source_yaml["generator_status_offset"].as<int32_t>());
                 config.sources.push_back(source);
             }
         }
@@ -135,18 +137,18 @@ int main(int argc, char* argv[]) {
     
     // Command-line input files override YAML - add to default source
     for (int i = optind; i < argc; i++) {
-        default_source.input_files.push_back(argv[i]);
+        default_source.addInputFile(argv[i]);
     }
     
     // If we have command-line files or no sources from YAML, add default source
-    if (!default_source.input_files.empty() || config.sources.empty()) {
+    if (default_source.hasInputFiles() || config.sources.empty()) {
         config.sources.push_back(default_source);
     }
     
     // Check if we have any input files
     bool has_input_files = false;
     for (const auto& source : config.sources) {
-        if (!source.input_files.empty()) {
+        if (source.hasInputFiles()) {
             has_input_files = true;
             break;
         }
@@ -164,19 +166,19 @@ int main(int argc, char* argv[]) {
     for (size_t i = 0; i < config.sources.size(); ++i) {
         const auto& source = config.sources[i];        
         std::cout << "Source " << i << " input files: ";
-        for (const auto& file : source.input_files) {
+        for (const auto& file : source.getInputFiles()) {
             std::cout << file << " ";
         }
         std::cout << std::endl;
-        std::cout << "  Name: " << source.name << std::endl;
-        std::cout << "  Static number of events: " << (source.static_number_of_events ? "true" : "false") << std::endl;
-        std::cout << "  Events per timeslice: " << source.static_events_per_timeslice << std::endl;
-        std::cout << "  Mean event frequency: " << source.mean_event_frequency << " events/ns" << std::endl;
-        std::cout << "  Use bunch crossing: " << (source.use_bunch_crossing ? "true" : "false") << std::endl;
-        std::cout << "  Beam attachment: " << (source.attach_to_beam ? "true" : "false") << std::endl;
-        std::cout << "  Beam speed: " << source.beam_speed << " ns/mm" << std::endl;
-        std::cout << "  Beam spread: " << source.beam_spread << std::endl;
-        std::cout << "  Generator status offset: " << source.generator_status_offset << std::endl;
+        std::cout << "  Name: " << source.getName() << std::endl;
+        std::cout << "  Static number of events: " << (source.useStaticNumberOfEvents() ? "true" : "false") << std::endl;
+        std::cout << "  Events per timeslice: " << source.getStaticEventsPerTimeslice() << std::endl;
+        std::cout << "  Mean event frequency: " << source.getMeanEventFrequency() << " events/ns" << std::endl;
+        std::cout << "  Use bunch crossing: " << (source.useBunchCrossing() ? "true" : "false") << std::endl;
+        std::cout << "  Beam attachment: " << (source.attachToBeam() ? "true" : "false") << std::endl;
+        std::cout << "  Beam speed: " << source.getBeamSpeed() << " ns/mm" << std::endl;
+        std::cout << "  Beam spread: " << source.getBeamSpread() << std::endl;
+        std::cout << "  Generator status offset: " << source.getGeneratorStatusOffset() << std::endl;
     }
     std::cout << "Output file: " << config.output_file << std::endl;
     std::cout << "Max events: " << config.max_events << std::endl;
