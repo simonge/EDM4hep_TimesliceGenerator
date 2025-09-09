@@ -148,15 +148,16 @@ std::vector<SourceReader> StandaloneTimesliceMerger::initializeInputFiles() {
 void StandaloneTimesliceMerger::updateInputNEvents(std::vector<SourceReader>& inputs) {
 
     for (auto& source_reader : inputs) {
+        const auto& config = source_reader.config;
         // Generate new number of events needed for this source
-        if (source_reader.config->already_merged) {
+        if (config->already_merged) {
             // Already merged sources should only contribute 1 event (which is already a full timeslice)
             source_reader.entries_needed = 1;
-        } else if (source_reader.config->static_number_of_events) {
-            source_reader.entries_needed = source_reader.config->static_events_per_timeslice;
+        } else if (config->static_number_of_events) {
+            source_reader.entries_needed = config->static_events_per_timeslice;
         } else {
             // Use Poisson for this source
-            float mean_freq = source_reader.config->mean_event_frequency;
+            float mean_freq = config->mean_event_frequency;
             std::poisson_distribution<> poisson_dist(m_config.time_slice_duration * mean_freq);
             size_t n = poisson_dist(gen);
             source_reader.entries_needed = (n == 0) ? 1 : n;
@@ -164,7 +165,7 @@ void StandaloneTimesliceMerger::updateInputNEvents(std::vector<SourceReader>& in
         
         // Check enough events are available in this source
         if ((source_reader.current_entry_index + source_reader.entries_needed) > source_reader.total_entries) {
-            throw std::runtime_error("ERROR: Not enough events available in source " + source_reader.config->name);
+            throw std::runtime_error("ERROR: Not enough events available in source " + config->name);
         }
     }
 
@@ -299,6 +300,7 @@ void StandaloneTimesliceMerger::mergeCollections(
             new_particle.setGeneratorStatus(particle.getGeneratorStatus() + status_offset);
             out_particles.push_back(new_particle);
             new_old_particle_map[&particle] = new_particle;
+            // MCParticle Tree is probably not conserverd.
         }
     } catch (const std::exception& e) {
         std::cout << "Warning: Could not process MCParticles: " << e.what() << std::endl;
