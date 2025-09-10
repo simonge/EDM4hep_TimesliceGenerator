@@ -119,6 +119,7 @@ int main(int argc, char* argv[]) {
                     }
                 }
                 if (source_yaml["name"]) source.name = source_yaml["name"].as<std::string>();
+                if (source_yaml["already_merged"]) source.already_merged = source_yaml["already_merged"].as<bool>();
                 if (source_yaml["static_number_of_events"]) source.static_number_of_events = source_yaml["static_number_of_events"].as<bool>();
                 if (source_yaml["static_events_per_timeslice"]) source.static_events_per_timeslice = source_yaml["static_events_per_timeslice"].as<size_t>();
                 if (source_yaml["mean_event_frequency"]) source.mean_event_frequency = source_yaml["mean_event_frequency"].as<float>();
