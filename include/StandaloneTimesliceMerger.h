@@ -1,6 +1,7 @@
 #pragma once
 
 #include "StandaloneMergerConfig.h"
+#include "PodioCollectionZipReader.h"
 #include <edm4hep/EventHeaderCollection.h>
 #include <edm4hep/MCParticleCollection.h>
 #include <edm4hep/SimTrackerHitCollection.h>
@@ -15,7 +16,7 @@
 #include <string>
 
 struct SourceReader {
-    podio::ROOTReader reader;
+    std::shared_ptr<PodioCollectionZipReader> zip_reader;
     size_t total_entries{0};
     size_t current_entry_index{0};
     size_t entries_needed{1};
@@ -62,6 +63,14 @@ private:
                          std::unordered_map<std::string, edm4hep::SimTrackerHitCollection*>& out_tracker_hits,
                          std::unordered_map<std::string, edm4hep::SimCalorimeterHitCollection*>& out_calo_hits,
                          std::unordered_map<std::string, edm4hep::CaloHitContributionCollection*>& out_calo_contributions);
+    
+    void mergeCollectionsWithZipping(const std::unique_ptr<podio::Frame>& frame, 
+                                   const SourceConfig& sourceConfig,
+                                   edm4hep::MCParticleCollection& out_particles,
+                                   edm4hep::EventHeaderCollection& out_sub_event_headers,
+                                   std::unordered_map<std::string, edm4hep::SimTrackerHitCollection*>& out_tracker_hits,
+                                   std::unordered_map<std::string, edm4hep::SimCalorimeterHitCollection*>& out_calo_hits,
+                                   std::unordered_map<std::string, edm4hep::CaloHitContributionCollection*>& out_calo_contributions);
                          
     float generateTimeOffset(SourceConfig sourceConfig, float distance);
     std::vector<std::string> getCollectionNames(const SourceReader& reader, const std::string& type);
