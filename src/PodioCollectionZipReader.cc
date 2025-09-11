@@ -208,40 +208,96 @@ PodioMutableCollectionReader::ZippedCollections PodioMutableCollectionReader::zi
 }
 
 void PodioMutableCollectionReader::addTimeOffsetVectorized(edm4hep::MCParticleCollection& particles, float time_offset) {
-    // Process all particles in the collection efficiently
-    for (auto& particle : particles) {
-        auto mutable_particle = edm4hep::MutableMCParticle(particle);
-        mutable_particle.setTime(particle.getTime() + time_offset);
+    // Since our collections are truly mutable, we can modify them directly
+    // We need to replace each particle with a modified version
+    edm4hep::MCParticleCollection new_particles;
+    
+    for (const auto& particle : particles) {
+        auto mutable_particle = edm4hep::MutableMCParticle();
+        mutable_particle.setPDG(particle.getPDG());
+        mutable_particle.setGeneratorStatus(particle.getGeneratorStatus());
+        mutable_particle.setSimulatorStatus(particle.getSimulatorStatus());
+        mutable_particle.setCharge(particle.getCharge());
+        mutable_particle.setTime(particle.getTime() + time_offset); // Apply time offset
+        mutable_particle.setMass(particle.getMass());
+        mutable_particle.setVertex(particle.getVertex());
+        mutable_particle.setEndpoint(particle.getEndpoint());
+        mutable_particle.setMomentum(particle.getMomentum());
+        mutable_particle.setMomentumAtEndpoint(particle.getMomentumAtEndpoint());
+        mutable_particle.setSpin(particle.getSpin());
+        mutable_particle.setColorFlow(particle.getColorFlow());
+        
+        new_particles.push_back(mutable_particle);
     }
+    
+    // Replace the collection contents
+    particles = std::move(new_particles);
 }
 
 void PodioMutableCollectionReader::addTimeOffsetVectorized(edm4hep::SimTrackerHitCollection& hits, float time_offset) {
-    // Process all hits in the collection efficiently
-    for (auto& hit : hits) {
-        auto mutable_hit = edm4hep::MutableSimTrackerHit(hit);
-        mutable_hit.setTime(hit.getTime() + time_offset);
+    // Since our collections are truly mutable, we can modify them directly
+    edm4hep::SimTrackerHitCollection new_hits;
+    
+    for (const auto& hit : hits) {
+        auto mutable_hit = edm4hep::MutableSimTrackerHit();
+        mutable_hit.setCellID(hit.getCellID());
+        mutable_hit.setEDep(hit.getEDep());
+        mutable_hit.setTime(hit.getTime() + time_offset); // Apply time offset
+        mutable_hit.setPathLength(hit.getPathLength());
+        mutable_hit.setQuality(hit.getQuality());
+        mutable_hit.setPosition(hit.getPosition());
+        mutable_hit.setMomentum(hit.getMomentum());
+        
+        new_hits.push_back(mutable_hit);
     }
+    
+    // Replace the collection contents
+    hits = std::move(new_hits);
 }
 
 void PodioMutableCollectionReader::addTimeOffsetVectorized(edm4hep::SimCalorimeterHitCollection& hits, float time_offset) {
-    // Process all calorimeter hits in the collection efficiently
-    for (auto& hit : hits) {
-        auto mutable_hit = edm4hep::MutableSimCalorimeterHit(hit);
-        // For calorimeter hits, we need to update contributions as well
-        auto contributions = hit.getContributions();
-        for (auto& contrib : contributions) {
-            auto mutable_contrib = edm4hep::MutableCaloHitContribution(contrib);
-            mutable_contrib.setTime(contrib.getTime() + time_offset);
+    // Since our collections are truly mutable, we can modify them directly
+    edm4hep::SimCalorimeterHitCollection new_hits;
+    
+    for (const auto& hit : hits) {
+        auto mutable_hit = edm4hep::MutableSimCalorimeterHit();
+        mutable_hit.setCellID(hit.getCellID());
+        mutable_hit.setEnergy(hit.getEnergy());
+        mutable_hit.setPosition(hit.getPosition());
+        
+        // Clone contributions with time offset
+        for (const auto& contrib : hit.getContributions()) {
+            auto mutable_contrib = edm4hep::MutableCaloHitContribution();
+            mutable_contrib.setPDG(contrib.getPDG());
+            mutable_contrib.setEnergy(contrib.getEnergy());
+            mutable_contrib.setTime(contrib.getTime() + time_offset); // Apply time offset
+            mutable_contrib.setStepPosition(contrib.getStepPosition());
+            mutable_hit.addToContributions(mutable_contrib);
         }
+        
+        new_hits.push_back(mutable_hit);
     }
+    
+    // Replace the collection contents
+    hits = std::move(new_hits);
 }
 
 void PodioMutableCollectionReader::addTimeOffsetVectorized(edm4hep::CaloHitContributionCollection& contributions, float time_offset) {
-    // Process all contributions in the collection efficiently
-    for (auto& contrib : contributions) {
-        auto mutable_contrib = edm4hep::MutableCaloHitContribution(contrib);
-        mutable_contrib.setTime(contrib.getTime() + time_offset);
+    // Since our collections are truly mutable, we can modify them directly
+    edm4hep::CaloHitContributionCollection new_contributions;
+    
+    for (const auto& contrib : contributions) {
+        auto mutable_contrib = edm4hep::MutableCaloHitContribution();
+        mutable_contrib.setPDG(contrib.getPDG());
+        mutable_contrib.setEnergy(contrib.getEnergy());
+        mutable_contrib.setTime(contrib.getTime() + time_offset); // Apply time offset
+        mutable_contrib.setStepPosition(contrib.getStepPosition());
+        
+        new_contributions.push_back(mutable_contrib);
     }
+    
+    // Replace the collection contents
+    contributions = std::move(new_contributions);
 }
 
 void PodioMutableCollectionReader::addTimeOffsetToFrame(podio::Frame& frame, float time_offset, 
