@@ -108,51 +108,45 @@ MutableRootReader::createCollectionFromBranch(const std::string& branch_name,
     // Map branch names to collection types
     // This is a simplified mapping - real implementation would read podio metadata
     
-    auto deleter = [](void* ptr) { 
-        // We need to know the actual type to delete properly
-        // For now, this is a placeholder
-        delete static_cast<char*>(ptr); 
-    };
-    
     if (branch_name == "MCParticles" || branch_name.find("MCParticle") != std::string::npos) {
         auto collection = createMutableCollection<edm4hep::MCParticleCollection>(branch, entry);
         return std::unique_ptr<void, void(*)(void*)>(
             collection.release(), 
-            [](void* ptr) { delete static_cast<edm4hep::MCParticleCollection*>(ptr); }
+            MutableFrame::delete_mcparticle_collection
         );
     }
     else if (branch_name == "EventHeader" || branch_name.find("EventHeader") != std::string::npos) {
         auto collection = createMutableCollection<edm4hep::EventHeaderCollection>(branch, entry);
         return std::unique_ptr<void, void(*)(void*)>(
             collection.release(),
-            [](void* ptr) { delete static_cast<edm4hep::EventHeaderCollection*>(ptr); }
+            MutableFrame::delete_eventheader_collection
         );
     }
     else if (branch_name.find("TrackerHit") != std::string::npos) {
         auto collection = createMutableCollection<edm4hep::SimTrackerHitCollection>(branch, entry);
         return std::unique_ptr<void, void(*)(void*)>(
             collection.release(),
-            [](void* ptr) { delete static_cast<edm4hep::SimTrackerHitCollection*>(ptr); }
+            MutableFrame::delete_trackerhit_collection
         );
     }
     else if (branch_name.find("CalorimeterHit") != std::string::npos) {
         auto collection = createMutableCollection<edm4hep::SimCalorimeterHitCollection>(branch, entry);
         return std::unique_ptr<void, void(*)(void*)>(
             collection.release(),
-            [](void* ptr) { delete static_cast<edm4hep::SimCalorimeterHitCollection*>(ptr); }
+            MutableFrame::delete_calorimeterhit_collection
         );
     }
     else if (branch_name.find("CaloHitContribution") != std::string::npos) {
         auto collection = createMutableCollection<edm4hep::CaloHitContributionCollection>(branch, entry);
         return std::unique_ptr<void, void(*)(void*)>(
             collection.release(),
-            [](void* ptr) { delete static_cast<edm4hep::CaloHitContributionCollection*>(ptr); }
+            MutableFrame::delete_calohitcontribution_collection
         );
     }
     
     // Unknown collection type
     std::cout << "Warning: Unknown collection type for branch '" << branch_name << "'" << std::endl;
-    return std::unique_ptr<void, void(*)(void*)>(nullptr, [](void*){});
+    return std::unique_ptr<void, void(*)(void*)>(nullptr, MutableFrame::null_deleter);
 }
 
 void MutableRootReader::MutableFrame::transferCollectionToPodioFrame(podio::Frame& frame, 

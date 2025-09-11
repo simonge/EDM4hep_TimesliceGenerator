@@ -52,6 +52,32 @@ public:
             delete static_cast<T*>(ptr);
         }
         
+        // Static null deleter for empty unique_ptr returns
+        static void null_deleter(void* ptr) {
+            // Do nothing for null pointer
+        }
+        
+        // Static deleters for specific collection types  
+        static void delete_mcparticle_collection(void* ptr) {
+            delete static_cast<edm4hep::MCParticleCollection*>(ptr);
+        }
+        
+        static void delete_eventheader_collection(void* ptr) {
+            delete static_cast<edm4hep::EventHeaderCollection*>(ptr);
+        }
+        
+        static void delete_trackerhit_collection(void* ptr) {
+            delete static_cast<edm4hep::SimTrackerHitCollection*>(ptr);
+        }
+        
+        static void delete_calorimeterhit_collection(void* ptr) {
+            delete static_cast<edm4hep::SimCalorimeterHitCollection*>(ptr);
+        }
+        
+        static void delete_calohitcontribution_collection(void* ptr) {
+            delete static_cast<edm4hep::CaloHitContributionCollection*>(ptr);
+        }
+        
     public:
         MutableFrame() = default;
         

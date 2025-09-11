@@ -16,11 +16,16 @@ jobs:
 
       - name: Setup EIC Environment
         run: |
-          # Check if cmake is available
-          which cmake || echo "CMAKE NOT FOUND"
-          cmake --version || echo "CMAKE VERSION ERROR"
+          echo "=== Setting up EIC environment ==="
           
-          # Source any available environment setup scripts
+          # Ensure /usr/local/bin is in PATH for cmake
+          export PATH="/usr/local/bin:$PATH"
+          
+          # Check if cmake is available now
+          which cmake && cmake --version || echo "CMAKE STILL NOT FOUND"
+          
+          # Source the EIC environment setup scripts
+          echo "=== Sourcing EIC environment scripts ==="
           if [ -f "/opt/detector/setup.sh" ]; then
             echo "Sourcing /opt/detector/setup.sh"
             source /opt/detector/setup.sh
@@ -35,72 +40,75 @@ jobs:
             echo "/opt/software/setup.sh not found"
           fi
           
+          # Look for ROOT setup in multiple locations
           if [ -f "/usr/local/bin/thisroot.sh" ]; then
-            echo "Sourcing ROOT setup"
+            echo "Sourcing ROOT from /usr/local/bin/thisroot.sh"
             source /usr/local/bin/thisroot.sh
+          elif [ -f "/opt/root/bin/thisroot.sh" ]; then
+            echo "Sourcing ROOT from /opt/root/bin/thisroot.sh"  
+            source /opt/root/bin/thisroot.sh
+          elif [ -f "/usr/local/root/bin/thisroot.sh" ]; then
+            echo "Sourcing ROOT from /usr/local/root/bin/thisroot.sh"
+            source /usr/local/root/bin/thisroot.sh
           else
-            echo "ROOT setup not found at /usr/local/bin/thisroot.sh"
+            echo "ROOT setup not found in standard locations"
           fi
           
-          # Set up common EIC paths
-          export CMAKE_PREFIX_PATH="/usr/local:$CMAKE_PREFIX_PATH"
-          export PKG_CONFIG_PATH="/usr/local/lib/pkgconfig:$PKG_CONFIG_PATH"
-          export LD_LIBRARY_PATH="/usr/local/lib:$LD_LIBRARY_PATH"
+          # Set up EIC environment paths
+          export CMAKE_PREFIX_PATH="/usr/local:/opt/detector:/opt/software:$CMAKE_PREFIX_PATH"
+          export PKG_CONFIG_PATH="/usr/local/lib/pkgconfig:/opt/detector/lib/pkgconfig:/opt/software/lib/pkgconfig:$PKG_CONFIG_PATH"
+          export LD_LIBRARY_PATH="/usr/local/lib:/usr/local/lib64:/opt/detector/lib:/opt/software/lib:$LD_LIBRARY_PATH"
           
           # Print environment for debugging
+          echo "=== Environment after setup ==="
+          echo "PATH: $PATH"
           echo "CMAKE_PREFIX_PATH: $CMAKE_PREFIX_PATH"
           echo "PKG_CONFIG_PATH: $PKG_CONFIG_PATH"
           echo "LD_LIBRARY_PATH: $LD_LIBRARY_PATH"
-          echo "PATH: $PATH"
           
-          # Check for available packages
-          echo "=== Searching for podio and edm4hep packages ==="
+          # Search comprehensively for podio and edm4hep
+          echo "=== Comprehensive search for packages ==="
+          echo "Searching /usr/local:"
           find /usr/local -name "*podio*" -o -name "*edm4hep*" 2>/dev/null | head -10 || echo "No podio/edm4hep found in /usr/local"
-          find /opt -maxdepth 3 -name "*podio*" -o -name "*edm4hep*" 2>/dev/null | head -10 || echo "No podio/edm4hep found in /opt"
+          echo "Searching /opt:"
+          find /opt -maxdepth 4 -name "*podio*" -o -name "*edm4hep*" 2>/dev/null | head -10 || echo "No podio/edm4hep found in /opt"
+          echo "Searching /usr:"
+          find /usr -name "*podio*" -o -name "*edm4hep*" 2>/dev/null | head -10 || echo "No podio/edm4hep found in /usr"
           
           # Check for CMake configuration files
           echo "=== Searching for CMake config files ==="
-          find /usr -name "*podio*.cmake" -o -name "*EDM4HEP*.cmake" 2>/dev/null | head -5 || echo "No CMake config files found"
+          find /usr -name "*podio*.cmake" -o -name "*EDM4HEP*.cmake" 2>/dev/null | head -10 || echo "No CMake config files found in /usr"
+          find /opt -name "*podio*.cmake" -o -name "*EDM4HEP*.cmake" 2>/dev/null | head -10 || echo "No CMake config files found in /opt"
           
-          # Try to find pkg-config files
+          # Check for pkg-config files
           echo "=== Searching for pkg-config files ==="
-          find /usr -name "*podio*.pc" -o -name "*edm4hep*.pc" 2>/dev/null | head -5 || echo "No pkg-config files found"
+          find /usr -name "*podio*.pc" -o -name "*edm4hep*.pc" 2>/dev/null | head -10 || echo "No pkg-config files found"
+          
+          # Save environment for next steps
+          echo "PATH=/usr/local/bin:$PATH" >> $GITHUB_ENV
+          echo "CMAKE_PREFIX_PATH=/usr/local:/opt/detector:/opt/software:$CMAKE_PREFIX_PATH" >> $GITHUB_ENV
+          echo "PKG_CONFIG_PATH=/usr/local/lib/pkgconfig:/opt/detector/lib/pkgconfig:/opt/software/lib/pkgconfig:$PKG_CONFIG_PATH" >> $GITHUB_ENV
+          echo "LD_LIBRARY_PATH=/usr/local/lib:/usr/local/lib64:/opt/detector/lib:/opt/software/lib:$LD_LIBRARY_PATH" >> $GITHUB_ENV
 
       - name: Configure
         run: |
-          # Source environment again to ensure variables persist
-          if [ -f "/opt/detector/setup.sh" ]; then source /opt/detector/setup.sh; fi
-          if [ -f "/opt/software/setup.sh" ]; then source /opt/software/setup.sh; fi
-          if [ -f "/usr/local/bin/thisroot.sh" ]; then source /usr/local/bin/thisroot.sh; fi
-          export CMAKE_PREFIX_PATH="/usr/local:$CMAKE_PREFIX_PATH"
-          export PKG_CONFIG_PATH="/usr/local/lib/pkgconfig:$PKG_CONFIG_PATH"
-          export LD_LIBRARY_PATH="/usr/local/lib:$LD_LIBRARY_PATH"
+          echo "=== Configuring with cmake ==="
+          echo "Using cmake at: $(which cmake)"
+          cmake --version
+          echo "CMAKE_PREFIX_PATH: $CMAKE_PREFIX_PATH"
+          echo "PKG_CONFIG_PATH: $PKG_CONFIG_PATH" 
+          echo "LD_LIBRARY_PATH: $LD_LIBRARY_PATH"
           
-          echo "Configuring with cmake..."
+          echo "Configuring project..."
           cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_VERBOSE_MAKEFILE=ON
 
       - name: Build
         run: |
-          # Source environment again
-          if [ -f "/opt/detector/setup.sh" ]; then source /opt/detector/setup.sh; fi
-          if [ -f "/opt/software/setup.sh" ]; then source /opt/software/setup.sh; fi
-          if [ -f "/usr/local/bin/thisroot.sh" ]; then source /usr/local/bin/thisroot.sh; fi
-          export CMAKE_PREFIX_PATH="/usr/local:$CMAKE_PREFIX_PATH"
-          export PKG_CONFIG_PATH="/usr/local/lib/pkgconfig:$PKG_CONFIG_PATH"
-          export LD_LIBRARY_PATH="/usr/local/lib:$LD_LIBRARY_PATH"
-          
-          echo "Building..."
+          echo "=== Building project ==="
+          echo "Using cmake at: $(which cmake)"
           cmake --build build -j"$(nproc)" --verbose
 
       - name: Test
         run: |
-          # Source environment again  
-          if [ -f "/opt/detector/setup.sh" ]; then source /opt/detector/setup.sh; fi
-          if [ -f "/opt/software/setup.sh" ]; then source /opt/software/setup.sh; fi
-          if [ -f "/usr/local/bin/thisroot.sh" ]; then source /usr/local/bin/thisroot.sh; fi
-          export CMAKE_PREFIX_PATH="/usr/local:$CMAKE_PREFIX_PATH"
-          export PKG_CONFIG_PATH="/usr/local/lib/pkgconfig:$PKG_CONFIG_PATH"
-          export LD_LIBRARY_PATH="/usr/local/lib:$LD_LIBRARY_PATH"
-          
-          echo "Running tests..."
+          echo "=== Running tests ==="
           ctest --test-dir build --output-on-failure
