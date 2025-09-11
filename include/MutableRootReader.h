@@ -6,6 +6,7 @@
 #include <edm4hep/CaloHitContributionCollection.h>
 #include <edm4hep/EventHeaderCollection.h>
 #include <podio/ROOTWriter.h>
+#include <podio/Frame.h>
 #include <TFile.h>
 #include <TTree.h>
 #include <TBranch.h>
@@ -109,10 +110,62 @@ public:
             return it != collection_types_.end() ? it->second : "";
         }
         
+        /**
+         * @brief Convert this MutableFrame to a podio::Frame for writing
+         * 
+         * This creates a new podio::Frame and transfers all collections to it.
+         * Collections are moved, so this MutableFrame becomes empty after conversion.
+         */
+        std::unique_ptr<podio::Frame> toPodioFrame() {
+            auto podio_frame = std::make_unique<podio::Frame>();
+            
+            // Move all collections to the podio frame
+            for (auto& [name, collection] : mutable_collections_) {
+                auto type_it = collection_types_.find(name);
+                if (type_it == collection_types_.end()) continue;
+                
+                const std::string& type_name = type_it->second;
+                
+                // Transfer collection based on its type
+                transferCollectionToPodioFrame(*podio_frame, name, collection.get(), type_name);
+            }
+            
+            // Clear our collections since they've been moved
+            mutable_collections_.clear();
+            collection_types_.clear();
+            
+            return podio_frame;
+        }
+        
+        /**
+         * @brief Move a collection from this frame to another MutableFrame
+         */
+        template<typename T>
+        void moveCollectionTo(const std::string& name, MutableFrame& dest_frame) {
+            auto it = mutable_collections_.find(name);
+            if (it == mutable_collections_.end()) {
+                throw std::runtime_error("Collection '" + name + "' not found in frame");
+            }
+            
+            // Move the collection
+            dest_frame.mutable_collections_[name] = std::move(it->second);
+            dest_frame.collection_types_[name] = collection_types_[name];
+            
+            // Remove from this frame
+            mutable_collections_.erase(it);
+            collection_types_.erase(name);
+        }
+        
     private:
         // Store collections as void pointers with type information
         std::unordered_map<std::string, std::unique_ptr<void, void(*)(void*)>> mutable_collections_;
         std::unordered_map<std::string, std::string> collection_types_;
+        
+        /**
+         * @brief Helper to transfer a collection to a podio::Frame
+         */
+        void transferCollectionToPodioFrame(podio::Frame& frame, const std::string& name, 
+                                          void* collection_ptr, const std::string& type_name) const;
     };
     
     /**

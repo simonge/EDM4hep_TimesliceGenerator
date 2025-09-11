@@ -3,14 +3,11 @@
 #include <algorithm>
 #include <stdexcept>
 #include <typeinfo>
+#include <podio/Frame.h>
 
-#ifdef PODIO_AVAILABLE
 #include <TKey.h>
 #include <TList.h>
 #include <TObjArray.h>
-#endif
-
-#ifdef PODIO_AVAILABLE
 
 MutableRootReader::MutableRootReader(const std::vector<std::string>& input_files) {
     std::cout << "MutableRootReader: Initializing direct ROOT file access" << std::endl;
@@ -156,4 +153,29 @@ MutableRootReader::createCollectionFromBranch(const std::string& branch_name,
     return nullptr;
 }
 
-#endif // PODIO_AVAILABLE
+void MutableRootReader::MutableFrame::transferCollectionToPodioFrame(podio::Frame& frame, 
+                                                                    const std::string& name, 
+                                                                    void* collection_ptr, 
+                                                                    const std::string& type_name) const {
+    // Transfer collections based on their type
+    if (type_name.find("MCParticleCollection") != std::string::npos) {
+        auto* collection = static_cast<edm4hep::MCParticleCollection*>(collection_ptr);
+        frame.put(std::move(*collection), name);
+    }
+    else if (type_name.find("EventHeaderCollection") != std::string::npos) {
+        auto* collection = static_cast<edm4hep::EventHeaderCollection*>(collection_ptr);
+        frame.put(std::move(*collection), name);
+    }
+    else if (type_name.find("SimTrackerHitCollection") != std::string::npos) {
+        auto* collection = static_cast<edm4hep::SimTrackerHitCollection*>(collection_ptr);
+        frame.put(std::move(*collection), name);
+    }
+    else if (type_name.find("SimCalorimeterHitCollection") != std::string::npos) {
+        auto* collection = static_cast<edm4hep::SimCalorimeterHitCollection*>(collection_ptr);
+        frame.put(std::move(*collection), name);
+    }
+    else if (type_name.find("CaloHitContributionCollection") != std::string::npos) {
+        auto* collection = static_cast<edm4hep::CaloHitContributionCollection*>(collection_ptr);
+        frame.put(std::move(*collection), name);
+    }
+}

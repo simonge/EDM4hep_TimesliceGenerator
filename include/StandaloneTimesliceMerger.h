@@ -62,6 +62,38 @@ private:
                          std::unordered_map<std::string, edm4hep::SimTrackerHitCollection*>& out_tracker_hits,
                          std::unordered_map<std::string, edm4hep::SimCalorimeterHitCollection*>& out_calo_hits,
                          std::unordered_map<std::string, edm4hep::CaloHitContributionCollection*>& out_calo_contributions);
+    
+    /**
+     * @brief More efficient collection merging that preserves associations better
+     * 
+     * This method attempts to minimize the need for manual association reattachment
+     * by applying time offsets directly to mutable collections where possible.
+     */
+    void mergeCollectionsEfficient(std::unique_ptr<MutableRootReader::MutableFrame>& frame, 
+                                 const SourceConfig& sourceConfig,
+                                 std::unique_ptr<MutableRootReader::MutableFrame>& output_frame,
+                                 bool is_first_frame);
+    
+    /**
+     * @brief Apply time offset directly to collections in a frame
+     */
+    void applyTimeOffsetToFrame(MutableRootReader::MutableFrame& frame, 
+                               float time_offset, 
+                               const SourceConfig& sourceConfig);
+    
+    /**
+     * @brief Transfer collection between frames while preserving associations
+     */
+    void transferCollectionBetweenFrames(MutableRootReader::MutableFrame& source_frame,
+                                       MutableRootReader::MutableFrame& dest_frame,
+                                       const std::string& collection_name);
+    
+    /**
+     * @brief Zip collections together while preserving associations
+     */
+    void zipCollectionsWithAssociations(MutableRootReader::MutableFrame& source_frame,
+                                       MutableRootReader::MutableFrame& dest_frame,
+                                       const SourceConfig& sourceConfig);
                          
     float generateTimeOffset(SourceConfig sourceConfig, float distance);
     std::vector<std::string> getCollectionNames(const SourceReader& reader, const std::string& type);

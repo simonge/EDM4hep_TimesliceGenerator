@@ -295,7 +295,10 @@ void StandaloneTimesliceMerger::createMergedTimeslice(std::vector<SourceReader>&
     for (auto& [collection_name, hit_collection] : timeslice_calo_contributions_out) {
         output_frame->putMutable(std::make_unique<edm4hep::CaloHitContributionCollection>(std::move(*hit_collection)), collection_name + "Contributions");
     }
-    writer->writeFrame(static_cast<const podio::Frame&>(*output_frame), "events", collections_to_write);
+    
+    // Convert MutableFrame to podio::Frame for writing
+    auto podio_frame = output_frame->toPodioFrame();
+    writer->writeFrame(*podio_frame, "events", collections_to_write);
 
 }
 
@@ -494,4 +497,196 @@ std::vector<std::string> StandaloneTimesliceMerger::getCollectionNames(const Sou
     }
     
     return names;
+}
+
+void StandaloneTimesliceMerger::mergeCollectionsEfficient(std::unique_ptr<MutableRootReader::MutableFrame>& frame, 
+                                                        const SourceConfig& sourceConfig,
+                                                        std::unique_ptr<MutableRootReader::MutableFrame>& output_frame,
+                                                        bool is_first_frame) {
+    float time_offset = 0.0f;
+    float distance = 0.0f;
+    
+    // Calculate time offset if needed
+    if (!sourceConfig.already_merged) {
+        if (sourceConfig.attach_to_beam) {
+            // Get position of first particle with generatorStatus 1
+            try {
+                auto& particles = frame->getMutable<edm4hep::MCParticleCollection>("MCParticles");
+                for (auto& particle : particles) {
+                    if (particle.getGeneratorStatus() == 1) {
+                        auto pos = particle.getVertex();
+                        distance = pos.z * std::cos(sourceConfig.beam_angle) + pos.x * std::sin(sourceConfig.beam_angle);
+                        break;
+                    }
+                }
+            } catch (const std::exception& e) {
+                std::cout << "Warning: Could not access MCParticles for beam attachment: " << e.what() << std::endl;
+            }
+        }
+        time_offset = generateTimeOffset(sourceConfig, distance);
+    }
+    
+    // Apply time offset directly to collections in-place before merging
+    if (time_offset != 0.0f) {
+        applyTimeOffsetToFrame(*frame, time_offset, sourceConfig);
+    }
+    
+    if (is_first_frame) {
+        // For the first frame, we can move collections directly
+        auto available_collections = frame->getAvailableCollections();
+        for (const auto& collection_name : available_collections) {
+            // Move collection directly from frame to output_frame
+            // This preserves all associations without needing to reconstruct them
+            transferCollectionBetweenFrames(*frame, *output_frame, collection_name);
+        }
+    } else {
+        // For subsequent frames, we need to merge collections
+        // But we can still be more efficient by working with mutable collections directly
+        zipCollectionsWithAssociations(*frame, *output_frame, sourceConfig);
+    }
+}
+
+void StandaloneTimesliceMerger::applyTimeOffsetToFrame(MutableRootReader::MutableFrame& frame, 
+                                                      float time_offset, 
+                                                      const SourceConfig& sourceConfig) {
+    // Apply time offset to MCParticles
+    try {
+        auto& particles = frame.getMutable<edm4hep::MCParticleCollection>("MCParticles");
+        for (auto& particle : particles) {
+            particle.setTime(particle.getTime() + time_offset);
+        }
+    } catch (const std::exception& e) {
+        std::cout << "Warning: Could not apply time offset to MCParticles: " << e.what() << std::endl;
+    }
+    
+    // Apply time offset to tracker hits
+    auto available_collections = frame.getAvailableCollections();
+    for (const auto& collection_name : available_collections) {
+        try {
+            // Check if it's a tracker hit collection
+            auto type_name = frame.getCollectionTypeName(collection_name);
+            if (type_name.find("SimTrackerHit") != std::string::npos) {
+                auto& hits = frame.getMutable<edm4hep::SimTrackerHitCollection>(collection_name);
+                for (auto& hit : hits) {
+                    hit.setTime(hit.getTime() + time_offset);
+                }
+            }
+            // Check if it's a calorimeter hit collection
+            else if (type_name.find("SimCalorimeterHit") != std::string::npos) {
+                auto& hits = frame.getMutable<edm4hep::SimCalorimeterHitCollection>(collection_name);
+                for (auto& hit : hits) {
+                    // Apply time offset to contributions
+                    for (auto& contrib : hit.getContributions()) {
+                        contrib.setTime(contrib.getTime() + time_offset);
+                    }
+                }
+            }
+            // Check if it's a contribution collection
+            else if (type_name.find("CaloHitContribution") != std::string::npos) {
+                auto& contribs = frame.getMutable<edm4hep::CaloHitContributionCollection>(collection_name);
+                for (auto& contrib : contribs) {
+                    contrib.setTime(contrib.getTime() + time_offset);
+                }
+            }
+        } catch (const std::exception& e) {
+            std::cout << "Warning: Could not apply time offset to collection " << collection_name 
+                      << ": " << e.what() << std::endl;
+        }
+    }
+}
+
+void StandaloneTimesliceMerger::transferCollectionBetweenFrames(MutableRootReader::MutableFrame& source_frame,
+                                                              MutableRootReader::MutableFrame& dest_frame,
+                                                              const std::string& collection_name) {
+    try {
+        auto type_name = source_frame.getCollectionTypeName(collection_name);
+        
+        // Use type-specific transfer to maintain type safety
+        if (type_name.find("MCParticleCollection") != std::string::npos) {
+            source_frame.moveCollectionTo<edm4hep::MCParticleCollection>(collection_name, dest_frame);
+        }
+        else if (type_name.find("EventHeaderCollection") != std::string::npos) {
+            source_frame.moveCollectionTo<edm4hep::EventHeaderCollection>(collection_name, dest_frame);
+        }
+        else if (type_name.find("SimTrackerHitCollection") != std::string::npos) {
+            source_frame.moveCollectionTo<edm4hep::SimTrackerHitCollection>(collection_name, dest_frame);
+        }
+        else if (type_name.find("SimCalorimeterHitCollection") != std::string::npos) {
+            source_frame.moveCollectionTo<edm4hep::SimCalorimeterHitCollection>(collection_name, dest_frame);
+        }
+        else if (type_name.find("CaloHitContributionCollection") != std::string::npos) {
+            source_frame.moveCollectionTo<edm4hep::CaloHitContributionCollection>(collection_name, dest_frame);
+        }
+    } catch (const std::exception& e) {
+        std::cout << "Warning: Could not transfer collection " << collection_name 
+                  << ": " << e.what() << std::endl;
+    }
+}
+
+void StandaloneTimesliceMerger::zipCollectionsWithAssociations(MutableRootReader::MutableFrame& source_frame,
+                                                             MutableRootReader::MutableFrame& dest_frame,
+                                                             const SourceConfig& sourceConfig) {
+    // This is a more efficient approach that zips collections while preserving associations
+    // For now, we'll merge the collections into the destination frame
+    
+    auto available_collections = source_frame.getAvailableCollections();
+    
+    for (const auto& collection_name : available_collections) {
+        try {
+            auto type_name = source_frame.getCollectionTypeName(collection_name);
+            
+            // Merge collections based on type
+            if (type_name.find("MCParticleCollection") != std::string::npos) {
+                auto& source_particles = source_frame.getMutable<edm4hep::MCParticleCollection>(collection_name);
+                auto& dest_particles = dest_frame.getMutable<edm4hep::MCParticleCollection>(collection_name);
+                
+                // Append particles to destination (associations are preserved within the collection)
+                for (auto& particle : source_particles) {
+                    dest_particles.push_back(particle);
+                }
+            }
+            else if (type_name.find("SimTrackerHitCollection") != std::string::npos) {
+                auto& source_hits = source_frame.getMutable<edm4hep::SimTrackerHitCollection>(collection_name);
+                auto& dest_hits = dest_frame.getMutable<edm4hep::SimTrackerHitCollection>(collection_name);
+                
+                // Append hits to destination
+                for (auto& hit : source_hits) {
+                    dest_hits.push_back(hit);
+                }
+            }
+            else if (type_name.find("SimCalorimeterHitCollection") != std::string::npos) {
+                auto& source_hits = source_frame.getMutable<edm4hep::SimCalorimeterHitCollection>(collection_name);
+                auto& dest_hits = dest_frame.getMutable<edm4hep::SimCalorimeterHitCollection>(collection_name);
+                
+                // Append hits to destination
+                for (auto& hit : source_hits) {
+                    dest_hits.push_back(hit);
+                }
+            }
+            else if (type_name.find("CaloHitContributionCollection") != std::string::npos) {
+                auto& source_contribs = source_frame.getMutable<edm4hep::CaloHitContributionCollection>(collection_name);
+                auto& dest_contribs = dest_frame.getMutable<edm4hep::CaloHitContributionCollection>(collection_name);
+                
+                // Append contributions to destination
+                for (auto& contrib : source_contribs) {
+                    dest_contribs.push_back(contrib);
+                }
+            }
+            else if (type_name.find("EventHeaderCollection") != std::string::npos) {
+                // Special handling for event headers - we typically want to merge them differently
+                auto& source_headers = source_frame.getMutable<edm4hep::EventHeaderCollection>(collection_name);
+                
+                if (collection_name == "SubEventHeaders") {
+                    auto& dest_headers = dest_frame.getMutable<edm4hep::EventHeaderCollection>(collection_name);
+                    for (auto& header : source_headers) {
+                        dest_headers.push_back(header);
+                    }
+                }
+                // For main EventHeader, we usually don't append but handle differently
+            }
+        } catch (const std::exception& e) {
+            std::cout << "Warning: Could not zip collection " << collection_name 
+                      << ": " << e.what() << std::endl;
+        }
+    }
 }
