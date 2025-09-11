@@ -282,7 +282,8 @@ void StandaloneTimesliceMerger::mergeCollectionsEfficient(std::unique_ptr<Mutabl
             // Get position of first particle with generatorStatus 1
             try {
                 auto& particles = frame->getMutable<edm4hep::MCParticleCollection>("MCParticles");
-                for (auto& particle : particles) {
+                for (size_t i = 0; i < particles.size(); ++i) {
+                    auto particle = particles.at(i);
                     if (particle.getGeneratorStatus() == 1) {
                         auto pos = particle.getVertex();
                         distance = pos.z * std::cos(sourceConfig.beam_angle) + pos.x * std::sin(sourceConfig.beam_angle);
@@ -322,7 +323,8 @@ void StandaloneTimesliceMerger::applyTimeOffsetToFrame(MutableRootReader::Mutabl
     // Apply time offset to MCParticles
     try {
         auto& particles = frame.getMutable<edm4hep::MCParticleCollection>("MCParticles");
-        for (auto& particle : particles) {
+        for (size_t i = 0; i < particles.size(); ++i) {
+            auto particle = particles.at(i);
             particle.setTime(particle.getTime() + time_offset);
         }
     } catch (const std::exception& e) {
@@ -337,16 +339,19 @@ void StandaloneTimesliceMerger::applyTimeOffsetToFrame(MutableRootReader::Mutabl
             auto type_name = frame.getCollectionTypeName(collection_name);
             if (type_name.find("SimTrackerHit") != std::string::npos) {
                 auto& hits = frame.getMutable<edm4hep::SimTrackerHitCollection>(collection_name);
-                for (auto& hit : hits) {
+                for (size_t i = 0; i < hits.size(); ++i) {
+                    auto hit = hits.at(i);
                     hit.setTime(hit.getTime() + time_offset);
                 }
             }
             // Check if it's a calorimeter hit collection
             else if (type_name.find("SimCalorimeterHit") != std::string::npos) {
                 auto& hits = frame.getMutable<edm4hep::SimCalorimeterHitCollection>(collection_name);
-                for (auto& hit : hits) {
+                for (size_t i = 0; i < hits.size(); ++i) {
+                    auto hit = hits.at(i);
                     // Apply time offset to contributions
-                    for (auto& contrib : hit.getContributions()) {
+                    for (size_t j = 0; j < hit.getContributions().size(); ++j) {
+                        auto contrib = hit.getContributions()[j];
                         contrib.setTime(contrib.getTime() + time_offset);
                     }
                 }
@@ -354,7 +359,8 @@ void StandaloneTimesliceMerger::applyTimeOffsetToFrame(MutableRootReader::Mutabl
             // Check if it's a contribution collection
             else if (type_name.find("CaloHitContribution") != std::string::npos) {
                 auto& contribs = frame.getMutable<edm4hep::CaloHitContributionCollection>(collection_name);
-                for (auto& contrib : contribs) {
+                for (size_t i = 0; i < contribs.size(); ++i) {
+                    auto contrib = contribs.at(i);
                     contrib.setTime(contrib.getTime() + time_offset);
                 }
             }
@@ -420,7 +426,8 @@ void StandaloneTimesliceMerger::zipCollectionsWithAssociations(MutableRootReader
                 }
                 
                 // Append particles to destination (associations are preserved within the collection)
-                for (auto& particle : source_particles) {
+                for (size_t i = 0; i < source_particles.size(); ++i) {
+                    auto particle = source_particles.at(i);
                     dest_particles->push_back(particle);
                 }
             }
@@ -438,7 +445,8 @@ void StandaloneTimesliceMerger::zipCollectionsWithAssociations(MutableRootReader
                 }
                 
                 // Append hits to destination
-                for (auto& hit : source_hits) {
+                for (size_t i = 0; i < source_hits.size(); ++i) {
+                    auto hit = source_hits.at(i);
                     dest_hits->push_back(hit);
                 }
             }
@@ -456,7 +464,8 @@ void StandaloneTimesliceMerger::zipCollectionsWithAssociations(MutableRootReader
                 }
                 
                 // Append hits to destination
-                for (auto& hit : source_hits) {
+                for (size_t i = 0; i < source_hits.size(); ++i) {
+                    auto hit = source_hits.at(i);
                     dest_hits->push_back(hit);
                 }
             }
@@ -474,7 +483,8 @@ void StandaloneTimesliceMerger::zipCollectionsWithAssociations(MutableRootReader
                 }
                 
                 // Append contributions to destination
-                for (auto& contrib : source_contribs) {
+                for (size_t i = 0; i < source_contribs.size(); ++i) {
+                    auto contrib = source_contribs.at(i);
                     dest_contribs->push_back(contrib);
                 }
             }
@@ -493,7 +503,8 @@ void StandaloneTimesliceMerger::zipCollectionsWithAssociations(MutableRootReader
                         dest_frame.putMutable(std::move(new_collection), collection_name);
                     }
                     
-                    for (auto& header : source_headers) {
+                    for (size_t i = 0; i < source_headers.size(); ++i) {
+                        auto header = source_headers.at(i);
                         dest_headers->push_back(header);
                     }
                 }
