@@ -1,6 +1,5 @@
 #pragma once
 
-#ifdef PODIO_AVAILABLE
 #include <edm4hep/MCParticleCollection.h>
 #include <edm4hep/SimTrackerHitCollection.h>
 #include <edm4hep/SimCalorimeterHitCollection.h>
@@ -14,7 +13,6 @@
 #include <TKey.h>
 #include <TList.h>
 #include <TObjArray.h>
-#endif
 
 #include <vector>
 #include <string>
@@ -23,7 +21,6 @@
 #include <iostream>
 #include <typeinfo>
 
-#ifdef PODIO_AVAILABLE
 
 /**
  * @brief A custom ROOT reader that provides genuinely mutable collections from the start
@@ -186,5 +183,3 @@ private:
     size_t current_file_index_ = 0;
     std::unordered_map<std::string, size_t> entries_per_file_;
 };
-
-#endif // PODIO_AVAILABLE

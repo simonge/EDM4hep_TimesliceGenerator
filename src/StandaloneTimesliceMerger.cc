@@ -2,6 +2,7 @@
 #include <iostream>
 #include <algorithm>
 #include <cmath>
+#include <podio/Frame.h>
 
 StandaloneTimesliceMerger::StandaloneTimesliceMerger(const MergerConfig& config)
     : m_config(config), gen(rd()), events_generated(0) {
@@ -175,7 +176,7 @@ bool StandaloneTimesliceMerger::updateInputNEvents(std::vector<SourceReader>& in
 
 void StandaloneTimesliceMerger::createMergedTimeslice(std::vector<SourceReader>& inputs, std::unique_ptr<podio::ROOTWriter>& writer) {
 
-    std::unique_ptr<podio::Frame> output_frame = std::make_unique<podio::Frame>();
+    std::unique_ptr<MutableRootReader::MutableFrame> output_frame = std::make_unique<MutableRootReader::MutableFrame>();
     std::unique_ptr<MutableRootReader::MutableFrame> first_frame;
     
     bool first_event = true;
@@ -282,21 +283,19 @@ void StandaloneTimesliceMerger::createMergedTimeslice(std::vector<SourceReader>&
     timeslice_info_out->push_back(header);
 
     // Insert collections into frame
-    output_frame->put(std::move(*timeslice_particles_out), "MCParticles");
-    output_frame->put(std::move(*timeslice_info_out), "EventHeader");
-    output_frame->put(std::move(*sub_event_headers_out), "SubEventHeaders");
-
+    output_frame->putMutable(std::make_unique<edm4hep::MCParticleCollection>(std::move(*timeslice_particles_out)), "MCParticles");
+    output_frame->putMutable(std::make_unique<edm4hep::EventHeaderCollection>(std::move(*timeslice_info_out)), "EventHeader");
+    output_frame->putMutable(std::make_unique<edm4hep::EventHeaderCollection>(std::move(*sub_event_headers_out)), "SubEventHeaders");
     for(auto& [collection_name, hit_collection] : timeslice_tracker_hits_out) {
-        output_frame->put(std::move(*hit_collection), collection_name);
+        output_frame->putMutable(std::make_unique<edm4hep::SimTrackerHitCollection>(std::move(*hit_collection)), collection_name);
     }
     for (auto& [collection_name, hit_collection] : timeslice_calorimeter_hits_out) {
-        output_frame->put(std::move(*hit_collection), collection_name);
+        output_frame->putMutable(std::make_unique<edm4hep::SimCalorimeterHitCollection>(std::move(*hit_collection)), collection_name);
     }
     for (auto& [collection_name, hit_collection] : timeslice_calo_contributions_out) {
-        output_frame->put(std::move(*hit_collection), collection_name + "Contributions");
+        output_frame->putMutable(std::make_unique<edm4hep::CaloHitContributionCollection>(std::move(*hit_collection)), collection_name + "Contributions");
     }
-
-    writer->writeFrame(*output_frame, "events", collections_to_write);
+    writer->writeFrame(static_cast<const podio::Frame&>(*output_frame), "events", collections_to_write);
 
 }
 
