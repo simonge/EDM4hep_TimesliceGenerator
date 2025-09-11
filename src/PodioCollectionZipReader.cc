@@ -34,10 +34,11 @@ PodioCollectionZipReader::ZippedCollections PodioCollectionZipReader::zipCollect
     
     for (const auto& name : collection_names) {
         try {
-            // Get mutable access to the collection using safe const_cast
-            auto* collection = const_cast<podio::CollectionBase*>(frame.get(name));
+            // Use the same helper method for consistency
+            const auto* collection = frame.get(name);
             if (collection) {
-                zipped.collections.push_back(collection);
+                // Safe const_cast since we own the frame
+                zipped.collections.push_back(const_cast<podio::CollectionBase*>(collection));
                 zipped.min_size = std::min(zipped.min_size, collection->size());
             } else {
                 throw std::runtime_error("Collection not found: " + name);
@@ -102,10 +103,8 @@ void PodioCollectionZipReader::addTimeOffsetToFrame(podio::Frame& frame, float t
             const auto* collection = frame.get(name);
             if (collection) {
                 std::string type_name = collection->getValueTypeName();
-                if (type_name == "edm4hep::MCParticle" || 
-                    type_name == "edm4hep::SimTrackerHit" || 
-                    type_name == "edm4hep::SimCalorimeterHit" || 
-                    type_name == "edm4hep::CaloHitContribution") {
+                // Check if this is a time-bearing collection type
+                if (getTypeProcessors().count(type_name) > 0) {
                     collections_to_process.push_back(name);
                 }
             }
@@ -114,31 +113,45 @@ void PodioCollectionZipReader::addTimeOffsetToFrame(podio::Frame& frame, float t
         collections_to_process = collection_names;
     }
     
-    // Apply time offset to each collection based on its type
+    // Apply time offset to each collection using the processor map
+    const auto& processors = getTypeProcessors();
     for (const auto& name : collections_to_process) {
         try {
             const auto* collection = frame.get(name);
             if (!collection) continue;
             
             std::string type_name = collection->getValueTypeName();
-            
-            if (type_name == "edm4hep::MCParticle") {
-                auto* particles = getMutableCollectionPtr<edm4hep::MCParticleCollection>(frame, name);
-                if (particles) addTimeOffsetVectorized(*particles, time_offset);
-            } else if (type_name == "edm4hep::SimTrackerHit") {
-                auto* hits = getMutableCollectionPtr<edm4hep::SimTrackerHitCollection>(frame, name);
-                if (hits) addTimeOffsetVectorized(*hits, time_offset);
-            } else if (type_name == "edm4hep::SimCalorimeterHit") {
-                auto* hits = getMutableCollectionPtr<edm4hep::SimCalorimeterHitCollection>(frame, name);
-                if (hits) addTimeOffsetVectorized(*hits, time_offset);
-            } else if (type_name == "edm4hep::CaloHitContribution") {
-                auto* contributions = getMutableCollectionPtr<edm4hep::CaloHitContributionCollection>(frame, name);
-                if (contributions) addTimeOffsetVectorized(*contributions, time_offset);
+            auto it = processors.find(type_name);
+            if (it != processors.end()) {
+                it->second(frame, name, time_offset);
             }
         } catch (const std::exception& e) {
             std::cerr << "Warning: Failed to apply time offset to collection '" << name << "': " << e.what() << std::endl;
         }
     }
+}
+
+const std::unordered_map<std::string, std::function<void(podio::Frame&, const std::string&, float)>>& 
+PodioCollectionZipReader::getTypeProcessors() {
+    static const std::unordered_map<std::string, std::function<void(podio::Frame&, const std::string&, float)>> processors = {
+        {"edm4hep::MCParticle", [](podio::Frame& frame, const std::string& name, float time_offset) {
+            auto* particles = getMutableCollectionPtr<edm4hep::MCParticleCollection>(frame, name);
+            if (particles) addTimeOffsetVectorized(*particles, time_offset);
+        }},
+        {"edm4hep::SimTrackerHit", [](podio::Frame& frame, const std::string& name, float time_offset) {
+            auto* hits = getMutableCollectionPtr<edm4hep::SimTrackerHitCollection>(frame, name);
+            if (hits) addTimeOffsetVectorized(*hits, time_offset);
+        }},
+        {"edm4hep::SimCalorimeterHit", [](podio::Frame& frame, const std::string& name, float time_offset) {
+            auto* hits = getMutableCollectionPtr<edm4hep::SimCalorimeterHitCollection>(frame, name);
+            if (hits) addTimeOffsetVectorized(*hits, time_offset);
+        }},
+        {"edm4hep::CaloHitContribution", [](podio::Frame& frame, const std::string& name, float time_offset) {
+            auto* contributions = getMutableCollectionPtr<edm4hep::CaloHitContributionCollection>(frame, name);
+            if (contributions) addTimeOffsetVectorized(*contributions, time_offset);
+        }}
+    };
+    return processors;
 }
 
 std::vector<std::string> PodioCollectionZipReader::getCollectionNamesByType(const podio::Frame& frame, const std::string& type_name) {

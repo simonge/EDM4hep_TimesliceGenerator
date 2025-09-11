@@ -110,31 +110,17 @@ public:
     ZippedCollections zipCollections(podio::Frame& frame, const std::vector<std::string>& collection_names);
     
     /**
-     * @brief Apply vectorized time offset to MCParticle collection
-     * @param particles The MCParticle collection to modify
-     * @param time_offset The time offset to add to all particles
+     * @brief Apply vectorized time offset to various collection types
+     * @param collection The collection to modify (MCParticles, SimTrackerHits, etc.)
+     * @param time_offset The time offset to add to all elements
      */
+    template<typename T>
+    static void addTimeOffsetVectorized(T& collection, float time_offset);
+    
+    // Explicit specializations for different collection types
     static void addTimeOffsetVectorized(edm4hep::MCParticleCollection& particles, float time_offset);
-    
-    /**
-     * @brief Apply vectorized time offset to SimTrackerHit collection
-     * @param hits The SimTrackerHit collection to modify
-     * @param time_offset The time offset to add to all hits
-     */
     static void addTimeOffsetVectorized(edm4hep::SimTrackerHitCollection& hits, float time_offset);
-    
-    /**
-     * @brief Apply vectorized time offset to SimCalorimeterHit collection
-     * @param hits The SimCalorimeterHit collection to modify
-     * @param time_offset The time offset to add to all hits
-     */
     static void addTimeOffsetVectorized(edm4hep::SimCalorimeterHitCollection& hits, float time_offset);
-    
-    /**
-     * @brief Apply vectorized time offset to CaloHitContribution collection
-     * @param contributions The CaloHitContribution collection to modify
-     * @param time_offset The time offset to add to all contributions
-     */
     static void addTimeOffsetVectorized(edm4hep::CaloHitContributionCollection& contributions, float time_offset);
     
     /**
@@ -198,26 +184,8 @@ public:
 private:
     std::shared_ptr<podio::ROOTReader> reader_;
     
-    // Helper to get collection by name and cast to appropriate type
-    template<typename T>
-    const T* getCollection(const podio::Frame& frame, const std::string& name) {
-        try {
-            return &frame.get<T>(name);
-        } catch (const std::exception&) {
-            return nullptr;
-        }
-    }
-    
-    // Helper to get mutable collection by name and cast to appropriate type
-    template<typename T>
-    T* getMutableCollection(podio::Frame& frame, const std::string& name) {
-        try {
-            // Get the collection and const_cast to mutable - this is safe since we own the frame
-            return const_cast<T*>(&frame.get<T>(name));
-        } catch (const std::exception&) {
-            return nullptr;
-        }
-    }
+    // Type name to processor function mapping for efficient type checking
+    static const std::unordered_map<std::string, std::function<void(podio::Frame&, const std::string&, float)>>& getTypeProcessors();
 };
 
 #endif // PODIO_AVAILABLE
