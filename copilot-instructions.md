@@ -2,7 +2,7 @@
 
 ## Environment
 Primary development and CI environment is a pre-built image:  
-`ghcr.io/eic/eic_ci@sha256:REPLACE_WITH_REAL_DIGEST`  
+`ghcr.io/eic/eic_ci:nightly`  
 (This image contains ROOT, podio, and the EIC reconstruction stack.)
 
 Avoid rebuilding ROOT or podio from source unless explicitly requested in an issue.
