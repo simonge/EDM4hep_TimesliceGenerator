@@ -46,37 +46,28 @@ public:
      */
     class MutableFrame {
     private:
-        // Helper template function to create deleters
-        template<typename T>
-        static void typed_deleter(void* ptr) {
-            delete static_cast<T*>(ptr);
-        }
-        
-        // Static null deleter for empty unique_ptr returns
-        static void null_deleter(void* ptr) {
-            // Do nothing for null pointer
-        }
-        
-        // Static deleters for specific collection types  
-        static void delete_mcparticle_collection(void* ptr) {
-            delete static_cast<edm4hep::MCParticleCollection*>(ptr);
-        }
-        
-        static void delete_eventheader_collection(void* ptr) {
-            delete static_cast<edm4hep::EventHeaderCollection*>(ptr);
-        }
-        
-        static void delete_trackerhit_collection(void* ptr) {
-            delete static_cast<edm4hep::SimTrackerHitCollection*>(ptr);
-        }
-        
-        static void delete_calorimeterhit_collection(void* ptr) {
-            delete static_cast<edm4hep::SimCalorimeterHitCollection*>(ptr);
-        }
-        
-        static void delete_calohitcontribution_collection(void* ptr) {
-            delete static_cast<edm4hep::CaloHitContributionCollection*>(ptr);
-        }
+        // Custom deleter class that can handle different collection types
+        struct CollectionDeleter {
+            std::string type_name;
+            
+            CollectionDeleter(const std::string& type) : type_name(type) {}
+            
+            void operator()(void* ptr) {
+                if (!ptr) return;
+                
+                if (type_name.find("MCParticleCollection") != std::string::npos) {
+                    delete static_cast<edm4hep::MCParticleCollection*>(ptr);
+                } else if (type_name.find("EventHeaderCollection") != std::string::npos) {
+                    delete static_cast<edm4hep::EventHeaderCollection*>(ptr);
+                } else if (type_name.find("SimTrackerHitCollection") != std::string::npos) {
+                    delete static_cast<edm4hep::SimTrackerHitCollection*>(ptr);
+                } else if (type_name.find("SimCalorimeterHitCollection") != std::string::npos) {
+                    delete static_cast<edm4hep::SimCalorimeterHitCollection*>(ptr);
+                } else if (type_name.find("CaloHitContributionCollection") != std::string::npos) {
+                    delete static_cast<edm4hep::CaloHitContributionCollection*>(ptr);
+                }
+            }
+        };
         
     public:
         MutableFrame() = default;
@@ -86,16 +77,17 @@ public:
          */
         template<typename T>
         void putMutable(std::unique_ptr<T> collection, const std::string& name) {
-            mutable_collections_[name] = std::unique_ptr<void, void(*)(void*)>(
-                collection.release(), typed_deleter<T>
+            std::string type_name = typeid(T).name();
+            mutable_collections_[name] = std::unique_ptr<void, CollectionDeleter>(
+                collection.release(), CollectionDeleter(type_name)
             );
-            collection_types_[name] = typeid(T).name();
+            collection_types_[name] = type_name;
         }
         
         /**
          * @brief Store a type-erased mutable collection in the frame
          */
-        void putMutable(std::unique_ptr<void, void(*)(void*)> collection, 
+        void putMutable(std::unique_ptr<void, CollectionDeleter> collection, 
                        const std::string& name, const std::string& type_name) {
             mutable_collections_[name] = std::move(collection);
             collection_types_[name] = type_name;
@@ -199,7 +191,7 @@ public:
         
     private:
         // Store collections as void pointers with type information
-        std::unordered_map<std::string, std::unique_ptr<void, void(*)(void*)>> mutable_collections_;
+        std::unordered_map<std::string, std::unique_ptr<void, CollectionDeleter>> mutable_collections_;
         std::unordered_map<std::string, std::string> collection_types_;
         
         /**
@@ -264,9 +256,9 @@ private:
     /**
      * @brief Helper to create appropriate collection type based on branch name/type
      */
-    std::unique_ptr<void, void(*)(void*)> createCollectionFromBranch(const std::string& branch_name, 
-                                                                      TBranch* branch, 
-                                                                      size_t entry);
+    std::unique_ptr<void, CollectionDeleter> createCollectionFromBranch(const std::string& branch_name, 
+                                                                        TBranch* branch, 
+                                                                        size_t entry);
     
     /**
      * @brief Get the type name for a collection based on branch name
