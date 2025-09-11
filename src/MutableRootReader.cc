@@ -92,7 +92,9 @@ MutableRootReader::readMutableEntry(const std::string& category, size_t entry) {
         // Create mutable collection based on branch type/name
         auto collection = createCollectionFromBranch(branch_name, branch, entry);
         if (collection) {
-            frame->putMutable(std::move(collection), branch_name);
+            // Determine type name for the collection
+            std::string type_name = getCollectionTypeName(branch_name);
+            frame->putMutable(std::move(collection), branch_name, type_name);
         }
     }
     
@@ -178,4 +180,24 @@ void MutableRootReader::MutableFrame::transferCollectionToPodioFrame(podio::Fram
         auto* collection = static_cast<edm4hep::CaloHitContributionCollection*>(collection_ptr);
         frame.put(std::move(*collection), name);
     }
+}
+
+std::string MutableRootReader::getCollectionTypeName(const std::string& branch_name) {
+    if (branch_name == "MCParticles" || branch_name.find("MCParticle") != std::string::npos) {
+        return typeid(edm4hep::MCParticleCollection).name();
+    }
+    else if (branch_name == "EventHeader" || branch_name.find("EventHeader") != std::string::npos) {
+        return typeid(edm4hep::EventHeaderCollection).name();
+    }
+    else if (branch_name.find("TrackerHit") != std::string::npos) {
+        return typeid(edm4hep::SimTrackerHitCollection).name();
+    }
+    else if (branch_name.find("CalorimeterHit") != std::string::npos) {
+        return typeid(edm4hep::SimCalorimeterHitCollection).name();
+    }
+    else if (branch_name.find("CaloHitContribution") != std::string::npos) {
+        return typeid(edm4hep::CaloHitContributionCollection).name();
+    }
+    
+    return "unknown";
 }

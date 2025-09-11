@@ -61,6 +61,15 @@ public:
         }
         
         /**
+         * @brief Store a type-erased mutable collection in the frame
+         */
+        void putMutable(std::unique_ptr<void, void(*)(void*)> collection, 
+                       const std::string& name, const std::string& type_name) {
+            mutable_collections_[name] = std::move(collection);
+            collection_types_[name] = type_name;
+        }
+        
+        /**
          * @brief Get mutable access to a collection
          */
         template<typename T>
@@ -226,6 +235,11 @@ private:
     std::unique_ptr<void, void(*)(void*)> createCollectionFromBranch(const std::string& branch_name, 
                                                                       TBranch* branch, 
                                                                       size_t entry);
+    
+    /**
+     * @brief Get the type name for a collection based on branch name
+     */
+    std::string getCollectionTypeName(const std::string& branch_name);
     
     // ROOT file management
     std::vector<std::unique_ptr<TFile>> root_files_;
