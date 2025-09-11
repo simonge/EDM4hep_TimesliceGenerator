@@ -1,0 +1,32 @@
+# Copilot Setup Steps for EIC CI Environment
+
+# When running in the ghcr.io/eic/eic_ci:nightly container, the following steps should be taken:
+
+setup_environment: |
+  # Source available EIC environment setup scripts
+  if [ -f "/opt/detector/setup.sh" ]; then
+    source /opt/detector/setup.sh
+  fi
+  if [ -f "/opt/software/setup.sh" ]; then
+    source /opt/software/setup.sh  
+  fi
+  if [ -f "/usr/local/bin/thisroot.sh" ]; then
+    source /usr/local/bin/thisroot.sh
+  fi
+  
+  # Set up CMAKE_PREFIX_PATH for package discovery
+  export CMAKE_PREFIX_PATH="/usr/local:$CMAKE_PREFIX_PATH"
+  export PKG_CONFIG_PATH="/usr/local/lib/pkgconfig:$PKG_CONFIG_PATH" 
+  export LD_LIBRARY_PATH="/usr/local/lib:$LD_LIBRARY_PATH"
+
+build_commands: |
+  cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+  cmake --build build -j$(nproc)
+
+test_commands: |
+  ctest --test-dir build --output-on-failure
+
+# Expected package locations in the EIC container:
+# - podio: Usually in /usr/local with CMake config files
+# - EDM4hep: Usually in /usr/local with CMake config files  
+# - ROOT: Usually in /usr/local with setup script at /usr/local/bin/thisroot.sh
