@@ -1,5 +1,5 @@
 {
-  "image": "ghcr.io/eic/eic_ci:nightly",
+  "image": "ghcr.io/eic/eic_xl:nightly",
   "postCreateCommand": "./.devcontainer/postCreateCommand.sh",
   "customizations": {
     "vscode": {

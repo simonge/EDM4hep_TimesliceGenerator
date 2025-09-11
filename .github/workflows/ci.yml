@@ -9,7 +9,7 @@ jobs:
   build-test:
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/eic/eic_ci:nightly
+      image: ghcr.io/eic/eic_xl:nightly
     steps:
       - name: Checkout
         uses: actions/checkout@v4

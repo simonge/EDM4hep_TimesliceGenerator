@@ -2,7 +2,7 @@
 
 ## Environment
 Primary development and CI environment is a pre-built image:  
-`ghcr.io/eic/eic_ci:nightly`  
+`ghcr.io/eic/eic_xl:nightly`  
 (This image contains ROOT, podio, and the EIC reconstruction stack.)
 
 **Important**: The EIC container requires environment setup. Before building, source any available setup scripts:
