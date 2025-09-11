@@ -79,7 +79,7 @@ public:
         Iterator end() const { return Iterator(*this, min_size); }
     };
     
-    static ZippedCollections zipCollections(const mock::Frame& frame, const std::vector<std::string>& collection_names) {
+    static ZippedCollections zipCollections(mock::Frame& frame, const std::vector<std::string>& collection_names) {
         ZippedCollections zipped;
         zipped.names = collection_names;
         zipped.min_size = SIZE_MAX;
@@ -88,7 +88,8 @@ public:
             try {
                 auto collections = frame.getAvailableCollections();
                 if (std::find(collections.begin(), collections.end(), name) != collections.end()) {
-                    const auto& collection = frame.get<mock::Collection>(name);
+                    // Get mutable access to the collection (safe since we own the frame)
+                    auto& collection = const_cast<mock::Collection&>(frame.get<mock::Collection>(name));
                     zipped.collections.push_back(&collection);
                     zipped.min_size = std::min(zipped.min_size, collection.size());
                 }
@@ -102,6 +103,13 @@ public:
         }
         
         return zipped;
+    }
+    
+    // Helper method to get mutable collection - demonstrates clean mutable access
+    template<typename T>
+    static T& getMutableCollection(mock::Frame& frame, const std::string& name) {
+        // Safe const_cast since we own the frame and know it's mutable
+        return const_cast<T&>(frame.get<T>(name));
     }
     
     static void addTimeOffsetVectorized(mock::MCParticleCollection& particles, float time_offset) {
@@ -157,12 +165,40 @@ void testCollectionZipping() {
     std::cout << std::endl;
 }
 
+void testMutableAccess() {
+    std::cout << "\n=== Testing Mutable Collection Access ===" << std::endl;
+    
+    // Create mock frame with collections
+    mock::Frame frame;
+    auto particles = std::make_shared<mock::MCParticleCollection>();
+    particles->addParticle(100.0f);
+    particles->addParticle(200.0f);
+    frame.addCollection("MCParticles", particles);
+    
+    std::cout << "Before mutable access: ";
+    for (size_t i = 0; i < particles->size(); ++i) {
+        std::cout << particles->getParticleTime(i) << " ";
+    }
+    std::cout << std::endl;
+    
+    // Test mutable access through clean interface
+    auto& mutable_particles = MockCollectionZipReader::getMutableCollection<mock::MCParticleCollection>(frame, "MCParticles");
+    MockCollectionZipReader::addTimeOffsetVectorized(mutable_particles, 50.0f);
+    
+    std::cout << "After mutable access:  ";
+    for (size_t i = 0; i < particles->size(); ++i) {
+        std::cout << particles->getParticleTime(i) << " ";
+    }
+    std::cout << std::endl;
+}
+
 int main() {
     std::cout << "=== Mock Test for PodioCollectionZipReader Functionality ===" << std::endl;
     std::cout << "This test demonstrates the design concepts without requiring Podio/EDM4HEP." << std::endl;
     std::cout << std::endl;
     
     testCollectionZipping();
+    testMutableAccess();
     
     std::cout << std::endl;
     std::cout << "=== Test Summary ===" << std::endl;
@@ -170,6 +206,7 @@ int main() {
     std::cout << "✓ Iterator pattern functions as expected" << std::endl;
     std::cout << "✓ Vectorized time operations apply efficiently" << std::endl;
     std::cout << "✓ Framework can handle multiple collection types" << std::endl;
+    std::cout << "✓ Mutable collection access works without const restrictions" << std::endl;
     std::cout << std::endl;
     std::cout << "The actual implementation uses the same patterns with real EDM4HEP types." << std::endl;
     

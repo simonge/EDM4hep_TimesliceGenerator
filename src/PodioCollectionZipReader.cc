@@ -26,7 +26,7 @@ std::unique_ptr<podio::Frame> PodioCollectionZipReader::readEntry(const std::str
 }
 
 PodioCollectionZipReader::ZippedCollections PodioCollectionZipReader::zipCollections(
-    const podio::Frame& frame, const std::vector<std::string>& collection_names) {
+    podio::Frame& frame, const std::vector<std::string>& collection_names) {
     
     ZippedCollections zipped;
     zipped.names = collection_names;
@@ -34,7 +34,8 @@ PodioCollectionZipReader::ZippedCollections PodioCollectionZipReader::zipCollect
     
     for (const auto& name : collection_names) {
         try {
-            const auto* collection = frame.get(name);
+            // Get mutable access to the collection using safe const_cast
+            auto* collection = const_cast<podio::CollectionBase*>(frame.get(name));
             if (collection) {
                 zipped.collections.push_back(collection);
                 zipped.min_size = std::min(zipped.min_size, collection->size());
@@ -122,21 +123,17 @@ void PodioCollectionZipReader::addTimeOffsetToFrame(podio::Frame& frame, float t
             std::string type_name = collection->getValueTypeName();
             
             if (type_name == "edm4hep::MCParticle") {
-                auto& particles = const_cast<edm4hep::MCParticleCollection&>(
-                    frame.get<edm4hep::MCParticleCollection>(name));
-                addTimeOffsetVectorized(particles, time_offset);
+                auto* particles = getMutableCollectionPtr<edm4hep::MCParticleCollection>(frame, name);
+                if (particles) addTimeOffsetVectorized(*particles, time_offset);
             } else if (type_name == "edm4hep::SimTrackerHit") {
-                auto& hits = const_cast<edm4hep::SimTrackerHitCollection&>(
-                    frame.get<edm4hep::SimTrackerHitCollection>(name));
-                addTimeOffsetVectorized(hits, time_offset);
+                auto* hits = getMutableCollectionPtr<edm4hep::SimTrackerHitCollection>(frame, name);
+                if (hits) addTimeOffsetVectorized(*hits, time_offset);
             } else if (type_name == "edm4hep::SimCalorimeterHit") {
-                auto& hits = const_cast<edm4hep::SimCalorimeterHitCollection&>(
-                    frame.get<edm4hep::SimCalorimeterHitCollection>(name));
-                addTimeOffsetVectorized(hits, time_offset);
+                auto* hits = getMutableCollectionPtr<edm4hep::SimCalorimeterHitCollection>(frame, name);
+                if (hits) addTimeOffsetVectorized(*hits, time_offset);
             } else if (type_name == "edm4hep::CaloHitContribution") {
-                auto& contributions = const_cast<edm4hep::CaloHitContributionCollection&>(
-                    frame.get<edm4hep::CaloHitContributionCollection>(name));
-                addTimeOffsetVectorized(contributions, time_offset);
+                auto* contributions = getMutableCollectionPtr<edm4hep::CaloHitContributionCollection>(frame, name);
+                if (contributions) addTimeOffsetVectorized(*contributions, time_offset);
             }
         } catch (const std::exception& e) {
             std::cerr << "Warning: Failed to apply time offset to collection '" << name << "': " << e.what() << std::endl;

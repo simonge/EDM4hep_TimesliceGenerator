@@ -25,6 +25,11 @@
  * - Zipping multiple collections together for coordinated iteration
  * - Vectorized time offset operations on collections
  * - Batch processing of related data across different collection types
+ * 
+ * Unlike the base podio::ROOTReader which provides const access to collections,
+ * this reader provides mutable access to collections, allowing in-place modifications.
+ * This is achieved through safe const_cast operations on frames that are owned by
+ * the reader, eliminating the const restriction while maintaining data safety.
  */
 class PodioCollectionZipReader {
 public:
@@ -53,7 +58,7 @@ public:
      */
     struct ZippedCollections {
         std::vector<std::string> names;
-        std::vector<const podio::CollectionBase*> collections;
+        std::vector<podio::CollectionBase*> collections;
         size_t min_size; // Size of the smallest collection
         
         // Iterator class for zipped collections
@@ -79,6 +84,20 @@ public:
                 throw std::runtime_error("Collection not found or invalid type: " + collection_name);
             }
             
+            // Get mutable element from specific collection by name
+            template<typename T>
+            auto getMutableElement(const std::string& collection_name) -> decltype(std::declval<T>()[0]) {
+                for (size_t i = 0; i < zipped_.names.size(); ++i) {
+                    if (zipped_.names[i] == collection_name) {
+                        auto* coll = dynamic_cast<T*>(zipped_.collections[i]);
+                        if (coll && index_ < coll->size()) {
+                            return (*coll)[index_];
+                        }
+                    }
+                }
+                throw std::runtime_error("Collection not found or invalid type: " + collection_name);
+            }
+            
         private:
             const ZippedCollections& zipped_;
             size_t index_;
@@ -88,7 +107,7 @@ public:
         Iterator end() const { return Iterator(*this, min_size); }
     };
     
-    ZippedCollections zipCollections(const podio::Frame& frame, const std::vector<std::string>& collection_names);
+    ZippedCollections zipCollections(podio::Frame& frame, const std::vector<std::string>& collection_names);
     
     /**
      * @brief Apply vectorized time offset to MCParticle collection
@@ -136,6 +155,35 @@ public:
     static std::vector<std::string> getCollectionNamesByType(const podio::Frame& frame, const std::string& type_name);
     
     /**
+     * @brief Get mutable access to a collection in a frame
+     * @param frame The frame containing the collection
+     * @param name The name of the collection
+     * @return Mutable reference to the collection
+     * @note This is safe because the frame is owned by the reader
+     */
+    template<typename T>
+    static T& getMutableCollection(podio::Frame& frame, const std::string& name) {
+        // Safe const_cast since we own the frame and know it's mutable
+        return const_cast<T&>(frame.get<T>(name));
+    }
+    
+    /**
+     * @brief Get mutable access to a collection in a frame (pointer version)
+     * @param frame The frame containing the collection
+     * @param name The name of the collection
+     * @return Mutable pointer to the collection, or nullptr if not found
+     * @note This is safe because the frame is owned by the reader
+     */
+    template<typename T>
+    static T* getMutableCollectionPtr(podio::Frame& frame, const std::string& name) {
+        try {
+            return &getMutableCollection<T>(frame, name);
+        } catch (const std::exception&) {
+            return nullptr;
+        }
+    }
+
+    /**
      * @brief Apply a function to corresponding elements across multiple collections
      * @param zipped The zipped collections
      * @param func Function to apply that takes the current iterator
@@ -155,6 +203,17 @@ private:
     const T* getCollection(const podio::Frame& frame, const std::string& name) {
         try {
             return &frame.get<T>(name);
+        } catch (const std::exception&) {
+            return nullptr;
+        }
+    }
+    
+    // Helper to get mutable collection by name and cast to appropriate type
+    template<typename T>
+    T* getMutableCollection(podio::Frame& frame, const std::string& name) {
+        try {
+            // Get the collection and const_cast to mutable - this is safe since we own the frame
+            return const_cast<T*>(&frame.get<T>(name));
         } catch (const std::exception&) {
             return nullptr;
         }
