@@ -231,19 +231,18 @@ void StandaloneTimesliceMerger::createMergedTimeslice(std::vector<SourceReader>&
             // std::cout << "  first_event: " << first_event << ", already_merged: " << config->already_merged << std::endl;
             if (first_event) {
                 if (config->already_merged) {
-                    // output_frame = std::make_unique<podio::Frame>(*frame);
+                    // Store frame and get mutable access to collections (no const_cast needed!)
                     first_frame = std::move(frame);
-                    timeslice_particles_out = &first_frame->getMutable<edm4hep::MCParticleCollection>("MCParticles");
-                    timeslice_info_out = &first_frame->getMutable<edm4hep::EventHeaderCollection>("EventHeader");
-                    // if (output_frame->hasCollection("SubEventHeaders")) {
-                        sub_event_headers_out = &first_frame->getMutable<edm4hep::EventHeaderCollection>("SubEventHeaders");
-                    // }
+                    timeslice_particles_out = first_frame->getMutablePtr<edm4hep::MCParticleCollection>("MCParticles");
+                    timeslice_info_out = first_frame->getMutablePtr<edm4hep::EventHeaderCollection>("EventHeader");
+                    sub_event_headers_out = first_frame->getMutablePtr<edm4hep::EventHeaderCollection>("SubEventHeaders");
+                    
                     for (const auto& name : tracker_collections) {
-                        timeslice_tracker_hits_out[name] = &first_frame->getMutable<edm4hep::SimTrackerHitCollection>(name);
+                        timeslice_tracker_hits_out[name] = first_frame->getMutablePtr<edm4hep::SimTrackerHitCollection>(name);
                     }
                     for (const auto& name : calo_collections) {
-                        timeslice_calorimeter_hits_out[name] = &first_frame->getMutable<edm4hep::SimCalorimeterHitCollection>(name);
-                        timeslice_calo_contributions_out[name] = &first_frame->getMutable<edm4hep::CaloHitContributionCollection>(name + "Contributions");
+                        timeslice_calorimeter_hits_out[name] = first_frame->getMutablePtr<edm4hep::SimCalorimeterHitCollection>(name);
+                        timeslice_calo_contributions_out[name] = first_frame->getMutablePtr<edm4hep::CaloHitContributionCollection>(name + "Contributions");
                     }
                 } else {
                     // Create new empty frame and collections
