@@ -1,0 +1,21 @@
+# Example configuration for the standalone podio timeslice merger
+output_file: merged_timeslices.root
+max_events: 5
+time_slice_duration: 200.0
+bunch_crossing_period: 10.0
+introduce_offsets: true
+sources:
+  - input_files:
+      - root://dtn-eic.jlab.org//volatile/eic/EPIC/FULL/25.06.1/epic_craterlake/Bkg_1SignalPer2usFrame/Synrad_18GeV_Vac_10000Ahr_Runtime_10ms_Egas_18GeV_Hgas_275GeV/DIS/NC/18x275/minQ2=1/pythia8NCDIS_18x275_minQ2=1_beamEffects_xAngle=-0.025_hiDiv_3.4034.edm4hep.root
+    name: signal
+    static_number_of_events: false
+    mean_event_frequency: 0.1
+    use_bunch_crossing: true
+    generator_status_offset: 0
+  - input_files:
+      - root://dtn-eic.jlab.org//volatile/eic/EPIC/FULL/25.06.1/epic_craterlake/Bkg_1SignalPer2usFrame/Synrad_18GeV_Vac_10000Ahr_Runtime_10ms_Egas_18GeV_Hgas_275GeV/DIS/NC/18x275/minQ2=1/pythia8NCDIS_18x275_minQ2=1_beamEffects_xAngle=-0.025_hiDiv_3.4034.edm4hep.root
+    name: background
+    static_number_of_events: true
+    static_events_per_timeslice: 1
+    use_bunch_crossing: true
+    generator_status_offset: 1000

@@ -14,7 +14,10 @@ MutableRootReader::MutableRootReader(const std::vector<std::string>& input_files
     
     // Open ROOT files directly
     for (const auto& file_path : input_files) {
-        auto root_file = std::make_unique<TFile>(file_path.c_str(), "READ");
+        std::unique_ptr<TFile> root_file;
+        
+        root_file.reset(TFile::Open(file_path.c_str(), "READ"));
+
         if (!root_file || root_file->IsZombie()) {
             throw std::runtime_error("Failed to open ROOT file: " + file_path);
         }
