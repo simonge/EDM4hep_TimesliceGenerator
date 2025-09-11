@@ -48,7 +48,7 @@ std::vector<SourceReader> StandaloneTimesliceMerger::initializeInputFiles() {
         if (!source.input_files.empty()) {
             try {
                 // Create zip reader
-                source_reader.zip_reader = std::make_shared<PodioCollectionZipReader>(source.input_files);
+                source_reader.zip_reader = std::make_shared<PodioMutableCollectionReader>(source.input_files);
 
                 auto tree_names = source_reader.zip_reader->getAvailableCategories();
 
@@ -60,7 +60,7 @@ std::vector<SourceReader> StandaloneTimesliceMerger::initializeInputFiles() {
                 source_reader.total_entries = source_reader.zip_reader->getEntries(source.tree_name);
          
                 // Read the first frame to get collection names and types
-                auto frame = source_reader.zip_reader->readEntry(source.tree_name, 0);
+                auto frame = source_reader.zip_reader->readMutableEntry(source.tree_name, 0);
                 auto available_collections = frame->getAvailableCollections();
 
 
@@ -226,7 +226,7 @@ void StandaloneTimesliceMerger::createMergedTimeslice(std::vector<SourceReader>&
 
         for (size_t i = 0; i < source.entries_needed; ++i) {
 
-            auto frame = source_reader.zip_reader->readEntry(config->tree_name, source.current_entry_index);
+            auto frame = source_reader.zip_reader->readMutableEntry(config->tree_name, source.current_entry_index);
 
             // If first event and already merged, take entire frame as starting point
             // std::cout << "Merging event " << source.current_entry_index << " from source " << config->name << std::endl;
@@ -235,17 +235,17 @@ void StandaloneTimesliceMerger::createMergedTimeslice(std::vector<SourceReader>&
                 if (config->already_merged) {
                     // output_frame = std::make_unique<podio::Frame>(*frame);
                     first_frame = std::move(frame);
-                    timeslice_particles_out = &PodioCollectionZipReader::getMutableCollection<edm4hep::MCParticleCollection>(*first_frame, "MCParticles");
-                    timeslice_info_out = &PodioCollectionZipReader::getMutableCollection<edm4hep::EventHeaderCollection>(*first_frame, "EventHeader");
+                    timeslice_particles_out = &PodioMutableCollectionReader::getMutableCollection<edm4hep::MCParticleCollection>(*first_frame, "MCParticles");
+                    timeslice_info_out = &PodioMutableCollectionReader::getMutableCollection<edm4hep::EventHeaderCollection>(*first_frame, "EventHeader");
                     // if (output_frame->hasCollection("SubEventHeaders")) {
-                        sub_event_headers_out = &PodioCollectionZipReader::getMutableCollection<edm4hep::EventHeaderCollection>(*first_frame, "SubEventHeaders");
+                        sub_event_headers_out = &PodioMutableCollectionReader::getMutableCollection<edm4hep::EventHeaderCollection>(*first_frame, "SubEventHeaders");
                     // }
                     for (const auto& name : tracker_collections) {
-                        timeslice_tracker_hits_out[name] = &PodioCollectionZipReader::getMutableCollection<edm4hep::SimTrackerHitCollection>(*first_frame, name);
+                        timeslice_tracker_hits_out[name] = &PodioMutableCollectionReader::getMutableCollection<edm4hep::SimTrackerHitCollection>(*first_frame, name);
                     }
                     for (const auto& name : calo_collections) {
-                        timeslice_calorimeter_hits_out[name] = &PodioCollectionZipReader::getMutableCollection<edm4hep::SimCalorimeterHitCollection>(*first_frame, name);
-                        timeslice_calo_contributions_out[name] = &PodioCollectionZipReader::getMutableCollection<edm4hep::CaloHitContributionCollection>(*first_frame, name + "Contributions");
+                        timeslice_calorimeter_hits_out[name] = &PodioMutableCollectionReader::getMutableCollection<edm4hep::SimCalorimeterHitCollection>(*first_frame, name);
+                        timeslice_calo_contributions_out[name] = &PodioMutableCollectionReader::getMutableCollection<edm4hep::CaloHitContributionCollection>(*first_frame, name + "Contributions");
                     }
                 } else {
                     // Create new empty frame and collections
@@ -497,7 +497,7 @@ void StandaloneTimesliceMerger::mergeCollectionsWithZipping(
 
     // Use the new vectorized time offset functionality if needed
     if (time_offset != 0.0f) {
-        PodioCollectionZipReader::addTimeOffsetToFrame(*frame, time_offset);
+        PodioMutableCollectionReader::addTimeOffsetToFrame(*frame, time_offset);
     }
     
     // Use the frame directly since it now supports mutable access through helper methods

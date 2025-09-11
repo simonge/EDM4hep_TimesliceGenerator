@@ -16,7 +16,7 @@
 #include <string>
 
 struct SourceReader {
-    std::shared_ptr<PodioCollectionZipReader> zip_reader;
+    std::shared_ptr<PodioMutableCollectionReader> zip_reader;
     size_t total_entries{0};
     size_t current_entry_index{0};
     size_t entries_needed{1};
