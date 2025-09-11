@@ -22,6 +22,8 @@
 #include <iostream>
 #include <typeinfo>
 #include <variant>
+#include <functional>
+#include <type_traits>
 
 
 /**
@@ -135,7 +137,20 @@ public:
             }
             
             return std::visit([](const auto& ptr) -> std::string {
-                return typeid(*ptr).name();
+                using T = typename std::remove_cv<typename std::remove_reference<decltype(*ptr)>::type>::type;
+                if constexpr (std::is_same_v<T, edm4hep::MCParticleCollection>) {
+                    return "MCParticleCollection";
+                } else if constexpr (std::is_same_v<T, edm4hep::EventHeaderCollection>) {
+                    return "EventHeaderCollection";
+                } else if constexpr (std::is_same_v<T, edm4hep::SimTrackerHitCollection>) {
+                    return "SimTrackerHitCollection";
+                } else if constexpr (std::is_same_v<T, edm4hep::SimCalorimeterHitCollection>) {
+                    return "SimCalorimeterHitCollection";
+                } else if constexpr (std::is_same_v<T, edm4hep::CaloHitContributionCollection>) {
+                    return "CaloHitContributionCollection";
+                } else {
+                    return "UnknownCollection";
+                }
             }, it->second);
         }
         
