@@ -55,13 +55,6 @@ private:
     void createMergedTimeslice(std::vector<SourceReader>& inputs, std::unique_ptr<podio::ROOTWriter>& writer);
 
     // Helper methods for timeslice merging logic
-    void mergeCollections(const std::unique_ptr<MutableRootReader::MutableFrame>& frame, 
-                         const SourceConfig& sourceConfig,
-                         edm4hep::MCParticleCollection& out_particles,
-                         edm4hep::EventHeaderCollection& out_sub_event_headers,
-                         std::unordered_map<std::string, edm4hep::SimTrackerHitCollection*>& out_tracker_hits,
-                         std::unordered_map<std::string, edm4hep::SimCalorimeterHitCollection*>& out_calo_hits,
-                         std::unordered_map<std::string, edm4hep::CaloHitContributionCollection*>& out_calo_contributions);
     
     /**
      * @brief More efficient collection merging that preserves associations better

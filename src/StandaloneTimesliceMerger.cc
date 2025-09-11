@@ -175,18 +175,7 @@ bool StandaloneTimesliceMerger::updateInputNEvents(std::vector<SourceReader>& in
 
 
 void StandaloneTimesliceMerger::createMergedTimeslice(std::vector<SourceReader>& inputs, std::unique_ptr<podio::ROOTWriter>& writer) {
-
-    std::unique_ptr<MutableRootReader::MutableFrame> output_frame = std::make_unique<MutableRootReader::MutableFrame>();
-    std::unique_ptr<MutableRootReader::MutableFrame> first_frame;
-    
-    bool first_event = true;
-    
-    edm4hep::MCParticleCollection* timeslice_particles_out;
-    edm4hep::EventHeaderCollection* timeslice_info_out;
-    edm4hep::EventHeaderCollection* sub_event_headers_out;
-    std::unordered_map<std::string, edm4hep::SimTrackerHitCollection*> timeslice_tracker_hits_out;
-    std::unordered_map<std::string, edm4hep::SimCalorimeterHitCollection*> timeslice_calorimeter_hits_out;
-    std::unordered_map<std::string, edm4hep::CaloHitContributionCollection*> timeslice_calo_contributions_out;
+    auto output_frame = std::make_unique<MutableRootReader::MutableFrame>();
 
     auto tracker_collections = getCollectionNames(inputs[0], "edm4hep::SimTrackerHit");
     auto calo_collections = getCollectionNames(inputs[0], "edm4hep::SimCalorimeterHit");
@@ -197,74 +186,21 @@ void StandaloneTimesliceMerger::createMergedTimeslice(std::vector<SourceReader>&
     collections_to_write.insert(collections_to_write.end(), calo_collections.begin(), calo_collections.end());
     collections_to_write.insert(collections_to_write.end(), calo_contributions.begin(), calo_contributions.end());
 
-    // // Get collection names from first frame
-    // if (!inputs.empty()) {
-    //     auto tracker_collections = getCollectionNames(inputs[0], "edm4hep::SimTrackerHit");
-    //     auto calo_collections = getCollectionNames(inputs[0], "edm4hep::SimCalorimeterHit");
-
-
-
-    //     for (const auto& name : tracker_collections) {
-    //         timeslice_tracker_hits_out[name] = edm4hep::SimTrackerHitCollection();
-    //     }
-    //     for (const auto& name : calo_collections) {
-    //         timeslice_calorimeter_hits_out[name] = edm4hep::SimCalorimeterHitCollection();
-    //         timeslice_calo_contributions_out[name] = edm4hep::CaloHitContributionCollection();
-    //     }
-    // } else {
-    //     throw std::runtime_error("ERROR: No input sources available to create timeslice.");
-    // }   
-
     int totalEventsConsumed = 0;
+    bool is_first_frame = true;
 
-    // Loop over sources and read needed events, filling the frame
+    // Loop over sources and read needed events using the new efficient merging approach
     for(auto& source: inputs) {
 
         const auto& config = source.config;
         int sourceEventsConsumed = 0;
 
         for (size_t i = 0; i < source.entries_needed; ++i) {
-
             auto frame = source.mutable_reader->readMutableEntry(config->tree_name, source.current_entry_index);
 
-            // If first event and already merged, take entire frame as starting point
-            // std::cout << "Merging event " << source.current_entry_index << " from source " << config->name << std::endl;
-            // std::cout << "  first_event: " << first_event << ", already_merged: " << config->already_merged << std::endl;
-            if (first_event) {
-                if (config->already_merged) {
-                    // Store frame and get mutable access to collections (no const_cast needed!)
-                    first_frame = std::move(frame);
-                    timeslice_particles_out = first_frame->getMutablePtr<edm4hep::MCParticleCollection>("MCParticles");
-                    timeslice_info_out = first_frame->getMutablePtr<edm4hep::EventHeaderCollection>("EventHeader");
-                    sub_event_headers_out = first_frame->getMutablePtr<edm4hep::EventHeaderCollection>("SubEventHeaders");
-                    
-                    for (const auto& name : tracker_collections) {
-                        timeslice_tracker_hits_out[name] = first_frame->getMutablePtr<edm4hep::SimTrackerHitCollection>(name);
-                    }
-                    for (const auto& name : calo_collections) {
-                        timeslice_calorimeter_hits_out[name] = first_frame->getMutablePtr<edm4hep::SimCalorimeterHitCollection>(name);
-                        timeslice_calo_contributions_out[name] = first_frame->getMutablePtr<edm4hep::CaloHitContributionCollection>(name + "Contributions");
-                    }
-                } else {
-                    // Create new empty frame and collections
-                    timeslice_particles_out = new edm4hep::MCParticleCollection();
-                    timeslice_info_out = new edm4hep::EventHeaderCollection();
-                    sub_event_headers_out = new edm4hep::EventHeaderCollection();
-                    std::cout << "Creating new empty collections for non-merged source: " << config->name << std::endl;
-                    for (const auto& name : tracker_collections) {
-                        timeslice_tracker_hits_out[name] = new edm4hep::SimTrackerHitCollection();
-                    }
-                    for (const auto& name : calo_collections) {
-                        timeslice_calorimeter_hits_out[name] = new edm4hep::SimCalorimeterHitCollection();
-                        timeslice_calo_contributions_out[name] = new edm4hep::CaloHitContributionCollection();
-                    }
-                    mergeCollections(frame, *config, *timeslice_particles_out, *sub_event_headers_out, timeslice_tracker_hits_out, timeslice_calorimeter_hits_out, timeslice_calo_contributions_out);                
-                }
-                first_event = false;
-            } else {
-                mergeCollections(frame, *config, *timeslice_particles_out, *sub_event_headers_out, timeslice_tracker_hits_out, timeslice_calorimeter_hits_out, timeslice_calo_contributions_out);                
-            }
-
+            // Use the new efficient merging approach
+            mergeCollectionsEfficient(frame, *config, output_frame, is_first_frame);
+            is_first_frame = false;
 
             source.current_entry_index++;
             sourceEventsConsumed++;
@@ -280,188 +216,22 @@ void StandaloneTimesliceMerger::createMergedTimeslice(std::vector<SourceReader>&
     header.setEventNumber(events_generated);
     header.setRunNumber(0);
     header.setTimeStamp(events_generated);
-    timeslice_info_out->push_back(header);
-
-    // Insert collections into frame
-    output_frame->putMutable(std::make_unique<edm4hep::MCParticleCollection>(std::move(*timeslice_particles_out)), "MCParticles");
-    output_frame->putMutable(std::make_unique<edm4hep::EventHeaderCollection>(std::move(*timeslice_info_out)), "EventHeader");
-    output_frame->putMutable(std::make_unique<edm4hep::EventHeaderCollection>(std::move(*sub_event_headers_out)), "SubEventHeaders");
-    for(auto& [collection_name, hit_collection] : timeslice_tracker_hits_out) {
-        output_frame->putMutable(std::make_unique<edm4hep::SimTrackerHitCollection>(std::move(*hit_collection)), collection_name);
-    }
-    for (auto& [collection_name, hit_collection] : timeslice_calorimeter_hits_out) {
-        output_frame->putMutable(std::make_unique<edm4hep::SimCalorimeterHitCollection>(std::move(*hit_collection)), collection_name);
-    }
-    for (auto& [collection_name, hit_collection] : timeslice_calo_contributions_out) {
-        output_frame->putMutable(std::make_unique<edm4hep::CaloHitContributionCollection>(std::move(*hit_collection)), collection_name + "Contributions");
+    
+    // Add header to EventHeader collection or create one if it doesn't exist
+    if (output_frame->hasCollection("EventHeader")) {
+        auto& event_headers = output_frame->getMutable<edm4hep::EventHeaderCollection>("EventHeader");
+        event_headers.push_back(header);
+    } else {
+        auto event_header_collection = std::make_unique<edm4hep::EventHeaderCollection>();
+        event_header_collection->push_back(header);
+        output_frame->putMutable(std::move(event_header_collection), "EventHeader");
     }
     
     // Convert MutableFrame to podio::Frame for writing
     auto podio_frame = output_frame->toPodioFrame();
     writer->writeFrame(*podio_frame, "events", collections_to_write);
-
 }
 
-void StandaloneTimesliceMerger::mergeCollections(
-    const std::unique_ptr<MutableRootReader::MutableFrame>& frame,
-    const SourceConfig& sourceConfig,
-    edm4hep::MCParticleCollection& out_particles,
-    edm4hep::EventHeaderCollection& out_sub_event_headers,
-    std::unordered_map<std::string, edm4hep::SimTrackerHitCollection*>& out_tracker_hits,
-    std::unordered_map<std::string, edm4hep::SimCalorimeterHitCollection*>& out_calo_hits,
-    std::unordered_map<std::string, edm4hep::CaloHitContributionCollection*>& out_calo_contributions) {
-
-    float time_offset = 0.0f;
-    float distance = 0.0f; // Placeholder for distance-based time offset calculation
-    if(!sourceConfig.already_merged) {
-        if(sourceConfig.attach_to_beam) {
-            // Get position of first particle with generatorStatus 1
-            try {
-                const auto& particles = frame->getMutable<edm4hep::MCParticleCollection>("MCParticles");
-                for (const auto& particle : particles) {
-                    if (particle.getGeneratorStatus() == 1) {
-                        auto pos = particle.getVertex();
-                        // Distance is dot product of position vector relative to rotation around y of beam relative to z-axis
-                        // Needs to be negative if beam is travelling in -z direction
-                        distance = pos.z * std::cos(sourceConfig.beam_angle) + pos.x * std::sin(sourceConfig.beam_angle);
-                        break;
-                    }
-                }
-            } catch (const std::exception& e) {
-                std::cout << "Warning: Could not access MCParticles for beam attachment: " << e.what() << std::endl;
-            }
-        }
-        time_offset = generateTimeOffset(sourceConfig, distance);
-    }
-
-    // Keep track of starting index for MCParticles from this frame
-    size_t mcparticle_index = out_particles.size();
-
-    // Map from original particle handle -> cloned particle handle
-    std::unordered_map<const edm4hep::MCParticle*, edm4hep::MutableMCParticle> new_old_particle_map;
-
-    // Process MCParticles
-    try {
-        const auto& particles = frame->getMutable<edm4hep::MCParticleCollection>("MCParticles");
-        for (const auto& particle : particles) {
-            edm4hep::MutableMCParticle new_particle;
-            new_particle.setPDG(particle.getPDG());
-            new_particle.setGeneratorStatus(particle.getGeneratorStatus() + (m_config.sources.empty() ? 0 : m_config.sources[0].generator_status_offset));
-            new_particle.setCharge(particle.getCharge());
-            new_particle.setMass(particle.getMass());
-            new_particle.setMomentum(particle.getMomentum());
-            new_particle.setVertex(particle.getVertex());
-            new_particle.setTime(particle.getTime() + time_offset);
-            new_particle.setColorFlow(particle.getColorFlow());
-            new_particle.setSpin(particle.getSpin());
-            new_particle.setSimulatorStatus(particle.getSimulatorStatus());
-            out_particles.push_back(new_particle);
-            new_old_particle_map[&particle] = new_particle;
-        }
-    } catch (const std::exception& e) {
-        std::cout << "Warning: Could not process MCParticles: " << e.what() << std::endl;
-    }
-
-    // Loop through new_old_particle_map updating the parent-child relationships of the new particles
-    for (auto& [old_particle_ptr, new_particle] : new_old_particle_map) {
-        const auto& old_parents = old_particle_ptr->getParents();
-        for (const auto& old_parent : old_parents) {
-            if (new_old_particle_map.find(&old_parent) != new_old_particle_map.end()) {
-                new_particle.addToParents(new_old_particle_map[&old_parent]);
-            }
-        }
-        const auto& old_children = old_particle_ptr->getDaughters();
-        for (const auto& old_child : old_children) {
-            if (new_old_particle_map.find(&old_child) != new_old_particle_map.end()) {
-                new_particle.addToDaughters(new_old_particle_map[&old_child]);
-            }
-        }
-    }
-
-    // Process SubEventHeaders, creating them if they don't exist, otherwise updating existing ones 
-    if (sourceConfig.already_merged) {
-        const auto& existing_sub_headers = frame->getMutable<edm4hep::EventHeaderCollection>("SubEventHeaders");
-        for (const auto& existing_header : existing_sub_headers) {
-            auto sub_header = existing_header.clone();
-            sub_header.setEventNumber(out_sub_event_headers.size());
-            // Update the "timestamp" to reflect the new MCParticle index offset
-            sub_header.setTimeStamp(mcparticle_index + existing_header.getTimeStamp());
-            out_sub_event_headers.push_back(sub_header);
-        }
-    } else {
-        // Create new SubEventHeader for regular source
-        auto sub_header = edm4hep::MutableEventHeader();
-        sub_header.setEventNumber(out_sub_event_headers.size()); // sub-event number
-        sub_header.setRunNumber(0);
-        sub_header.setTimeStamp(mcparticle_index); // index of first MCParticle for this sub-event
-        sub_header.setWeight(time_offset); // time offset
-        // Get EventHeader and pass vector of weights if available
-        try {
-            const auto& event_headers = frame->getMutable<edm4hep::EventHeaderCollection>("EventHeader");
-            if (!event_headers.empty()) {
-                const auto& event_header = event_headers[0];
-                for(const auto& w : event_header.getWeights()) {
-                    sub_header.addToWeights(w);
-                }
-            }
-        } catch (...) {
-            // If no EventHeader, proceed without weights
-        }
-        out_sub_event_headers.push_back(sub_header);
-    }
-
-
-    // Process tracker hits
-    for (auto& [collection_name, hit_collection] : out_tracker_hits) {
-        const auto& hits = frame->getMutable<edm4hep::SimTrackerHitCollection>(collection_name);
-        for(const auto& hit : hits) {
-            edm4hep::MutableSimTrackerHit new_hit;
-            new_hit.setCellID(hit.getCellID());
-            new_hit.setEDep(hit.getEDep());
-            new_hit.setPosition(hit.getPosition());
-            new_hit.setMomentum(hit.getMomentum());
-            new_hit.setPathLength(hit.getPathLength());
-            new_hit.setQuality(hit.getQuality());
-            new_hit.setTime(hit.getTime() + time_offset);
-            auto orig_particle = hit.getParticle();
-            auto it = new_old_particle_map.find(static_cast<const edm4hep::MCParticle*>(&orig_particle));
-            if (it != new_old_particle_map.end()) {
-                new_hit.setParticle(it->second);
-            }
-            hit_collection->push_back(new_hit);
-        }
-    }
-
-    // Process calorimeter hits
-    for (auto& [collection_name, hit_collection] : out_calo_hits) {
-        const auto& hits = frame->getMutable<edm4hep::SimCalorimeterHitCollection>(collection_name);
-        for (const auto& hit : hits) {
-            edm4hep::MutableSimCalorimeterHit new_hit;
-            new_hit.setEnergy(hit.getEnergy());
-            new_hit.setPosition(hit.getPosition());
-            new_hit.setCellID(hit.getCellID());
-
-            // Process contributions
-            for (const auto& contrib : hit.getContributions()) {
-                edm4hep::MutableCaloHitContribution new_contrib;
-                new_contrib.setEnergy(contrib.getEnergy());
-                new_contrib.setTime(contrib.getTime() + time_offset);
-                new_contrib.setPDG(contrib.getPDG());
-                new_contrib.setStepPosition(contrib.getStepPosition());
-                // new_contrib.setStepLength(contrib.getStepLength());
-                auto orig_particle = contrib.getParticle();
-                auto it = new_old_particle_map.find(static_cast<const edm4hep::MCParticle*>(&orig_particle));
-                if (it != new_old_particle_map.end()) {
-                    new_contrib.setParticle(it->second);
-                }
-                out_calo_contributions[collection_name]->push_back(new_contrib);
-                new_hit.addToContributions(new_contrib);
-            }
-            hit_collection->push_back(new_hit);
-        }
-    }
-    
-}
 
 float StandaloneTimesliceMerger::generateTimeOffset(SourceConfig sourceConfig, float distance) {
 
@@ -638,38 +408,74 @@ void StandaloneTimesliceMerger::zipCollectionsWithAssociations(MutableRootReader
             // Merge collections based on type
             if (type_name.find("MCParticleCollection") != std::string::npos) {
                 auto& source_particles = source_frame.getMutable<edm4hep::MCParticleCollection>(collection_name);
-                auto& dest_particles = dest_frame.getMutable<edm4hep::MCParticleCollection>(collection_name);
+                
+                // Get or create destination collection
+                edm4hep::MCParticleCollection* dest_particles = nullptr;
+                if (dest_frame.hasCollection(collection_name)) {
+                    dest_particles = &dest_frame.getMutable<edm4hep::MCParticleCollection>(collection_name);
+                } else {
+                    auto new_collection = std::make_unique<edm4hep::MCParticleCollection>();
+                    dest_particles = new_collection.get();
+                    dest_frame.putMutable(std::move(new_collection), collection_name);
+                }
                 
                 // Append particles to destination (associations are preserved within the collection)
                 for (auto& particle : source_particles) {
-                    dest_particles.push_back(particle);
+                    dest_particles->push_back(particle);
                 }
             }
             else if (type_name.find("SimTrackerHitCollection") != std::string::npos) {
                 auto& source_hits = source_frame.getMutable<edm4hep::SimTrackerHitCollection>(collection_name);
-                auto& dest_hits = dest_frame.getMutable<edm4hep::SimTrackerHitCollection>(collection_name);
+                
+                // Get or create destination collection
+                edm4hep::SimTrackerHitCollection* dest_hits = nullptr;
+                if (dest_frame.hasCollection(collection_name)) {
+                    dest_hits = &dest_frame.getMutable<edm4hep::SimTrackerHitCollection>(collection_name);
+                } else {
+                    auto new_collection = std::make_unique<edm4hep::SimTrackerHitCollection>();
+                    dest_hits = new_collection.get();
+                    dest_frame.putMutable(std::move(new_collection), collection_name);
+                }
                 
                 // Append hits to destination
                 for (auto& hit : source_hits) {
-                    dest_hits.push_back(hit);
+                    dest_hits->push_back(hit);
                 }
             }
             else if (type_name.find("SimCalorimeterHitCollection") != std::string::npos) {
                 auto& source_hits = source_frame.getMutable<edm4hep::SimCalorimeterHitCollection>(collection_name);
-                auto& dest_hits = dest_frame.getMutable<edm4hep::SimCalorimeterHitCollection>(collection_name);
+                
+                // Get or create destination collection
+                edm4hep::SimCalorimeterHitCollection* dest_hits = nullptr;
+                if (dest_frame.hasCollection(collection_name)) {
+                    dest_hits = &dest_frame.getMutable<edm4hep::SimCalorimeterHitCollection>(collection_name);
+                } else {
+                    auto new_collection = std::make_unique<edm4hep::SimCalorimeterHitCollection>();
+                    dest_hits = new_collection.get();
+                    dest_frame.putMutable(std::move(new_collection), collection_name);
+                }
                 
                 // Append hits to destination
                 for (auto& hit : source_hits) {
-                    dest_hits.push_back(hit);
+                    dest_hits->push_back(hit);
                 }
             }
             else if (type_name.find("CaloHitContributionCollection") != std::string::npos) {
                 auto& source_contribs = source_frame.getMutable<edm4hep::CaloHitContributionCollection>(collection_name);
-                auto& dest_contribs = dest_frame.getMutable<edm4hep::CaloHitContributionCollection>(collection_name);
+                
+                // Get or create destination collection
+                edm4hep::CaloHitContributionCollection* dest_contribs = nullptr;
+                if (dest_frame.hasCollection(collection_name)) {
+                    dest_contribs = &dest_frame.getMutable<edm4hep::CaloHitContributionCollection>(collection_name);
+                } else {
+                    auto new_collection = std::make_unique<edm4hep::CaloHitContributionCollection>();
+                    dest_contribs = new_collection.get();
+                    dest_frame.putMutable(std::move(new_collection), collection_name);
+                }
                 
                 // Append contributions to destination
                 for (auto& contrib : source_contribs) {
-                    dest_contribs.push_back(contrib);
+                    dest_contribs->push_back(contrib);
                 }
             }
             else if (type_name.find("EventHeaderCollection") != std::string::npos) {
@@ -677,12 +483,21 @@ void StandaloneTimesliceMerger::zipCollectionsWithAssociations(MutableRootReader
                 auto& source_headers = source_frame.getMutable<edm4hep::EventHeaderCollection>(collection_name);
                 
                 if (collection_name == "SubEventHeaders") {
-                    auto& dest_headers = dest_frame.getMutable<edm4hep::EventHeaderCollection>(collection_name);
+                    // Get or create destination collection
+                    edm4hep::EventHeaderCollection* dest_headers = nullptr;
+                    if (dest_frame.hasCollection(collection_name)) {
+                        dest_headers = &dest_frame.getMutable<edm4hep::EventHeaderCollection>(collection_name);
+                    } else {
+                        auto new_collection = std::make_unique<edm4hep::EventHeaderCollection>();
+                        dest_headers = new_collection.get();
+                        dest_frame.putMutable(std::move(new_collection), collection_name);
+                    }
+                    
                     for (auto& header : source_headers) {
-                        dest_headers.push_back(header);
+                        dest_headers->push_back(header);
                     }
                 }
-                // For main EventHeader, we usually don't append but handle differently
+                // For main EventHeader, we usually don't append but handle differently in createMergedTimeslice
             }
         } catch (const std::exception& e) {
             std::cout << "Warning: Could not zip collection " << collection_name 
