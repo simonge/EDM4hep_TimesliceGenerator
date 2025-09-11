@@ -45,11 +45,12 @@ public:
      * eliminating the need for any const_cast operations.
      */
     class MutableFrame {
-    private:
+    public:
         // Custom deleter class that can handle different collection types
         struct CollectionDeleter {
             std::string type_name;
             
+            CollectionDeleter() : type_name("") {}
             CollectionDeleter(const std::string& type) : type_name(type) {}
             
             void operator()(void* ptr) {
@@ -69,7 +70,6 @@ public:
             }
         };
         
-    public:
         MutableFrame() = default;
         
         /**
