@@ -345,17 +345,17 @@ void StandaloneTimesliceMerger::applyTimeOffsetToFrame(MutableRootReader::Mutabl
                 }
             }
             // Check if it's a calorimeter hit collection
-            else if (type_name.find("SimCalorimeterHit") != std::string::npos) {
-                auto& hits = frame.getMutable<edm4hep::SimCalorimeterHitCollection>(collection_name);
-                for (size_t i = 0; i < hits.size(); ++i) {
-                    auto hit = hits.at(i);
-                    // Apply time offset to contributions
-                    for (size_t j = 0; j < hit.getContributions().size(); ++j) {
-                        auto contrib = hit.getContributions()[j];
-                        contrib.setTime(contrib.getTime() + time_offset);
-                    }
-                }
-            }
+            // else if (type_name.find("SimCalorimeterHit") != std::string::npos) {
+            //     auto& hits = frame.getMutable<edm4hep::SimCalorimeterHitCollection>(collection_name);
+            //     for (size_t i = 0; i < hits.size(); ++i) {
+            //         auto hit = hits.at(i);
+            //         // Apply time offset to contributions
+            //         for (size_t j = 0; j < hit.getContributions().size(); ++j) {
+            //             auto contrib = hit.getContributions()[j];
+            //             contrib.setTime(contrib.getTime() + time_offset);
+            //         }
+            //     }
+            // }
             // Check if it's a contribution collection
             else if (type_name.find("CaloHitContribution") != std::string::npos) {
                 auto& contribs = frame.getMutable<edm4hep::CaloHitContributionCollection>(collection_name);
