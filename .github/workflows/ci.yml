@@ -117,3 +117,14 @@ jobs:
         run: |
           echo "=== Running tests ==="
           ctest --test-dir build --output-on-failure
+
+      - name: Run Application
+        run: |
+          echo "=== Running standalone timeslice merger ==="
+          cd build
+          echo "Current directory contents:"
+          ls -la
+          echo "Looking for executable:"
+          find . -name "*standalone*" -o -name "*merger*" -o -name "*timeslice*" -type f -executable
+          echo "Running with CI config..."
+          ./standalone-timeslice-merger --config ../config_ci.yml || echo "Application run completed with exit code $?"

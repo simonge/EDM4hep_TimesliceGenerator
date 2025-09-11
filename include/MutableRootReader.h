@@ -254,6 +254,12 @@ private:
     }
     
     /**
+     * @brief Determine the appropriate collection type for a branch
+     */
+    std::string determineCollectionType(const std::string& branch_name, 
+                                      const TFile* root_file);
+    
+    /**
      * @brief Helper to create appropriate collection type based on branch name/type
      */
     MutableFrame::CollectionVariant createCollectionFromBranch(const std::string& branch_name, 
