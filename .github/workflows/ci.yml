@@ -9,86 +9,91 @@ jobs:
   build-test:
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/eic/eic_xl:nightly
+      image: ghcr.io/eic/eic_ci:nightly
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Environment diagnostics
+        run: |
+          echo "=== Container environment diagnostics ==="
+          echo "Operating System:"
+          cat /etc/os-release
+          echo ""
+          
+          echo "Available system directories:"
+          ls -la / || true
+          echo ""
+          
+          echo "PATH environment:"
+          echo "$PATH"
+          echo ""
+          
+          echo "Searching for cmake in filesystem:"
+          find / -name "cmake" -type f 2>/dev/null | head -10 || echo "No cmake found"
+          echo ""
+          
+          echo "Checking standard cmake locations:"
+          ls -la /usr/bin/cmake 2>/dev/null || echo "/usr/bin/cmake not found"
+          ls -la /usr/local/bin/cmake 2>/dev/null || echo "/usr/local/bin/cmake not found"
+          ls -la /opt/*/bin/cmake 2>/dev/null || echo "No cmake found in /opt/*/bin/"
+          echo ""
+          
+          echo "Searching for package managers:"
+          which apt 2>/dev/null || echo "apt not found"
+          which yum 2>/dev/null || echo "yum not found"
+          which dnf 2>/dev/null || echo "dnf not found"
+          which apk 2>/dev/null || echo "apk not found"
+          
       - name: Setup EIC Environment
         run: |
           echo "=== Setting up EIC environment ==="
           
-          # Ensure /usr/local/bin is in PATH for cmake
-          export PATH="/usr/local/bin:$PATH"
+          # Try to install cmake if package manager is available
+          if which apt >/dev/null 2>&1; then
+            echo "Using apt to install cmake"
+            apt update && apt install -y cmake || echo "Failed to install cmake with apt"
+          elif which yum >/dev/null 2>&1; then
+            echo "Using yum to install cmake"
+            yum install -y cmake || echo "Failed to install cmake with yum"
+          elif which apk >/dev/null 2>&1; then
+            echo "Using apk to install cmake"
+            apk add cmake || echo "Failed to install cmake with apk"
+          else
+            echo "No package manager found to install cmake"
+          fi
           
-          # Check if cmake is available now
-          which cmake && cmake --version || echo "CMAKE STILL NOT FOUND"
+          # Check if cmake is available after potential installation
+          which cmake && cmake --version || echo "CMAKE STILL NOT FOUND after package manager attempt"
           
-          # Source the EIC environment setup scripts
-          echo "=== Sourcing EIC environment scripts ==="
+          # Try sourcing eic shell environment
+          if [ -f "/usr/local/bin/eic-shell" ]; then
+            echo "Found eic-shell, trying to source it"
+            source /usr/local/bin/eic-shell || echo "Failed to source eic-shell"
+          fi
+          
+          # Source standard EIC setup scripts  
           if [ -f "/opt/detector/setup.sh" ]; then
             echo "Sourcing /opt/detector/setup.sh"
-            source /opt/detector/setup.sh
-          else
-            echo "/opt/detector/setup.sh not found"
+            source /opt/detector/setup.sh || echo "Failed to source detector setup"
           fi
           
           if [ -f "/opt/software/setup.sh" ]; then
             echo "Sourcing /opt/software/setup.sh"
-            source /opt/software/setup.sh
-          else
-            echo "/opt/software/setup.sh not found"
+            source /opt/software/setup.sh || echo "Failed to source software setup"
           fi
           
-          # Look for ROOT setup in multiple locations
-          if [ -f "/usr/local/bin/thisroot.sh" ]; then
-            echo "Sourcing ROOT from /usr/local/bin/thisroot.sh"
-            source /usr/local/bin/thisroot.sh
-          elif [ -f "/opt/root/bin/thisroot.sh" ]; then
-            echo "Sourcing ROOT from /opt/root/bin/thisroot.sh"  
-            source /opt/root/bin/thisroot.sh
-          elif [ -f "/usr/local/root/bin/thisroot.sh" ]; then
-            echo "Sourcing ROOT from /usr/local/root/bin/thisroot.sh"
-            source /usr/local/root/bin/thisroot.sh
-          else
-            echo "ROOT setup not found in standard locations"
-          fi
+          # Set basic environment paths
+          export PATH="/usr/local/bin:/usr/bin:/bin:$PATH"
+          export CMAKE_PREFIX_PATH="/usr/local:/opt/detector:/opt/software:${CMAKE_PREFIX_PATH:-}"
           
-          # Set up EIC environment paths
-          export CMAKE_PREFIX_PATH="/usr/local:/opt/detector:/opt/software:$CMAKE_PREFIX_PATH"
-          export PKG_CONFIG_PATH="/usr/local/lib/pkgconfig:/opt/detector/lib/pkgconfig:/opt/software/lib/pkgconfig:$PKG_CONFIG_PATH"
-          export LD_LIBRARY_PATH="/usr/local/lib:/usr/local/lib64:/opt/detector/lib:/opt/software/lib:$LD_LIBRARY_PATH"
-          
-          # Print environment for debugging
-          echo "=== Environment after setup ==="
-          echo "PATH: $PATH"
-          echo "CMAKE_PREFIX_PATH: $CMAKE_PREFIX_PATH"
-          echo "PKG_CONFIG_PATH: $PKG_CONFIG_PATH"
-          echo "LD_LIBRARY_PATH: $LD_LIBRARY_PATH"
-          
-          # Search comprehensively for podio and edm4hep
-          echo "=== Comprehensive search for packages ==="
-          echo "Searching /usr/local:"
-          find /usr/local -name "*podio*" -o -name "*edm4hep*" 2>/dev/null | head -10 || echo "No podio/edm4hep found in /usr/local"
-          echo "Searching /opt:"
-          find /opt -maxdepth 4 -name "*podio*" -o -name "*edm4hep*" 2>/dev/null | head -10 || echo "No podio/edm4hep found in /opt"
-          echo "Searching /usr:"
-          find /usr -name "*podio*" -o -name "*edm4hep*" 2>/dev/null | head -10 || echo "No podio/edm4hep found in /usr"
-          
-          # Check for CMake configuration files
-          echo "=== Searching for CMake config files ==="
-          find /usr -name "*podio*.cmake" -o -name "*EDM4HEP*.cmake" 2>/dev/null | head -10 || echo "No CMake config files found in /usr"
-          find /opt -name "*podio*.cmake" -o -name "*EDM4HEP*.cmake" 2>/dev/null | head -10 || echo "No CMake config files found in /opt"
-          
-          # Check for pkg-config files
-          echo "=== Searching for pkg-config files ==="
-          find /usr -name "*podio*.pc" -o -name "*edm4hep*.pc" 2>/dev/null | head -10 || echo "No pkg-config files found"
+          # Final cmake check
+          echo "Final cmake check:"
+          which cmake && cmake --version || echo "CMAKE NOT AVAILABLE"
           
           # Save environment for next steps
-          echo "PATH=/usr/local/bin:$PATH" >> $GITHUB_ENV
-          echo "CMAKE_PREFIX_PATH=/usr/local:/opt/detector:/opt/software:$CMAKE_PREFIX_PATH" >> $GITHUB_ENV
-          echo "PKG_CONFIG_PATH=/usr/local/lib/pkgconfig:/opt/detector/lib/pkgconfig:/opt/software/lib/pkgconfig:$PKG_CONFIG_PATH" >> $GITHUB_ENV
-          echo "LD_LIBRARY_PATH=/usr/local/lib:/usr/local/lib64:/opt/detector/lib:/opt/software/lib:$LD_LIBRARY_PATH" >> $GITHUB_ENV
+          echo "PATH=/usr/local/bin:/usr/bin:/bin:$PATH" >> $GITHUB_ENV
+          echo "CMAKE_PREFIX_PATH=/usr/local:/opt/detector:/opt/software:${CMAKE_PREFIX_PATH:-}" >> $GITHUB_ENV
 
       - name: Configure
         run: |
