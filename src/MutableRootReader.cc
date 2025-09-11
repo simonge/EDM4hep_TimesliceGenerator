@@ -152,7 +152,7 @@ MutableRootReader::createCollectionFromBranch(const std::string& branch_name,
     
     // Unknown collection type
     std::cout << "Warning: Unknown collection type for branch '" << branch_name << "'" << std::endl;
-    return nullptr;
+    return std::unique_ptr<void, void(*)(void*)>(nullptr, [](void*){});
 }
 
 void MutableRootReader::MutableFrame::transferCollectionToPodioFrame(podio::Frame& frame, 
