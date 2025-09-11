@@ -235,17 +235,17 @@ void StandaloneTimesliceMerger::createMergedTimeslice(std::vector<SourceReader>&
                 if (config->already_merged) {
                     // output_frame = std::make_unique<podio::Frame>(*frame);
                     first_frame = std::move(frame);
-                    timeslice_particles_out = const_cast<edm4hep::MCParticleCollection*>(&first_frame->get<edm4hep::MCParticleCollection>("MCParticles"));
-                    timeslice_info_out = const_cast<edm4hep::EventHeaderCollection*>(&first_frame->get<edm4hep::EventHeaderCollection>("EventHeader"));
+                    timeslice_particles_out = &PodioCollectionZipReader::getMutableCollection<edm4hep::MCParticleCollection>(*first_frame, "MCParticles");
+                    timeslice_info_out = &PodioCollectionZipReader::getMutableCollection<edm4hep::EventHeaderCollection>(*first_frame, "EventHeader");
                     // if (output_frame->hasCollection("SubEventHeaders")) {
-                        sub_event_headers_out = const_cast<edm4hep::EventHeaderCollection*>(&first_frame->get<edm4hep::EventHeaderCollection>("SubEventHeaders"));
+                        sub_event_headers_out = &PodioCollectionZipReader::getMutableCollection<edm4hep::EventHeaderCollection>(*first_frame, "SubEventHeaders");
                     // }
                     for (const auto& name : tracker_collections) {
-                        timeslice_tracker_hits_out[name] = const_cast<edm4hep::SimTrackerHitCollection*>(&first_frame->get<edm4hep::SimTrackerHitCollection>(name));
+                        timeslice_tracker_hits_out[name] = &PodioCollectionZipReader::getMutableCollection<edm4hep::SimTrackerHitCollection>(*first_frame, name);
                     }
                     for (const auto& name : calo_collections) {
-                        timeslice_calorimeter_hits_out[name] = const_cast<edm4hep::SimCalorimeterHitCollection*>(&first_frame->get<edm4hep::SimCalorimeterHitCollection>(name));
-                        timeslice_calo_contributions_out[name] = const_cast<edm4hep::CaloHitContributionCollection*>(&first_frame->get<edm4hep::CaloHitContributionCollection>(name + "Contributions"));
+                        timeslice_calorimeter_hits_out[name] = &PodioCollectionZipReader::getMutableCollection<edm4hep::SimCalorimeterHitCollection>(*first_frame, name);
+                        timeslice_calo_contributions_out[name] = &PodioCollectionZipReader::getMutableCollection<edm4hep::CaloHitContributionCollection>(*first_frame, name + "Contributions");
                     }
                 } else {
                     // Create new empty frame and collections
@@ -496,13 +496,11 @@ void StandaloneTimesliceMerger::mergeCollectionsWithZipping(
     }
 
     // Use the new vectorized time offset functionality if needed
-    std::unique_ptr<podio::Frame> working_frame;
     if (time_offset != 0.0f) {
-        working_frame = std::make_unique<podio::Frame>(*frame);
-        PodioCollectionZipReader::addTimeOffsetToFrame(*working_frame, time_offset);
-    } else {
-        working_frame = std::make_unique<podio::Frame>(*frame);
+        PodioCollectionZipReader::addTimeOffsetToFrame(*frame, time_offset);
     }
+    
+    // Use the frame directly since it now supports mutable access through helper methods
 
     // Keep track of starting index for MCParticles from this frame
     size_t mcparticle_index = out_particles.size();
@@ -512,7 +510,7 @@ void StandaloneTimesliceMerger::mergeCollectionsWithZipping(
 
     // Process MCParticles
     try {
-        const auto& particles = working_frame->get<edm4hep::MCParticleCollection>("MCParticles");
+        const auto& particles = frame->get<edm4hep::MCParticleCollection>("MCParticles");
         
         for (const auto& particle : particles) {
             edm4hep::MutableMCParticle new_particle;
@@ -552,7 +550,7 @@ void StandaloneTimesliceMerger::mergeCollectionsWithZipping(
     // Process tracker hits efficiently
     for (auto& [collection_name, hit_collection] : out_tracker_hits) {
         try {
-            const auto& hits = working_frame->get<edm4hep::SimTrackerHitCollection>(collection_name);
+            const auto& hits = frame->get<edm4hep::SimTrackerHitCollection>(collection_name);
             for (const auto& hit : hits) {
                 edm4hep::MutableSimTrackerHit new_hit;
                 new_hit.setCellID(hit.getCellID());
@@ -578,7 +576,7 @@ void StandaloneTimesliceMerger::mergeCollectionsWithZipping(
     // Process calorimeter hits and contributions efficiently
     for (auto& [collection_name, hit_collection] : out_calo_hits) {
         try {
-            const auto& hits = working_frame->get<edm4hep::SimCalorimeterHitCollection>(collection_name);
+            const auto& hits = frame->get<edm4hep::SimCalorimeterHitCollection>(collection_name);
             auto& contributions_collection = out_calo_contributions[collection_name];
             
             for (const auto& hit : hits) {
@@ -614,7 +612,7 @@ void StandaloneTimesliceMerger::mergeCollectionsWithZipping(
     // Process SubEventHeaders
     if (sourceConfig.already_merged) {
         try {
-            const auto& existing_sub_headers = working_frame->get<edm4hep::EventHeaderCollection>("SubEventHeaders");
+            const auto& existing_sub_headers = frame->get<edm4hep::EventHeaderCollection>("SubEventHeaders");
             for (const auto& existing_header : existing_sub_headers) {
                 auto sub_header = existing_header.clone();
                 sub_header.setEventNumber(out_sub_event_headers.size());
@@ -633,7 +631,7 @@ void StandaloneTimesliceMerger::mergeCollectionsWithZipping(
         sub_header.setWeight(time_offset);
         
         try {
-            const auto& event_header = working_frame->get<edm4hep::EventHeaderCollection>("EventHeader");
+            const auto& event_header = frame->get<edm4hep::EventHeaderCollection>("EventHeader");
             if (!event_header.empty()) {
                 const auto& header = event_header[0];
                 auto weights = header.getWeights();

@@ -3,10 +3,7 @@
 #include <algorithm>
 #include <stdexcept>
 
-PodioCollectionZipReader::PodioCollectionZipReader(std::shared_ptr<podio::ROOTReader> reader)
-    : reader_(std::move(reader)) {
-}
-
+// PodioCollectionZipReader implementation
 PodioCollectionZipReader::PodioCollectionZipReader(const std::vector<std::string>& input_files)
     : reader_(std::make_shared<podio::ROOTReader>()) {
     reader_->openFiles(input_files);
@@ -25,6 +22,12 @@ std::unique_ptr<podio::Frame> PodioCollectionZipReader::readEntry(const std::str
     return std::make_unique<podio::Frame>(std::move(frame_data));
 }
 
+std::unique_ptr<podio::Frame> PodioCollectionZipReader::readMutableEntry(const std::string& category, size_t entry) {
+    // For now, this is the same as readEntry, but we could optimize later
+    // The key insight is that the caller can modify the returned frame safely
+    return readEntry(category, entry);
+}
+
 PodioCollectionZipReader::ZippedCollections PodioCollectionZipReader::zipCollections(
     podio::Frame& frame, const std::vector<std::string>& collection_names) {
     
@@ -34,10 +37,9 @@ PodioCollectionZipReader::ZippedCollections PodioCollectionZipReader::zipCollect
     
     for (const auto& name : collection_names) {
         try {
-            // Use the same helper method for consistency
             const auto* collection = frame.get(name);
             if (collection) {
-                // Safe const_cast since we own the frame
+                // Safe const_cast since we manage the frame lifecycle
                 zipped.collections.push_back(const_cast<podio::CollectionBase*>(collection));
                 zipped.min_size = std::min(zipped.min_size, collection->size());
             } else {

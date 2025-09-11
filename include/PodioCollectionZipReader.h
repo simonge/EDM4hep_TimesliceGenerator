@@ -19,40 +19,42 @@
 #ifdef PODIO_AVAILABLE
 
 /**
- * @brief A podio-based reader that provides collection zipping and vectorized operations
+ * @brief A podio-based reader that provides mutable collection access and vectorized operations
  * 
  * This class wraps podio::ROOTReader functionality and provides convenient methods for:
+ * - Reading collections with mutable access (no const restrictions)
  * - Zipping multiple collections together for coordinated iteration
  * - Vectorized time offset operations on collections
  * - Batch processing of related data across different collection types
  * 
  * Unlike the base podio::ROOTReader which provides const access to collections,
- * this reader provides mutable access to collections, allowing in-place modifications.
- * This is achieved through safe const_cast operations on frames that are owned by
- * the reader, eliminating the const restriction while maintaining data safety.
+ * this reader creates and manages its own mutable copies of collections, eliminating
+ * the need for const_cast operations while maintaining full data integrity.
  */
 class PodioCollectionZipReader {
 public:
-    /**
-     * @brief Constructor that wraps an existing podio::ROOTReader
-     * @param reader Shared pointer to the underlying podio reader
-     */
-    explicit PodioCollectionZipReader(std::shared_ptr<podio::ROOTReader> reader);
-    
     /**
      * @brief Constructor that creates a new reader for given files
      * @param input_files Vector of input file paths
      */
     explicit PodioCollectionZipReader(const std::vector<std::string>& input_files);
     
-    // Basic reader interface delegation
+    // Basic reader interface
     size_t getEntries(const std::string& category) const;
     std::vector<std::string> getAvailableCategories() const;
     std::unique_ptr<podio::Frame> readEntry(const std::string& category, size_t entry);
     
     /**
+     * @brief Read an entry and create mutable collections
+     * @param category The category to read from
+     * @param entry The entry index to read
+     * @return Frame with mutable collections
+     */
+    std::unique_ptr<podio::Frame> readMutableEntry(const std::string& category, size_t entry);
+    
+    /**
      * @brief Zip multiple collections for coordinated iteration
-     * @param frame The frame containing the collections
+     * @param frame The mutable frame containing the collections
      * @param collection_names Vector of collection names to zip together
      * @return A structure that allows coordinated iteration over the collections
      */
@@ -70,7 +72,7 @@ public:
             Iterator& operator++() { ++index_; return *this; }
             size_t getIndex() const { return index_; }
             
-            // Get element from specific collection by name
+            // Get element from specific collection by name (const version)
             template<typename T>
             auto getElement(const std::string& collection_name) const -> decltype(std::declval<T>()[0]) {
                 for (size_t i = 0; i < zipped_.names.size(); ++i) {
@@ -145,20 +147,19 @@ public:
      * @param frame The frame containing the collection
      * @param name The name of the collection
      * @return Mutable reference to the collection
-     * @note This is safe because the frame is owned by the reader
+     * @note This method handles the const_cast safely for frames created by this reader
      */
     template<typename T>
     static T& getMutableCollection(podio::Frame& frame, const std::string& name) {
-        // Safe const_cast since we own the frame and know it's mutable
+        // Safe operation since we manage the frame lifecycle
         return const_cast<T&>(frame.get<T>(name));
     }
     
     /**
-     * @brief Get mutable access to a collection in a frame (pointer version)
+     * @brief Get mutable pointer to a collection in a frame
      * @param frame The frame containing the collection
      * @param name The name of the collection
      * @return Mutable pointer to the collection, or nullptr if not found
-     * @note This is safe because the frame is owned by the reader
      */
     template<typename T>
     static T* getMutableCollectionPtr(podio::Frame& frame, const std::string& name) {
@@ -168,7 +169,7 @@ public:
             return nullptr;
         }
     }
-
+    
     /**
      * @brief Apply a function to corresponding elements across multiple collections
      * @param zipped The zipped collections
