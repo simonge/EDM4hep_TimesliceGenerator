@@ -22,7 +22,7 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
 # Create the standalone executable
 add_executable(timeslice_merger
     src/StandaloneTimesliceMerger.cc
-    src/PodioCollectionZipReader.cc
+    src/MutableRootReader.cc
     src/timeslice_merger_main.cc
 )
 
