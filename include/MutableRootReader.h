@@ -45,6 +45,13 @@ public:
      * eliminating the need for any const_cast operations.
      */
     class MutableFrame {
+    private:
+        // Helper template function to create deleters
+        template<typename T>
+        static void typed_deleter(void* ptr) {
+            delete static_cast<T*>(ptr);
+        }
+        
     public:
         MutableFrame() = default;
         
@@ -53,9 +60,8 @@ public:
          */
         template<typename T>
         void putMutable(std::unique_ptr<T> collection, const std::string& name) {
-            auto deleter = [](void* ptr) { delete static_cast<T*>(ptr); };
             mutable_collections_[name] = std::unique_ptr<void, void(*)(void*)>(
-                collection.release(), deleter
+                collection.release(), typed_deleter<T>
             );
             collection_types_[name] = typeid(T).name();
         }
