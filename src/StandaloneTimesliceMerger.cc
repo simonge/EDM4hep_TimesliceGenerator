@@ -189,6 +189,17 @@ std::vector<SourceReader> StandaloneTimesliceMerger::initializeInputFiles() {
                         } else {
                             std::cout << "    ✓ Successfully set up calo collection " << coll_name << std::endl;
                         }
+                        
+                        // Also setup the contributions reference branch
+                        std::string contrib_branch_name = "_" + coll_name + "_contributions";
+                        source_reader.calo_hit_contributions_refs[coll_name] = new std::vector<podio::ObjectID>();
+                        result = source_reader.chain->SetBranchAddress(contrib_branch_name.c_str(), &source_reader.calo_hit_contributions_refs[coll_name]);
+                        if (result != 0) {
+                            std::cout << "    ⚠️  Could not set branch address for " << contrib_branch_name << " (result: " << result << ")" << std::endl;
+                            std::cout << "       This may be normal if the input file doesn't contain calorimeter hit contribution relationships" << std::endl;
+                        } else {
+                            std::cout << "    ✓ Successfully set up contributions ref " << contrib_branch_name << std::endl;
+                        }
                     } else if (std::find(calo_contrib_collection_names.begin(), calo_contrib_collection_names.end(), coll_name) != calo_contrib_collection_names.end()) {
                         source_reader.calo_contrib_branches[coll_name] = new std::vector<edm4hep::CaloHitContributionData>();
                         int result = source_reader.chain->SetBranchAddress(coll_name.c_str(), &source_reader.calo_contrib_branches[coll_name]);
@@ -282,6 +293,9 @@ void StandaloneTimesliceMerger::createMergedTimeslice(std::vector<SourceReader>&
         vec.clear();
     }
     for (auto& [name, vec] : merged_mcparticle_children_refs) {
+        vec.clear();
+    }
+    for (auto& [name, vec] : merged_calo_hit_contributions_refs) {
         vec.clear();
     }
 
@@ -440,6 +454,9 @@ void StandaloneTimesliceMerger::mergeEventData(SourceReader& source, size_t even
         if (merged_calo_hits.find(name) == merged_calo_hits.end()) {
             merged_calo_hits[name] = std::vector<edm4hep::SimCalorimeterHitData>();
         }
+        if (merged_calo_hit_contributions_refs.find(name) == merged_calo_hit_contributions_refs.end()) {
+            merged_calo_hit_contributions_refs[name] = std::vector<podio::ObjectID>();
+        }
     }
 
     // Initialize merged collections for calo contributions if not already done
@@ -483,15 +500,41 @@ void StandaloneTimesliceMerger::mergeEventData(SourceReader& source, size_t even
         }
     }
 
-    // Process calorimeter hits and contributions
+    // Process calorimeter hits and their contribution relationships
     for (const auto& name : calo_collection_names) {
         if (source.calo_hit_branches.count(name)) {
             const auto& hits = *source.calo_hit_branches[name];
-            for (const auto& hit : hits) {
+            
+            // Process the contribution relationships if available
+            std::vector<podio::ObjectID> contributions_refs;
+            if (source.calo_hit_contributions_refs.count(name)) {
+                contributions_refs = *source.calo_hit_contributions_refs[name];
+            }
+            
+            size_t contribution_index_offset = 0;
+            for (const auto& contrib_name : calo_contrib_collection_names) {
+                if (merged_calo_contributions.count(contrib_name)) {
+                    contribution_index_offset = merged_calo_contributions[contrib_name].size();
+                    break; // Assume all contribution collections have the same offset
+                }
+            }
+            
+            for (size_t i = 0; i < hits.size(); ++i) {
+                const auto& hit = hits[i];
                 edm4hep::SimCalorimeterHitData new_hit = hit;
                 // Note: SimCalorimeterHitData doesn't have time field directly, 
                 // time is in the contributions
                 merged_calo_hits[name].push_back(new_hit);
+                
+                // Process contribution references if available
+                if (i < contributions_refs.size()) {
+                    podio::ObjectID new_contrib_ref = contributions_refs[i];
+                    // Update contribution reference indices to account for merging offset
+                    if (new_contrib_ref.index >= 0) {
+                        new_contrib_ref.index = contribution_index_offset + new_contrib_ref.index;
+                    }
+                    merged_calo_hit_contributions_refs[name].push_back(new_contrib_ref);
+                }
             }
         }
     }
