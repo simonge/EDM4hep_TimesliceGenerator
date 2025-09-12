@@ -172,7 +172,7 @@ std::vector<SourceReader> StandaloneTimesliceMerger::initializeInputFiles() {
                         }
                         
                         // Also setup the particle reference branch
-                        std::string ref_branch_name = "_B0" + coll_name + "_particle";
+                        std::string ref_branch_name = "_" + coll_name + "_particle";
                         source_reader.tracker_hit_particle_refs[coll_name] = new std::vector<podio::ObjectID>();
                         result = source_reader.chain->SetBranchAddress(ref_branch_name.c_str(), &source_reader.tracker_hit_particle_refs[coll_name]);
                         if (result != 0) {
@@ -199,7 +199,7 @@ std::vector<SourceReader> StandaloneTimesliceMerger::initializeInputFiles() {
                         }
                         
                         // Also setup the particle reference branch
-                        std::string ref_branch_name = "_B0" + coll_name + "_particle";  
+                        std::string ref_branch_name = "_" + coll_name + "_particle";  
                         source_reader.calo_contrib_particle_refs[coll_name] = new std::vector<podio::ObjectID>();
                         result = source_reader.chain->SetBranchAddress(ref_branch_name.c_str(), &source_reader.calo_contrib_particle_refs[coll_name]);
                         if (result != 0) {
@@ -542,7 +542,7 @@ void StandaloneTimesliceMerger::setupOutputTree(TTree* tree) {
     for (const auto& name : tracker_collection_names) {
         tree->Branch(name.c_str(), &merged_tracker_hits[name]);
         // Also create the particle reference branch
-        std::string ref_branch_name = "_B0" + name + "_particle";
+        std::string ref_branch_name = "_" + name + "_particle";
         tree->Branch(ref_branch_name.c_str(), &merged_tracker_hit_particle_refs[name]);
     }
     
@@ -555,7 +555,7 @@ void StandaloneTimesliceMerger::setupOutputTree(TTree* tree) {
     for (const auto& name : calo_contrib_collection_names) {
         tree->Branch(name.c_str(), &merged_calo_contributions[name]);
         // Also create the particle reference branch
-        std::string ref_branch_name = "_B0" + name + "_particle";
+        std::string ref_branch_name = "_" + name + "_particle";
         tree->Branch(ref_branch_name.c_str(), &merged_calo_contrib_particle_refs[name]);
     }
 }
@@ -627,8 +627,12 @@ std::vector<std::string> StandaloneTimesliceMerger::discoverCollectionNames(Sour
         TBranch* branch = (TBranch*)branches->At(i);
         if (!branch) continue;
         std::string branch_name = branch->GetName();
-        std::cout << "  Branch[" << i << "]: " << branch_name;
-        if (branch_name.find("_B0") == 0) std::cout << " (ObjectID - skipped)";
+        std::string branch_class_name = "";
+        if (branch->GetExpectedType() && branch->GetExpectedType()->GetName()) {
+            branch_class_name = branch->GetExpectedType()->GetName();
+        }
+        std::cout << "  Branch[" << i << "]: " << branch_name << " (type: " << branch_class_name << ")";
+        if (branch_name.find("_") == 0) std::cout << " (ObjectID branch)";
         std::cout << std::endl;
     }
     
@@ -637,30 +641,38 @@ std::vector<std::string> StandaloneTimesliceMerger::discoverCollectionNames(Sour
         if (!branch) continue;
         
         std::string branch_name = branch->GetName();
+        std::string branch_type = "";
         
-        // Skip ObjectID reference branches (they start with "_B0")
-        if (branch_name.find("_B0") == 0) continue;
+        // Get the branch data type
+        if (branch->GetExpectedType() && branch->GetExpectedType()->GetName()) {
+            branch_type = branch->GetExpectedType()->GetName();
+        }
         
-        // Enhanced pattern matching for collection discovery based on dd4hep/edm4hep naming conventions
+        // Skip branches that start with "_" for now - these are ObjectID references
+        // We'll handle them separately
+        if (branch_name.find("_") == 0) continue;
+        
+        // Look for collections based on data type rather than branch name
         if (branch_pattern.find("SimTrackerHit") != std::string::npos) {
-            // Look for SimTrackerHit collections (excluding contributions)
-            if (branch_name.find("SimTrackerHit") != std::string::npos && 
-                branch_name.find("Contribution") == std::string::npos) {
+            // Look for vector<edm4hep::SimTrackerHitData> or similar
+            if (branch_type.find("vector<edm4hep::SimTrackerHitData>") != std::string::npos ||
+                branch_type.find("SimTrackerHitData") != std::string::npos) {
                 names.push_back(branch_name);
-                std::cout << "  ✓ MATCHED: " << branch_name << std::endl;
+                std::cout << "  ✓ MATCHED TRACKER: " << branch_name << " (type: " << branch_type << ")" << std::endl;
             }
         } else if (branch_pattern.find("SimCalorimeterHit") != std::string::npos) {
-            // Look for SimCalorimeterHit collections (excluding contributions) 
-            if (branch_name.find("SimCalorimeterHit") != std::string::npos && 
-                branch_name.find("Contribution") == std::string::npos) {
+            // Look for vector<edm4hep::SimCalorimeterHitData> or similar
+            if (branch_type.find("vector<edm4hep::SimCalorimeterHitData>") != std::string::npos ||
+                branch_type.find("SimCalorimeterHitData") != std::string::npos) {
                 names.push_back(branch_name);
-                std::cout << "  ✓ MATCHED: " << branch_name << std::endl;
+                std::cout << "  ✓ MATCHED CALO: " << branch_name << " (type: " << branch_type << ")" << std::endl;
             }
         } else if (branch_pattern.find("CaloHitContribution") != std::string::npos) {
-            // Look for CaloHitContribution collections
-            if (branch_name.find("CaloHitContribution") != std::string::npos) {
+            // Look for vector<edm4hep::CaloHitContributionData> or similar
+            if (branch_type.find("vector<edm4hep::CaloHitContributionData>") != std::string::npos ||
+                branch_type.find("CaloHitContributionData") != std::string::npos) {
                 names.push_back(branch_name);
-                std::cout << "  ✓ MATCHED: " << branch_name << std::endl;
+                std::cout << "  ✓ MATCHED CONTRIB: " << branch_name << " (type: " << branch_type << ")" << std::endl;
             }
         }
     }
