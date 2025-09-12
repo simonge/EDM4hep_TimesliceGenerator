@@ -7,6 +7,7 @@
 #include <edm4hep/CaloHitContributionData.h>
 #include <edm4hep/EventHeaderData.h>
 #include <podio/ROOTWriter.h>
+#include <podio/ObjectID.h>
 #include <ROOT/RVec.hxx>
 #include <TFile.h>
 #include <TTree.h>
@@ -30,6 +31,10 @@ struct SourceReader {
     std::unordered_map<std::string, std::vector<edm4hep::SimCalorimeterHitData>*> calo_hit_branches;
     std::unordered_map<std::string, std::vector<edm4hep::CaloHitContributionData>*> calo_contrib_branches;
     std::unordered_map<std::string, std::vector<edm4hep::EventHeaderData>*> event_header_branches;
+    
+    // Branch pointers for reading ObjectID references
+    std::unordered_map<std::string, std::vector<podio::ObjectID>*> tracker_hit_particle_refs;
+    std::unordered_map<std::string, std::vector<podio::ObjectID>*> calo_contrib_particle_refs;
 };
 
 class StandaloneTimesliceMerger {
@@ -55,6 +60,10 @@ private:
     std::unordered_map<std::string, std::vector<edm4hep::SimTrackerHitData>> merged_tracker_hits;
     std::unordered_map<std::string, std::vector<edm4hep::SimCalorimeterHitData>> merged_calo_hits;
     std::unordered_map<std::string, std::vector<edm4hep::CaloHitContributionData>> merged_calo_contributions;
+    
+    // Global vectors for merged ObjectID references  
+    std::unordered_map<std::string, std::vector<podio::ObjectID>> merged_tracker_hit_particle_refs;
+    std::unordered_map<std::string, std::vector<podio::ObjectID>> merged_calo_contrib_particle_refs;
 
     // Collection names discovered from first source
     std::vector<std::string> tracker_collection_names;

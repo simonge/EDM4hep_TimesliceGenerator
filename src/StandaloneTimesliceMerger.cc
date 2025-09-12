@@ -123,12 +123,23 @@ std::vector<SourceReader> StandaloneTimesliceMerger::initializeInputFiles() {
                     } else if (std::find(tracker_collection_names.begin(), tracker_collection_names.end(), coll_name) != tracker_collection_names.end()) {
                         source_reader.tracker_hit_branches[coll_name] = new std::vector<edm4hep::SimTrackerHitData>();
                         source_reader.chain->SetBranchAddress(coll_name.c_str(), &source_reader.tracker_hit_branches[coll_name]);
+                        
+                        // Also setup the particle reference branch
+                        std::string ref_branch_name = "_B0" + coll_name + "_particle";
+                        source_reader.tracker_hit_particle_refs[coll_name] = new std::vector<podio::ObjectID>();
+                        source_reader.chain->SetBranchAddress(ref_branch_name.c_str(), &source_reader.tracker_hit_particle_refs[coll_name]);
+                        
                     } else if (std::find(calo_collection_names.begin(), calo_collection_names.end(), coll_name) != calo_collection_names.end()) {
                         source_reader.calo_hit_branches[coll_name] = new std::vector<edm4hep::SimCalorimeterHitData>();
                         source_reader.chain->SetBranchAddress(coll_name.c_str(), &source_reader.calo_hit_branches[coll_name]);
                     } else if (std::find(calo_contrib_collection_names.begin(), calo_contrib_collection_names.end(), coll_name) != calo_contrib_collection_names.end()) {
                         source_reader.calo_contrib_branches[coll_name] = new std::vector<edm4hep::CaloHitContributionData>();
                         source_reader.chain->SetBranchAddress(coll_name.c_str(), &source_reader.calo_contrib_branches[coll_name]);
+                        
+                        // Also setup the particle reference branch
+                        std::string ref_branch_name = "_B0" + coll_name + "_particle";  
+                        source_reader.calo_contrib_particle_refs[coll_name] = new std::vector<podio::ObjectID>();
+                        source_reader.chain->SetBranchAddress(ref_branch_name.c_str(), &source_reader.calo_contrib_particle_refs[coll_name]);
                     }
                 }
 
@@ -189,6 +200,12 @@ void StandaloneTimesliceMerger::createMergedTimeslice(std::vector<SourceReader>&
         vec.clear();
     }
     for (auto& [name, vec] : merged_calo_contributions) {
+        vec.clear();
+    }
+    for (auto& [name, vec] : merged_tracker_hit_particle_refs) {
+        vec.clear();
+    }
+    for (auto& [name, vec] : merged_calo_contrib_particle_refs) {
         vec.clear();
     }
 
@@ -319,6 +336,9 @@ void StandaloneTimesliceMerger::mergeEventData(SourceReader& source, size_t even
         if (merged_tracker_hits.find(name) == merged_tracker_hits.end()) {
             merged_tracker_hits[name] = std::vector<edm4hep::SimTrackerHitData>();
         }
+        if (merged_tracker_hit_particle_refs.find(name) == merged_tracker_hit_particle_refs.end()) {
+            merged_tracker_hit_particle_refs[name] = std::vector<podio::ObjectID>();
+        }
     }
 
     // Initialize merged collections for calo hits if not already done  
@@ -333,20 +353,38 @@ void StandaloneTimesliceMerger::mergeEventData(SourceReader& source, size_t even
         if (merged_calo_contributions.find(name) == merged_calo_contributions.end()) {
             merged_calo_contributions[name] = std::vector<edm4hep::CaloHitContributionData>();
         }
+        if (merged_calo_contrib_particle_refs.find(name) == merged_calo_contrib_particle_refs.end()) {
+            merged_calo_contrib_particle_refs[name] = std::vector<podio::ObjectID>();
+        }
     }
 
     // Process tracker hits
     for (const auto& name : tracker_collection_names) {
-        if (source.tracker_hit_branches.count(name)) {
+        if (source.tracker_hit_branches.count(name) && source.tracker_hit_particle_refs.count(name)) {
             const auto& hits = *source.tracker_hit_branches[name];
-            for (const auto& hit : hits) {
+            const auto& particle_refs = *source.tracker_hit_particle_refs[name];
+            
+            if (hits.size() != particle_refs.size()) {
+                std::cout << "Warning: Mismatch between hit count (" << hits.size() 
+                         << ") and particle reference count (" << particle_refs.size() 
+                         << ") for collection " << name << std::endl;
+                continue;
+            }
+            
+            for (size_t i = 0; i < hits.size(); ++i) {
+                const auto& hit = hits[i];
+                const auto& particle_ref = particle_refs[i];
+                
                 edm4hep::SimTrackerHitData new_hit = hit;
                 new_hit.time += time_offset;
-                // Update particle reference if valid
-                if (hit.MCParticle.index >= 0 && hit.MCParticle.index < static_cast<int>(particles.size())) {
-                    new_hit.MCParticle.index = particle_index_offset + hit.MCParticle.index;
-                }
                 merged_tracker_hits[name].push_back(new_hit);
+                
+                // Update particle reference if valid
+                podio::ObjectID new_particle_ref = particle_ref;
+                if (particle_ref.index >= 0 && particle_ref.index < static_cast<int>(particles.size())) {
+                    new_particle_ref.index = particle_index_offset + particle_ref.index;
+                }
+                merged_tracker_hit_particle_refs[name].push_back(new_particle_ref);
             }
         }
     }
@@ -366,16 +404,31 @@ void StandaloneTimesliceMerger::mergeEventData(SourceReader& source, size_t even
 
     // Process calorimeter contributions
     for (const auto& name : calo_contrib_collection_names) {
-        if (source.calo_contrib_branches.count(name)) {
+        if (source.calo_contrib_branches.count(name) && source.calo_contrib_particle_refs.count(name)) {
             const auto& contribs = *source.calo_contrib_branches[name];
-            for (const auto& contrib : contribs) {
+            const auto& particle_refs = *source.calo_contrib_particle_refs[name];
+            
+            if (contribs.size() != particle_refs.size()) {
+                std::cout << "Warning: Mismatch between contribution count (" << contribs.size() 
+                         << ") and particle reference count (" << particle_refs.size() 
+                         << ") for collection " << name << std::endl;
+                continue;
+            }
+            
+            for (size_t i = 0; i < contribs.size(); ++i) {
+                const auto& contrib = contribs[i];
+                const auto& particle_ref = particle_refs[i];
+                
                 edm4hep::CaloHitContributionData new_contrib = contrib;
                 new_contrib.time += time_offset;
-                // Update particle reference if valid
-                if (contrib.particle.index >= 0 && contrib.particle.index < static_cast<int>(particles.size())) {
-                    new_contrib.particle.index = particle_index_offset + contrib.particle.index;
-                }
                 merged_calo_contributions[name].push_back(new_contrib);
+                
+                // Update particle reference if valid
+                podio::ObjectID new_particle_ref = particle_ref;
+                if (particle_ref.index >= 0 && particle_ref.index < static_cast<int>(particles.size())) {
+                    new_particle_ref.index = particle_index_offset + particle_ref.index;
+                }
+                merged_calo_contrib_particle_refs[name].push_back(new_particle_ref);
             }
         }
     }
@@ -390,6 +443,9 @@ void StandaloneTimesliceMerger::setupOutputTree(TTree* tree) {
     // Setup branches for tracker hits
     for (const auto& name : tracker_collection_names) {
         tree->Branch(name.c_str(), &merged_tracker_hits[name]);
+        // Also create the particle reference branch
+        std::string ref_branch_name = "_B0" + name + "_particle";
+        tree->Branch(ref_branch_name.c_str(), &merged_tracker_hit_particle_refs[name]);
     }
     
     // Setup branches for calo hits
@@ -400,6 +456,9 @@ void StandaloneTimesliceMerger::setupOutputTree(TTree* tree) {
     // Setup branches for calo contributions
     for (const auto& name : calo_contrib_collection_names) {
         tree->Branch(name.c_str(), &merged_calo_contributions[name]);
+        // Also create the particle reference branch
+        std::string ref_branch_name = "_B0" + name + "_particle";
+        tree->Branch(ref_branch_name.c_str(), &merged_calo_contrib_particle_refs[name]);
     }
 }
 
