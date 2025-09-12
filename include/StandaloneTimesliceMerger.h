@@ -69,14 +69,6 @@ private:
 
     // Helper methods for vector-based merging logic
     void mergeEventData(SourceReader& source, size_t event_index, const SourceConfig& sourceConfig);
-    void updateTimeFields(std::vector<edm4hep::MCParticleData>& particles, 
-                         std::unordered_map<std::string, std::vector<edm4hep::SimTrackerHitData>>& tracker_hits,
-                         std::unordered_map<std::string, std::vector<edm4hep::CaloHitContributionData>>& calo_contribs,
-                         float time_offset);
-    void updateObjectIDs(size_t particle_index_offset,
-                        std::unordered_map<std::string, std::vector<edm4hep::SimTrackerHitData>>& tracker_hits,
-                        std::unordered_map<std::string, std::vector<edm4hep::CaloHitContributionData>>& calo_contribs);
-                         
     float generateTimeOffset(SourceConfig sourceConfig, float distance);
     std::vector<std::string> discoverCollectionNames(SourceReader& reader, const std::string& branch_pattern);
 };

@@ -19,22 +19,36 @@ void StandaloneTimesliceMerger::run() {
     
     // Open output file and create tree
     auto output_file = std::make_unique<TFile>(m_config.output_file.c_str(), "RECREATE");
+    if (!output_file || output_file->IsZombie()) {
+        throw std::runtime_error("Could not create output file: " + m_config.output_file);
+    }
+    
     TTree* output_tree = new TTree("events", "Merged timeslices");
     
     auto inputs = initializeInputFiles();
     setupOutputTree(output_tree);
 
+    std::cout << "Processing " << m_config.max_events << " timeslices..." << std::endl;
+
     while (events_generated < m_config.max_events) {
         // Update number of events needed per source
-        if (!updateInputNEvents(inputs)) break;
+        if (!updateInputNEvents(inputs)) {
+            std::cout << "Reached end of input data, stopping at " << events_generated << " timeslices" << std::endl;
+            break;
+        }
         createMergedTimeslice(inputs, output_file, output_tree);
 
         events_generated++;
+        
+        if (events_generated % 10 == 0) {
+            std::cout << "Processed " << events_generated << " timeslices..." << std::endl;
+        }
     }
     
     output_tree->Write();
     output_file->Close();
     std::cout << "Generated " << events_generated << " timeslices" << std::endl;
+    std::cout << "Output saved to: " << m_config.output_file << std::endl;
 }
 
 // Initialize input files and validate sources
@@ -54,7 +68,11 @@ std::vector<SourceReader> StandaloneTimesliceMerger::initializeInputFiles() {
                 
                 // Add all input files to the chain
                 for (const auto& file : source.input_files) {
-                    source_reader.chain->Add(file.c_str());
+                    int result = source_reader.chain->Add(file.c_str());
+                    if (result == 0) {
+                        throw std::runtime_error("Failed to add file: " + file);
+                    }
+                    std::cout << "Added file to source " << source_idx << ": " << file << std::endl;
                 }
                 
                 source_reader.total_entries = source_reader.chain->GetEntries();
@@ -63,12 +81,18 @@ std::vector<SourceReader> StandaloneTimesliceMerger::initializeInputFiles() {
                     throw std::runtime_error("No entries found in source " + std::to_string(source_idx));
                 }
 
+                std::cout << "Source " << source_idx << " has " << source_reader.total_entries << " entries" << std::endl;
+
                 // Discover collection names from the tree structure
                 if (source_idx == 0) {
                     // Use first source to determine what collections are available
-                    tracker_collection_names = discoverCollectionNames(source_reader, "*SimTrackerHit*");
-                    calo_collection_names = discoverCollectionNames(source_reader, "*SimCalorimeterHit*");
-                    calo_contrib_collection_names = discoverCollectionNames(source_reader, "*CaloHitContribution*");
+                    tracker_collection_names = discoverCollectionNames(source_reader, "SimTrackerHit");
+                    calo_collection_names = discoverCollectionNames(source_reader, "SimCalorimeterHit");
+                    calo_contrib_collection_names = discoverCollectionNames(source_reader, "CaloHitContribution");
+                    
+                    std::cout << "Discovered " << tracker_collection_names.size() << " tracker collections, " 
+                              << calo_collection_names.size() << " calorimeter collections, "
+                              << calo_contrib_collection_names.size() << " contribution collections" << std::endl;
                 }
 
                 // Setup branch reading for this source
@@ -107,6 +131,8 @@ std::vector<SourceReader> StandaloneTimesliceMerger::initializeInputFiles() {
                         source_reader.chain->SetBranchAddress(coll_name.c_str(), &source_reader.calo_contrib_branches[coll_name]);
                     }
                 }
+
+                std::cout << "Successfully initialized source " << source_idx << " (" << source.name << ")" << std::endl;
 
             } catch (const std::exception& e) {
                 throw std::runtime_error("ERROR: Could not open input files for source " + std::to_string(source_idx) + ": " + e.what());
@@ -407,24 +433,41 @@ std::vector<std::string> StandaloneTimesliceMerger::discoverCollectionNames(Sour
     
     // Get list of branches from the TChain
     TObjArray* branches = reader.chain->GetListOfBranches();
+    if (!branches) {
+        std::cout << "Warning: No branches found in source" << std::endl;
+        return names;
+    }
     
     for (int i = 0; i < branches->GetEntries(); ++i) {
         TBranch* branch = (TBranch*)branches->At(i);
+        if (!branch) continue;
+        
         std::string branch_name = branch->GetName();
         
-        // Simple pattern matching for collection discovery
-        if (branch_pattern.find("SimTrackerHit") != std::string::npos && 
-            branch_name.find("SimTrackerHit") != std::string::npos && 
-            branch_name != "SimTrackerHitContributions") {
-            names.push_back(branch_name);
-        } else if (branch_pattern.find("SimCalorimeterHit") != std::string::npos && 
-                  branch_name.find("SimCalorimeterHit") != std::string::npos && 
-                  branch_name != "SimCalorimeterHitContributions") {
-            names.push_back(branch_name);
-        } else if (branch_pattern.find("CaloHitContribution") != std::string::npos && 
-                  branch_name.find("CaloHitContribution") != std::string::npos) {
-            names.push_back(branch_name);
+        // Enhanced pattern matching for collection discovery based on dd4hep/edm4hep naming conventions
+        if (branch_pattern.find("SimTrackerHit") != std::string::npos) {
+            // Look for SimTrackerHit collections (excluding contributions)
+            if (branch_name.find("SimTrackerHit") != std::string::npos && 
+                branch_name.find("Contribution") == std::string::npos) {
+                names.push_back(branch_name);
+            }
+        } else if (branch_pattern.find("SimCalorimeterHit") != std::string::npos) {
+            // Look for SimCalorimeterHit collections (excluding contributions) 
+            if (branch_name.find("SimCalorimeterHit") != std::string::npos && 
+                branch_name.find("Contribution") == std::string::npos) {
+                names.push_back(branch_name);
+            }
+        } else if (branch_pattern.find("CaloHitContribution") != std::string::npos) {
+            // Look for CaloHitContribution collections
+            if (branch_name.find("CaloHitContribution") != std::string::npos) {
+                names.push_back(branch_name);
+            }
         }
+    }
+    
+    std::cout << "Discovered " << names.size() << " collections matching pattern: " << branch_pattern << std::endl;
+    for (const auto& name : names) {
+        std::cout << "  - " << name << std::endl;
     }
     
     return names;
