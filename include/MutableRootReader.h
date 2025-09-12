@@ -254,9 +254,10 @@ private:
     }
     
     /**
-     * @brief Determine the appropriate collection type for a branch
+     * @brief Determine the appropriate collection type for a branch based on ROOT type information
      */
     std::string determineCollectionType(const std::string& branch_name, 
+                                      const TBranch* branch,
                                       const TFile* root_file);
     
     /**

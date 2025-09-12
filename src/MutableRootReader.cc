@@ -101,8 +101,91 @@ MutableRootReader::readMutableEntry(const std::string& category, size_t entry) {
 }
 
 std::string MutableRootReader::determineCollectionType(const std::string& branch_name, 
+                                                      const TBranch* branch,
                                                       const TFile* root_file) {
-    // Try to read collection type from podio metadata first
+    // First, try to get type information from the branch itself
+    if (branch) {
+        // Get the class name of the branch data
+        const char* class_name = branch->GetClassName();
+        if (class_name && strlen(class_name) > 0) {
+            std::string type_name(class_name);
+            
+            std::cout << "Branch '" << branch_name << "' has ROOT type: " << type_name << std::endl;
+            
+            // Map ROOT type names to our collection types based on actual ROOT class names
+            // These patterns match how podio typically stores collections in ROOT files
+            if (type_name.find("MCParticleData") != std::string::npos ||
+                type_name.find("MCParticle") != std::string::npos ||
+                type_name.find("edm4hep::MCParticle") != std::string::npos) {
+                return "MCParticleCollection";
+            }
+            else if (type_name.find("EventHeaderData") != std::string::npos ||
+                     type_name.find("EventHeader") != std::string::npos ||
+                     type_name.find("edm4hep::EventHeader") != std::string::npos) {
+                return "EventHeaderCollection";
+            }
+            else if (type_name.find("SimTrackerHitData") != std::string::npos ||
+                     type_name.find("SimTrackerHit") != std::string::npos ||
+                     type_name.find("edm4hep::SimTrackerHit") != std::string::npos) {
+                return "SimTrackerHitCollection";
+            }
+            else if (type_name.find("SimCalorimeterHitData") != std::string::npos ||
+                     type_name.find("SimCalorimeterHit") != std::string::npos ||
+                     type_name.find("edm4hep::SimCalorimeterHit") != std::string::npos) {
+                return "SimCalorimeterHitCollection";
+            }
+            else if (type_name.find("CaloHitContributionData") != std::string::npos ||
+                     type_name.find("CaloHitContribution") != std::string::npos ||
+                     type_name.find("edm4hep::CaloHitContribution") != std::string::npos) {
+                return "CaloHitContributionCollection";
+            }
+            
+            // Also check for vector types (common in ROOT storage)
+            if (type_name.find("vector") != std::string::npos) {
+                if (type_name.find("MCParticle") != std::string::npos) {
+                    return "MCParticleCollection";
+                }
+                else if (type_name.find("EventHeader") != std::string::npos) {
+                    return "EventHeaderCollection";
+                }
+                else if (type_name.find("SimTrackerHit") != std::string::npos) {
+                    return "SimTrackerHitCollection";
+                }
+                else if (type_name.find("SimCalorimeterHit") != std::string::npos) {
+                    return "SimCalorimeterHitCollection";
+                }
+                else if (type_name.find("CaloHitContribution") != std::string::npos) {
+                    return "CaloHitContributionCollection";
+                }
+            }
+        }
+        
+        // If we have a branch but no recognizable class name, try to get more information
+        TClass* branch_class = branch->GetCurrentClass();
+        if (branch_class) {
+            std::string class_name = branch_class->GetName();
+            std::cout << "Branch '" << branch_name << "' has TClass: " << class_name << std::endl;
+            
+            // Similar mapping for TClass names
+            if (class_name.find("MCParticle") != std::string::npos) {
+                return "MCParticleCollection";
+            }
+            else if (class_name.find("EventHeader") != std::string::npos) {
+                return "EventHeaderCollection";
+            }
+            else if (class_name.find("SimTrackerHit") != std::string::npos) {
+                return "SimTrackerHitCollection";
+            }
+            else if (class_name.find("SimCalorimeterHit") != std::string::npos) {
+                return "SimCalorimeterHitCollection";
+            }
+            else if (class_name.find("CaloHitContribution") != std::string::npos) {
+                return "CaloHitContributionCollection";
+            }
+        }
+    }
+    
+    // Try to read collection type from podio metadata 
     if (root_file) {
         // Look for podio metadata tree (commonly named "podio_metadata" or "metadata")
         auto* metadata_tree = root_file->Get<TTree>("podio_metadata");
@@ -111,75 +194,15 @@ std::string MutableRootReader::determineCollectionType(const std::string& branch
         }
         
         if (metadata_tree) {
-            // Try to read collection type info from metadata
-            // This would require understanding podio's metadata format
-            // For now, we'll fall back to heuristics
+            // podio typically stores collection type information in metadata
+            // This would involve reading the metadata entries to find collection type mappings
+            std::cout << "Found metadata tree, but detailed parsing not implemented yet" << std::endl;
         }
     }
     
-    // Enhanced heuristic-based collection type detection
-    // Based on common EIC detector naming conventions
-    
-    // MCParticle collections
-    if (branch_name == "MCParticles" || 
-        branch_name.find("MCParticle") != std::string::npos ||
-        branch_name.find("_particle") != std::string::npos) {
-        return "MCParticleCollection";
-    }
-    
-    // EventHeader collections  
-    if (branch_name == "EventHeader" || branch_name.find("EventHeader") != std::string::npos) {
-        return "EventHeaderCollection";
-    }
-    
-    // Tracker hit collections
-    if (branch_name.find("TrackerHit") != std::string::npos ||
-        branch_name.find("SiTrackerHits") != std::string::npos ||
-        branch_name.find("TrackerBarrel") != std::string::npos ||
-        branch_name.find("TrackerEndcap") != std::string::npos ||
-        branch_name.find("VertexBarrel") != std::string::npos ||
-        branch_name.find("VertexEndcap") != std::string::npos) {
-        return "SimTrackerHitCollection";
-    }
-    
-    // Calorimeter hit collections (including various EIC calorimeters)
-    if (branch_name.find("CalorimeterHit") != std::string::npos ||
-        branch_name.find("EcalHits") != std::string::npos ||
-        branch_name.find("HcalHits") != std::string::npos ||
-        branch_name.find("LFHCALHits") != std::string::npos ||
-        branch_name.find("HCalHits") != std::string::npos ||
-        branch_name.find("EMCalHits") != std::string::npos ||
-        branch_name.find("LumiDirectPCALHits") != std::string::npos ||
-        branch_name.find("LumiSpecCALHits") != std::string::npos ||
-        branch_name.find("HcalFarForwardZDCHits") != std::string::npos ||
-        branch_name.find("HcalEndcapPInsertHits") != std::string::npos ||
-        branch_name.find("EcalFarForwardZDCHits") != std::string::npos ||
-        branch_name.find("EcalEndcapPInsertHits") != std::string::npos ||
-        branch_name.find("EcalBarrel") != std::string::npos ||
-        branch_name.find("EcalEndcap") != std::string::npos ||
-        (branch_name.find("Hits") != std::string::npos && 
-         (branch_name.find("Cal") != std::string::npos || 
-          branch_name.find("HCAL") != std::string::npos || 
-          branch_name.find("ECAL") != std::string::npos ||
-          branch_name.find("ZDC") != std::string::npos))) {
-        return "SimCalorimeterHitCollection";
-    }
-    
-    // Calorimeter hit contribution collections
-    if (branch_name.find("CaloHitContribution") != std::string::npos ||
-        branch_name.find("_contributions") != std::string::npos ||
-        branch_name.find("Contributions") != std::string::npos) {
-        return "CaloHitContributionCollection";
-    }
-    
-    // Unknown type - log warning and default
-    std::cout << "Warning: Unknown collection type for branch '" << branch_name 
-              << "', using heuristic-based fallback" << std::endl;
-    
-    // Make an educated guess based on naming patterns
-    if (branch_name.find("Hit") != std::string::npos) {
-        return "SimCalorimeterHitCollection"; // Most hits are calorimeter hits in EIC
-    }
+    // If we reach here, we couldn't determine the type from ROOT type system
+    std::cout << "Warning: Could not determine collection type from ROOT type information for branch '" 
+              << branch_name << "', using fallback" << std::endl;
     
     return "MCParticleCollection"; // Final fallback
 }
@@ -188,8 +211,8 @@ MutableRootReader::MutableFrame::CollectionVariant
 MutableRootReader::createCollectionFromBranch(const std::string& branch_name, 
                                                TBranch* branch, 
                                                size_t entry) {
-    // Determine collection type using improved detection
-    std::string collection_type = determineCollectionType(branch_name, 
+    // Determine collection type using improved detection based on ROOT type information
+    std::string collection_type = determineCollectionType(branch_name, branch,
         root_files_.empty() ? nullptr : root_files_[0].get());
     
     std::cout << "Creating mutable collection of type " << collection_type 
