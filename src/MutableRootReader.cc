@@ -90,13 +90,19 @@ MutableRootReader::readMutableEntry(const std::string& tree_name, size_t entry) 
     // Get entry from tree
     tree->GetEntry(entry);
     
-    // Only read branches from the requested tree, following podio's focused approach
+    // Follow podio's approach: only read collection branches, not association/metadata branches
     TObjArray* branches = tree->GetListOfBranches();
     for (int i = 0; i < branches->GetEntries(); ++i) {
         TBranch* branch = static_cast<TBranch*>(branches->At(i));
         std::string branch_name = branch->GetName();
         
-        std::cout << "Processing branch: " << branch_name << std::endl;
+        // Skip branches that are not actual data collections following podio patterns
+        if (shouldSkipBranch(branch_name)) {
+            std::cout << "Skipping non-collection branch: " << branch_name << std::endl;
+            continue;
+        }
+        
+        std::cout << "Processing collection branch: " << branch_name << std::endl;
         
         // Create mutable collection based on branch type
         auto collection_variant = createCollectionFromBranch(branch_name, branch, entry);
@@ -104,6 +110,30 @@ MutableRootReader::readMutableEntry(const std::string& tree_name, size_t entry) 
     }
     
     return frame;
+}
+
+bool MutableRootReader::shouldSkipBranch(const std::string& branch_name) const {
+    // Skip association branches following podio patterns
+    if (branch_name.length() > 0 && branch_name[0] == '_' && branch_name.find('_', 1) != std::string::npos) {
+        // Association branches like _CollectionName_relationName
+        return true;
+    }
+    
+    // Skip generic parameter branches 
+    if (branch_name == "GPIntKeys" || branch_name == "GPIntValues" ||
+        branch_name == "GPFloatKeys" || branch_name == "GPFloatValues" ||
+        branch_name == "GPDoubleKeys" || branch_name == "GPDoubleValues" ||
+        branch_name == "GPStringKeys" || branch_name == "GPStringValues") {
+        return true;
+    }
+    
+    // Skip podio internal branches
+    if (branch_name == "PARAMETERS") {
+        return true;
+    }
+    
+    // These are collection main data branches - we should read them
+    return false;
 }
 
 std::string MutableRootReader::determineCollectionType(const std::string& branch_name, 
@@ -120,71 +150,45 @@ std::string MutableRootReader::determineCollectionType(const std::string& branch
             
             // Map ROOT type names to our collection types based on actual ROOT class names
             // These patterns match how podio typically stores collections in ROOT files
-            if (type_name.find("MCParticleData") != std::string::npos ||
-                type_name.find("MCParticle") != std::string::npos ||
-                type_name.find("edm4hep::MCParticle") != std::string::npos) {
+            if (type_name.find("MCParticleData") != std::string::npos) {
                 return "MCParticleCollection";
             }
-            else if (type_name.find("EventHeaderData") != std::string::npos ||
-                     type_name.find("EventHeader") != std::string::npos ||
-                     type_name.find("edm4hep::EventHeader") != std::string::npos) {
+            else if (type_name.find("EventHeaderData") != std::string::npos) {
                 return "EventHeaderCollection";
             }
-            else if (type_name.find("SimTrackerHitData") != std::string::npos ||
-                     type_name.find("SimTrackerHit") != std::string::npos ||
-                     type_name.find("edm4hep::SimTrackerHit") != std::string::npos) {
+            else if (type_name.find("SimTrackerHitData") != std::string::npos) {
                 return "SimTrackerHitCollection";
             }
-            else if (type_name.find("SimCalorimeterHitData") != std::string::npos ||
-                     type_name.find("SimCalorimeterHit") != std::string::npos ||
-                     type_name.find("edm4hep::SimCalorimeterHit") != std::string::npos) {
+            else if (type_name.find("SimCalorimeterHitData") != std::string::npos) {
                 return "SimCalorimeterHitCollection";
             }
-            else if (type_name.find("CaloHitContributionData") != std::string::npos ||
-                     type_name.find("CaloHitContribution") != std::string::npos ||
-                     type_name.find("edm4hep::CaloHitContribution") != std::string::npos) {
+            else if (type_name.find("CaloHitContributionData") != std::string::npos) {
                 return "CaloHitContributionCollection";
             }
             
             // Also check for vector types (common in ROOT storage)
-            if (type_name.find("vector") != std::string::npos) {
-                if (type_name.find("MCParticle") != std::string::npos) {
+            if (type_name.find("vector<") != std::string::npos) {
+                if (type_name.find("MCParticleData") != std::string::npos) {
                     return "MCParticleCollection";
                 }
-                else if (type_name.find("EventHeader") != std::string::npos) {
+                else if (type_name.find("EventHeaderData") != std::string::npos) {
                     return "EventHeaderCollection";
                 }
-                else if (type_name.find("SimTrackerHit") != std::string::npos) {
+                else if (type_name.find("SimTrackerHitData") != std::string::npos) {
                     return "SimTrackerHitCollection";
                 }
-                else if (type_name.find("SimCalorimeterHit") != std::string::npos) {
+                else if (type_name.find("SimCalorimeterHitData") != std::string::npos) {
                     return "SimCalorimeterHitCollection";
                 }
-                else if (type_name.find("CaloHitContribution") != std::string::npos) {
+                else if (type_name.find("CaloHitContributionData") != std::string::npos) {
                     return "CaloHitContributionCollection";
                 }
             }
         }
     }
     
-    // Try to read collection type from podio metadata 
-    if (root_file) {
-        // Look for podio metadata tree (commonly named "podio_metadata" or "metadata")
-        // Note: Need to cast away const to call Get method
-        TFile* non_const_file = const_cast<TFile*>(root_file);
-        auto* metadata_tree = non_const_file->Get<TTree>("podio_metadata");
-        if (!metadata_tree) {
-            metadata_tree = non_const_file->Get<TTree>("metadata");
-        }
-        
-        if (metadata_tree) {
-            // podio typically stores collection type information in metadata
-            // This would involve reading the metadata entries to find collection type mappings
-            std::cout << "Found metadata tree, but detailed parsing not implemented yet" << std::endl;
-        }
-    }
-    
     // If we reach here, we couldn't determine the type from ROOT type system
+    // This should be rare now that we're only processing actual collection branches
     std::cout << "Warning: Could not determine collection type from ROOT type information for branch '" 
               << branch_name << "', using fallback" << std::endl;
     

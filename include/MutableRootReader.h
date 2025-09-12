@@ -158,23 +158,18 @@ public:
          * @brief Convert this MutableFrame to a podio::Frame for writing
          * 
          * This creates a new podio::Frame and transfers all collections to it.
-         * Collections are moved, so this MutableFrame becomes empty after conversion.
+         * Note: This is a simplified placeholder - actual implementation would
+         * need proper podio::CollectionBase conversion.
          */
-        std::unique_ptr<podio::Frame> toPodioFrame() {
-            auto podio_frame = std::make_unique<podio::Frame>();
+        podio::Frame toPodioFrame() const {
+            podio::Frame podio_frame;
             
-            // Move all collections to the podio frame using visitor pattern
-            for (auto& [name, collection_variant] : collections_) {
-                std::visit([&](auto& collection_ptr) {
-                    if (collection_ptr) {
-                        // Move collection to podio frame (would need actual implementation)
-                        // This is a placeholder - real implementation would use podio API
-                    }
-                }, collection_variant);
-            }
+            // For now, this is a placeholder. In a full implementation,
+            // we would need to convert each variant collection to a proper
+            // podio::CollectionBase and put it in the frame
             
-            // Clear our collections since they've been moved
-            collections_.clear();
+            // TODO: Implement proper collection conversion to podio::CollectionBase
+            // This would require understanding the podio API for adding collections
             
             return podio_frame;
         }
@@ -253,6 +248,12 @@ private:
         
         return collection;
     }
+    
+    /**
+     * @brief Determine if a branch should be skipped (not read as a collection)
+     * following podio's branch pattern recognition
+     */
+    bool shouldSkipBranch(const std::string& branch_name) const;
     
     /**
      * @brief Determine the appropriate collection type for a branch based on ROOT type information
