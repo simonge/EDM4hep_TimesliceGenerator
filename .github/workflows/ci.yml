@@ -127,4 +127,4 @@ jobs:
           echo "Looking for executable:"
           find . -name "*standalone*" -o -name "*merger*" -o -name "*timeslice*" -type f -executable
           echo "Running with CI config..."
-          ./standalone-timeslice-merger --config ../config_ci.yml || echo "Application run completed with exit code $?"
+          ./timeslice_merger --config ../config_ci.yml || echo "Application run completed with exit code $?"
