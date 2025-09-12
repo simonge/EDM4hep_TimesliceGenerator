@@ -229,7 +229,7 @@ void StandaloneTimesliceMerger::createMergedTimeslice(std::vector<SourceReader>&
     
     // Convert MutableFrame to podio::Frame for writing
     auto podio_frame = output_frame->toPodioFrame();
-    writer->writeFrame(*podio_frame, "events", collections_to_write);
+    writer->writeFrame(podio_frame, "events", collections_to_write);
 }
 
 
