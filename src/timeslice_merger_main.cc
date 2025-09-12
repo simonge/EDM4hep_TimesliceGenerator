@@ -1,10 +1,5 @@
 #include "StandaloneTimesliceMerger.h"
-
-// Optional yaml-cpp support
-#ifdef USE_YAML_CPP
 #include <yaml-cpp/yaml.h>
-#endif
-
 #include <iostream>
 #include <string>
 #include <vector>
@@ -12,18 +7,8 @@
 
 void printUsage(const char* program_name) {
     std::cout << "Usage: " << program_name << " [options] input_file1 [input_file2 ...]\n"
-              << "TimeframeGenerator2 - ROOT DataFrame-based Timeslice Merger\n";
-#ifdef USE_ROOT
-    std::cout << "Built with ROOT RDataFrame support\n";
-#else 
-    std::cout << "Built with dataframe-like collections (ROOT not available)\n";
-#endif
-#ifdef USE_YAML_CPP
-    std::cout << "Built with YAML configuration support\n";
-#else
-    std::cout << "Built without YAML support - use command line options\n";  
-#endif
-    std::cout << "\nOptions:\n"
+              << "TimeframeGenerator2 - ROOT DataFrame-based Timeslice Merger\n"
+              << "Built with ROOT RDataFrame support and YAML configuration\n" << "\nOptions:\n"
               << "  --config FILE                YAML config file (default: config.yml)\n"
               << "  -o, --output FILE           Output file name (default: merged_timeslices.root)\n"
               << "  -n, --nevents N             Maximum number of timeslices to generate (default: 100)\n"
@@ -118,7 +103,6 @@ int main(int argc, char* argv[]) {
     
     // If config_file specified, parse YAML
     if (!config_file.empty()) {
-#ifdef USE_YAML_CPP
         try {
             YAML::Node yaml = YAML::LoadFile(config_file);
             if (yaml["output_file"]) config.output_file = yaml["output_file"].as<std::string>();
@@ -154,11 +138,6 @@ int main(int argc, char* argv[]) {
             std::cerr << "Error parsing YAML config file '" << config_file << "': " << e.what() << std::endl;
             return 1;
         }
-#else
-        std::cerr << "Error: YAML configuration support not available. Please use command line options instead." << std::endl;
-        std::cerr << "Rebuild with yaml-cpp support to use YAML configuration files." << std::endl;
-        return 1;
-#endif
     }
     
     // Command-line input files override YAML - add to default source

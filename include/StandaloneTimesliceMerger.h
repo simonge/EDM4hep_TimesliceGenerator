@@ -1,14 +1,12 @@
-#pragma once
+    #pragma once
 
 #include "StandaloneMergerConfig.h"
 
-// ROOT DataFrames support when available
-#ifdef USE_ROOT
+// ROOT DataFrames support - always available
 #include <ROOT/RDataFrame.hxx>
 #include <TFile.h>
 #include <TTree.h>
 #include <TChain.h>
-#endif
 
 #include <fstream>
 #include <sstream>
@@ -142,7 +140,6 @@ private:
     bool updateInputNEvents(std::vector<SourceReader>& inputs);
     void createMergedTimeslice(std::vector<SourceReader>& inputs, std::ofstream& output_file);
 
-#ifdef USE_ROOT
     // ROOT-specific methods for proper file I/O
     void createMergedTimesliceROOT(std::vector<SourceReader>& inputs, TFile* output_file);
     void writeDataFramesToROOTFile(TFile* file,
@@ -151,7 +148,6 @@ private:
                                   const DataFrameCollection<SimTrackerHitData>& tracker_hits,
                                   const DataFrameCollection<SimCalorimeterHitData>& calo_hits,
                                   const DataFrameCollection<CaloHitContributionData>& contributions);
-#endif
 
     // Helper methods for dataframe-based merging
     void mergeCollectionsFromDataFrames(SourceReader& source, 

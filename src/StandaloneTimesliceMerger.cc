@@ -7,15 +7,10 @@
 
 StandaloneTimesliceMerger::StandaloneTimesliceMerger(const MergerConfig& config)
     : m_config(config), gen(rd()), events_generated(0) {
-#ifdef USE_ROOT
     std::cout << "Initialized ROOT RDataFrame-based timeslice merger with native ROOT support" << std::endl;
-#else
-    std::cout << "Initialized ROOT-dataframe-based timeslice merger (using dataframe-like collections)" << std::endl;
-#endif
 }
 
 void StandaloneTimesliceMerger::run() {
-#ifdef USE_ROOT
     std::cout << "Starting ROOT RDataFrame-based timeslice merger..." << std::endl;
     std::cout << "Will write proper ROOT files for podio compatibility" << std::endl;
     
@@ -38,35 +33,6 @@ void StandaloneTimesliceMerger::run() {
     root_file->Close();
     std::cout << "Generated " << events_generated << " timeslices in ROOT format" << std::endl;
     std::cout << "Output written as proper ROOT file with podio-compatible structure" << std::endl;
-#else
-    std::cout << "Starting dataframe-based timeslice merger..." << std::endl;
-    std::cout << "ROOT not available - using text format for demonstration" << std::endl;
-    
-    // Open output file (using simple text format for demonstration)
-    std::ofstream output_file(m_config.output_file);
-    if (!output_file.is_open()) {
-        throw std::runtime_error("ERROR: Could not create output file: " + m_config.output_file);
-    }
-    
-    // Write header indicating this is the new dataframe-based format
-    output_file << "# TimeframeGenerator2 - ROOT Dataframe Format (Podio Compatible)\n";
-    output_file << "# Generated with dataframe-based merger using helper functions\n";
-    output_file << "# Format maintains podio compatibility while using ROOT libraries directly\n";
-
-    auto inputs = initializeInputFiles();
-
-    while (events_generated < m_config.max_events) {
-        // Update number of events needed per source
-        if (!updateInputNEvents(inputs)) break;
-        createMergedTimeslice(inputs, output_file);
-
-        events_generated++;
-    }
-    
-    output_file.close();
-    std::cout << "Generated " << events_generated << " timeslices using dataframe approach" << std::endl;
-    std::cout << "Output maintains podio format compatibility while using ROOT dataframes internally" << std::endl;
-#endif
 }
 
 // Initialize input files using dataframe approach
@@ -482,7 +448,6 @@ void DataFrameCollection<CaloHitContributionData>::updateReferences(size_t index
     }
 }
 
-#ifdef USE_ROOT
 // ROOT-specific implementations for proper file I/O
 
 void StandaloneTimesliceMerger::createMergedTimesliceROOT(std::vector<SourceReader>& inputs, TFile* output_file) {
@@ -643,5 +608,3 @@ void StandaloneTimesliceMerger::writeDataFramesToROOTFile(TFile* file,
     std::cout << "ROOT file written with " << n_particles << " particles, " 
               << n_tracker_hits << " tracker hits in podio-compatible format" << std::endl;
 }
-
-#endif
