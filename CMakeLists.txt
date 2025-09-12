@@ -39,7 +39,7 @@ target_link_libraries(timeslice_merger
 )
 
 # Add ROOT compilation flags
-target_compile_definitions(timeslice_merger PRIVATE ${ROOT_CXX_FLAGS})
+#target_compile_definitions(timeslice_merger PRIVATE ${ROOT_CXX_FLAGS})
 
 # Set install prefix if not specified
 if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
