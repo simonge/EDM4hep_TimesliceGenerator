@@ -39,6 +39,9 @@ struct SourceReader {
     // Branch pointers for MCParticle parent-child relationships
     std::unordered_map<std::string, std::vector<podio::ObjectID>*> mcparticle_parents_refs;
     std::unordered_map<std::string, std::vector<podio::ObjectID>*> mcparticle_children_refs;
+    
+    // Branch pointers for SimCalorimeterHit-CaloHitContribution relationships
+    std::unordered_map<std::string, std::vector<podio::ObjectID>*> calo_hit_contributions_refs;
 };
 
 class StandaloneTimesliceMerger {
@@ -72,6 +75,9 @@ private:
     // Global vectors for MCParticle parent-child relationships
     std::unordered_map<std::string, std::vector<podio::ObjectID>> merged_mcparticle_parents_refs;
     std::unordered_map<std::string, std::vector<podio::ObjectID>> merged_mcparticle_children_refs;
+    
+    // Global vectors for SimCalorimeterHit-CaloHitContribution relationships
+    std::unordered_map<std::string, std::vector<podio::ObjectID>> merged_calo_hit_contributions_refs;
 
     // Collection names discovered from first source
     std::vector<std::string> tracker_collection_names;
