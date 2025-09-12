@@ -1,9 +1,6 @@
 #include "StandaloneTimesliceMerger.h"
 
-// Optional yaml-cpp support
-#ifdef USE_YAML_CPP
 #include <yaml-cpp/yaml.h>
-#endif
 
 #include <iostream>
 #include <string>
@@ -13,16 +10,10 @@
 void printUsage(const char* program_name) {
     std::cout << "Usage: " << program_name << " [options] input_file1 [input_file2 ...]\n"
               << "TimeframeGenerator2 - ROOT DataFrame-based Timeslice Merger\n";
-#ifdef USE_ROOT
     std::cout << "Built with ROOT RDataFrame support\n";
-#else 
     std::cout << "Built with dataframe-like collections (ROOT not available)\n";
-#endif
-#ifdef USE_YAML_CPP
     std::cout << "Built with YAML configuration support\n";
-#else
-    std::cout << "Built without YAML support - use command line options\n";  
-#endif
+    std::cout << "Built without YAML support - use command line options\n";
     std::cout << "\nOptions:\n"
               << "  --config FILE                YAML config file (default: config.yml)\n"
               << "  -o, --output FILE           Output file name (default: merged_timeslices.root)\n"
@@ -118,8 +109,7 @@ int main(int argc, char* argv[]) {
     
     // If config_file specified, parse YAML
     if (!config_file.empty()) {
-#ifdef USE_YAML_CPP
-        try {
+    //     try {
             YAML::Node yaml = YAML::LoadFile(config_file);
             if (yaml["output_file"]) config.output_file = yaml["output_file"].as<std::string>();
             if (yaml["max_events"]) config.max_events = yaml["max_events"].as<size_t>();
@@ -150,15 +140,14 @@ int main(int argc, char* argv[]) {
                     config.sources.push_back(source);
                 }
             }
-        } catch (const std::exception& e) {
-            std::cerr << "Error parsing YAML config file '" << config_file << "': " << e.what() << std::endl;
-            return 1;
-        }
-#else
-        std::cerr << "Error: YAML configuration support not available. Please use command line options instead." << std::endl;
-        std::cerr << "Rebuild with yaml-cpp support to use YAML configuration files." << std::endl;
-        return 1;
-#endif
+    //     } catch (const std::exception& e) {
+    //         std::cerr << "Error parsing YAML config file '" << config_file << "': " << e.what() << std::endl;
+    //         return 1;
+    //     }
+    //     std::cerr << "Error: YAML configuration support not available. Please use command line options instead." << std::endl;
+    //     std::cerr << "Rebuild with yaml-cpp support to use YAML configuration files." << std::endl;
+    //     return 1;
+
     }
     
     // Command-line input files override YAML - add to default source
