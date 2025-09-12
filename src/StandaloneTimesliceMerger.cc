@@ -117,6 +117,15 @@ std::vector<SourceReader> StandaloneTimesliceMerger::initializeInputFiles() {
                     if (coll_name == "MCParticles") {
                         source_reader.mcparticle_branches[coll_name] = new std::vector<edm4hep::MCParticleData>();
                         source_reader.chain->SetBranchAddress(coll_name.c_str(), &source_reader.mcparticle_branches[coll_name]);
+                        
+                        // Also setup the parent and children reference branches
+                        std::string parents_branch_name = "_B0" + coll_name + "_parents";
+                        std::string children_branch_name = "_B0" + coll_name + "_daughters";
+                        source_reader.mcparticle_parents_refs[coll_name] = new std::vector<podio::ObjectID>();
+                        source_reader.mcparticle_children_refs[coll_name] = new std::vector<podio::ObjectID>();
+                        source_reader.chain->SetBranchAddress(parents_branch_name.c_str(), &source_reader.mcparticle_parents_refs[coll_name]);
+                        source_reader.chain->SetBranchAddress(children_branch_name.c_str(), &source_reader.mcparticle_children_refs[coll_name]);
+                        
                     } else if (coll_name == "EventHeader" || coll_name == "SubEventHeaders") {
                         source_reader.event_header_branches[coll_name] = new std::vector<edm4hep::EventHeaderData>();
                         source_reader.chain->SetBranchAddress(coll_name.c_str(), &source_reader.event_header_branches[coll_name]);
@@ -208,6 +217,12 @@ void StandaloneTimesliceMerger::createMergedTimeslice(std::vector<SourceReader>&
     for (auto& [name, vec] : merged_calo_contrib_particle_refs) {
         vec.clear();
     }
+    for (auto& [name, vec] : merged_mcparticle_parents_refs) {
+        vec.clear();
+    }
+    for (auto& [name, vec] : merged_mcparticle_children_refs) {
+        vec.clear();
+    }
 
     int totalEventsConsumed = 0;
 
@@ -283,22 +298,35 @@ void StandaloneTimesliceMerger::mergeEventData(SourceReader& source, size_t even
         merged_mcparticles.push_back(new_particle);
     }
     
-    // Update parent-daughter relationships by adjusting indices
-    size_t start_idx = particle_index_offset;
-    for (size_t i = start_idx; i < merged_mcparticles.size(); ++i) {
-        auto& particle = merged_mcparticles[i];
-        const auto& original_particle = particles[i - start_idx];
+    // Process MCParticle parent-child relationships
+    if (source.mcparticle_parents_refs.count("MCParticles") && source.mcparticle_children_refs.count("MCParticles")) {
+        const auto& parents_refs = *source.mcparticle_parents_refs["MCParticles"];
+        const auto& children_refs = *source.mcparticle_children_refs["MCParticles"];
         
-        // Update parent indices
-        if (original_particle.parents_begin >= 0) {
-            particle.parents_begin = start_idx + original_particle.parents_begin;
-            particle.parents_end = start_idx + original_particle.parents_end;
+        // Initialize merged relationship vectors if not already done
+        if (merged_mcparticle_parents_refs.find("MCParticles") == merged_mcparticle_parents_refs.end()) {
+            merged_mcparticle_parents_refs["MCParticles"] = std::vector<podio::ObjectID>();
+        }
+        if (merged_mcparticle_children_refs.find("MCParticles") == merged_mcparticle_children_refs.end()) {
+            merged_mcparticle_children_refs["MCParticles"] = std::vector<podio::ObjectID>();
         }
         
-        // Update daughter indices  
-        if (original_particle.daughters_begin >= 0) {
-            particle.daughters_begin = start_idx + original_particle.daughters_begin;  
-            particle.daughters_end = start_idx + original_particle.daughters_end;
+        // Update parent references - adjust indices to account for particle offset
+        for (const auto& parent_ref : parents_refs) {
+            podio::ObjectID new_parent_ref = parent_ref;
+            if (parent_ref.index >= 0 && parent_ref.index < static_cast<int>(particles.size())) {
+                new_parent_ref.index = particle_index_offset + parent_ref.index;
+            }
+            merged_mcparticle_parents_refs["MCParticles"].push_back(new_parent_ref);
+        }
+        
+        // Update children references - adjust indices to account for particle offset
+        for (const auto& child_ref : children_refs) {
+            podio::ObjectID new_child_ref = child_ref;
+            if (child_ref.index >= 0 && child_ref.index < static_cast<int>(particles.size())) {
+                new_child_ref.index = particle_index_offset + child_ref.index;
+            }
+            merged_mcparticle_children_refs["MCParticles"].push_back(new_child_ref);
         }
     }
 
@@ -439,6 +467,10 @@ void StandaloneTimesliceMerger::setupOutputTree(TTree* tree) {
     tree->Branch("MCParticles", &merged_mcparticles);
     tree->Branch("EventHeader", &merged_event_headers);
     tree->Branch("SubEventHeaders", &merged_sub_event_headers);
+    
+    // Setup branches for MCParticle parent-child relationships
+    tree->Branch("_B0MCParticles_parents", &merged_mcparticle_parents_refs["MCParticles"]);
+    tree->Branch("_B0MCParticles_daughters", &merged_mcparticle_children_refs["MCParticles"]);
     
     // Setup branches for tracker hits
     for (const auto& name : tracker_collection_names) {
