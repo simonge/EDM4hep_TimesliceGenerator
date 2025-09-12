@@ -86,6 +86,11 @@ std::vector<SourceReader> StandaloneTimesliceMerger::initializeInputFiles() {
                 // Discover collection names from the tree structure
                 if (source_idx == 0) {
                     // Use first source to determine what collections are available
+                    // Load first entry to ensure branch list is populated
+                    if (source_reader.total_entries > 0) {
+                        source_reader.chain->LoadTree(0);
+                    }
+                    
                     tracker_collection_names = discoverCollectionNames(source_reader, "SimTrackerHit");
                     calo_collection_names = discoverCollectionNames(source_reader, "SimCalorimeterHit");
                     calo_contrib_collection_names = discoverCollectionNames(source_reader, "CaloHitContribution");
@@ -116,39 +121,68 @@ std::vector<SourceReader> StandaloneTimesliceMerger::initializeInputFiles() {
                 for (const auto& coll_name : source_reader.collection_names_to_read) {
                     if (coll_name == "MCParticles") {
                         source_reader.mcparticle_branches[coll_name] = new std::vector<edm4hep::MCParticleData>();
-                        source_reader.chain->SetBranchAddress(coll_name.c_str(), &source_reader.mcparticle_branches[coll_name]);
+                        int result = source_reader.chain->SetBranchAddress(coll_name.c_str(), &source_reader.mcparticle_branches[coll_name]);
+                        if (result != 0) {
+                            std::cout << "Warning: Could not set branch address for " << coll_name << " (result: " << result << ")" << std::endl;
+                        }
                         
                         // Also setup the parent and children reference branches
                         std::string parents_branch_name = "_B0" + coll_name + "_parents";
                         std::string children_branch_name = "_B0" + coll_name + "_daughters";
                         source_reader.mcparticle_parents_refs[coll_name] = new std::vector<podio::ObjectID>();
                         source_reader.mcparticle_children_refs[coll_name] = new std::vector<podio::ObjectID>();
-                        source_reader.chain->SetBranchAddress(parents_branch_name.c_str(), &source_reader.mcparticle_parents_refs[coll_name]);
-                        source_reader.chain->SetBranchAddress(children_branch_name.c_str(), &source_reader.mcparticle_children_refs[coll_name]);
+                        
+                        result = source_reader.chain->SetBranchAddress(parents_branch_name.c_str(), &source_reader.mcparticle_parents_refs[coll_name]);
+                        if (result != 0) {
+                            std::cout << "Warning: Could not set branch address for " << parents_branch_name << " (result: " << result << ")" << std::endl;
+                        }
+                        
+                        result = source_reader.chain->SetBranchAddress(children_branch_name.c_str(), &source_reader.mcparticle_children_refs[coll_name]);
+                        if (result != 0) {
+                            std::cout << "Warning: Could not set branch address for " << children_branch_name << " (result: " << result << ")" << std::endl;
+                        }
                         
                     } else if (coll_name == "EventHeader" || coll_name == "SubEventHeaders") {
                         source_reader.event_header_branches[coll_name] = new std::vector<edm4hep::EventHeaderData>();
-                        source_reader.chain->SetBranchAddress(coll_name.c_str(), &source_reader.event_header_branches[coll_name]);
+                        int result = source_reader.chain->SetBranchAddress(coll_name.c_str(), &source_reader.event_header_branches[coll_name]);
+                        if (result != 0) {
+                            std::cout << "Warning: Could not set branch address for " << coll_name << " (result: " << result << ")" << std::endl;
+                        }
                     } else if (std::find(tracker_collection_names.begin(), tracker_collection_names.end(), coll_name) != tracker_collection_names.end()) {
                         source_reader.tracker_hit_branches[coll_name] = new std::vector<edm4hep::SimTrackerHitData>();
-                        source_reader.chain->SetBranchAddress(coll_name.c_str(), &source_reader.tracker_hit_branches[coll_name]);
+                        int result = source_reader.chain->SetBranchAddress(coll_name.c_str(), &source_reader.tracker_hit_branches[coll_name]);
+                        if (result != 0) {
+                            std::cout << "Warning: Could not set branch address for " << coll_name << " (result: " << result << ")" << std::endl;
+                        }
                         
                         // Also setup the particle reference branch
                         std::string ref_branch_name = "_B0" + coll_name + "_particle";
                         source_reader.tracker_hit_particle_refs[coll_name] = new std::vector<podio::ObjectID>();
-                        source_reader.chain->SetBranchAddress(ref_branch_name.c_str(), &source_reader.tracker_hit_particle_refs[coll_name]);
+                        result = source_reader.chain->SetBranchAddress(ref_branch_name.c_str(), &source_reader.tracker_hit_particle_refs[coll_name]);
+                        if (result != 0) {
+                            std::cout << "Warning: Could not set branch address for " << ref_branch_name << " (result: " << result << ")" << std::endl;
+                        }
                         
                     } else if (std::find(calo_collection_names.begin(), calo_collection_names.end(), coll_name) != calo_collection_names.end()) {
                         source_reader.calo_hit_branches[coll_name] = new std::vector<edm4hep::SimCalorimeterHitData>();
-                        source_reader.chain->SetBranchAddress(coll_name.c_str(), &source_reader.calo_hit_branches[coll_name]);
+                        int result = source_reader.chain->SetBranchAddress(coll_name.c_str(), &source_reader.calo_hit_branches[coll_name]);
+                        if (result != 0) {
+                            std::cout << "Warning: Could not set branch address for " << coll_name << " (result: " << result << ")" << std::endl;
+                        }
                     } else if (std::find(calo_contrib_collection_names.begin(), calo_contrib_collection_names.end(), coll_name) != calo_contrib_collection_names.end()) {
                         source_reader.calo_contrib_branches[coll_name] = new std::vector<edm4hep::CaloHitContributionData>();
-                        source_reader.chain->SetBranchAddress(coll_name.c_str(), &source_reader.calo_contrib_branches[coll_name]);
+                        int result = source_reader.chain->SetBranchAddress(coll_name.c_str(), &source_reader.calo_contrib_branches[coll_name]);
+                        if (result != 0) {
+                            std::cout << "Warning: Could not set branch address for " << coll_name << " (result: " << result << ")" << std::endl;
+                        }
                         
                         // Also setup the particle reference branch
                         std::string ref_branch_name = "_B0" + coll_name + "_particle";  
                         source_reader.calo_contrib_particle_refs[coll_name] = new std::vector<podio::ObjectID>();
-                        source_reader.chain->SetBranchAddress(ref_branch_name.c_str(), &source_reader.calo_contrib_particle_refs[coll_name]);
+                        result = source_reader.chain->SetBranchAddress(ref_branch_name.c_str(), &source_reader.calo_contrib_particle_refs[coll_name]);
+                        if (result != 0) {
+                            std::cout << "Warning: Could not set branch address for " << ref_branch_name << " (result: " << result << ")" << std::endl;
+                        }
                     }
                 }
 
@@ -534,6 +568,9 @@ std::vector<std::string> StandaloneTimesliceMerger::discoverCollectionNames(Sour
         if (!branch) continue;
         
         std::string branch_name = branch->GetName();
+        
+        // Skip ObjectID reference branches (they start with "_B0")
+        if (branch_name.find("_B0") == 0) continue;
         
         // Enhanced pattern matching for collection discovery based on dd4hep/edm4hep naming conventions
         if (branch_pattern.find("SimTrackerHit") != std::string::npos) {
