@@ -118,12 +118,18 @@ std::vector<SourceReader> StandaloneTimesliceMerger::initializeInputFiles() {
                 }
 
                 // Setup branch pointers for reading data
+                std::cout << "=== Setting up branches for source " << source_idx << " ===" << std::endl;
+                std::cout << "Collections to read: " << source_reader.collection_names_to_read.size() << std::endl;
                 for (const auto& coll_name : source_reader.collection_names_to_read) {
+                    std::cout << "  Setting up: " << coll_name << std::endl;
+                    
                     if (coll_name == "MCParticles") {
                         source_reader.mcparticle_branches[coll_name] = new std::vector<edm4hep::MCParticleData>();
                         int result = source_reader.chain->SetBranchAddress(coll_name.c_str(), &source_reader.mcparticle_branches[coll_name]);
                         if (result != 0) {
-                            std::cout << "Warning: Could not set branch address for " << coll_name << " (result: " << result << ")" << std::endl;
+                            std::cout << "    ❌ Could not set branch address for " << coll_name << " (result: " << result << ")" << std::endl;
+                        } else {
+                            std::cout << "    ✓ Successfully set up " << coll_name << std::endl;
                         }
                         
                         // Also setup the parent and children reference branches
@@ -134,27 +140,35 @@ std::vector<SourceReader> StandaloneTimesliceMerger::initializeInputFiles() {
                         
                         result = source_reader.chain->SetBranchAddress(parents_branch_name.c_str(), &source_reader.mcparticle_parents_refs[coll_name]);
                         if (result != 0) {
-                            std::cout << "Warning: Could not set branch address for " << parents_branch_name << " (result: " << result << ")" << std::endl;
-                            std::cout << "  This may be normal if the input file doesn't contain MCParticle relationship information" << std::endl;
+                            std::cout << "    ⚠️  Could not set branch address for " << parents_branch_name << " (result: " << result << ")" << std::endl;
+                            std::cout << "       This may be normal if the input file doesn't contain MCParticle relationship information" << std::endl;
+                        } else {
+                            std::cout << "    ✓ Successfully set up " << parents_branch_name << std::endl;
                         }
                         
                         result = source_reader.chain->SetBranchAddress(children_branch_name.c_str(), &source_reader.mcparticle_children_refs[coll_name]);
                         if (result != 0) {
-                            std::cout << "Warning: Could not set branch address for " << children_branch_name << " (result: " << result << ")" << std::endl;
-                            std::cout << "  This may be normal if the input file doesn't contain MCParticle relationship information" << std::endl;
+                            std::cout << "    ⚠️  Could not set branch address for " << children_branch_name << " (result: " << result << ")" << std::endl;
+                            std::cout << "       This may be normal if the input file doesn't contain MCParticle relationship information" << std::endl;
+                        } else {
+                            std::cout << "    ✓ Successfully set up " << children_branch_name << std::endl;
                         }
                         
                     } else if (coll_name == "EventHeader" || coll_name == "SubEventHeaders") {
                         source_reader.event_header_branches[coll_name] = new std::vector<edm4hep::EventHeaderData>();
                         int result = source_reader.chain->SetBranchAddress(coll_name.c_str(), &source_reader.event_header_branches[coll_name]);
                         if (result != 0) {
-                            std::cout << "Warning: Could not set branch address for " << coll_name << " (result: " << result << ")" << std::endl;
+                            std::cout << "    ❌ Could not set branch address for " << coll_name << " (result: " << result << ")" << std::endl;
+                        } else {
+                            std::cout << "    ✓ Successfully set up " << coll_name << std::endl;
                         }
                     } else if (std::find(tracker_collection_names.begin(), tracker_collection_names.end(), coll_name) != tracker_collection_names.end()) {
                         source_reader.tracker_hit_branches[coll_name] = new std::vector<edm4hep::SimTrackerHitData>();
                         int result = source_reader.chain->SetBranchAddress(coll_name.c_str(), &source_reader.tracker_hit_branches[coll_name]);
                         if (result != 0) {
-                            std::cout << "Warning: Could not set branch address for " << coll_name << " (result: " << result << ")" << std::endl;
+                            std::cout << "    ❌ Could not set branch address for " << coll_name << " (result: " << result << ")" << std::endl;
+                        } else {
+                            std::cout << "    ✓ Successfully set up tracker collection " << coll_name << std::endl;
                         }
                         
                         // Also setup the particle reference branch
@@ -162,20 +176,26 @@ std::vector<SourceReader> StandaloneTimesliceMerger::initializeInputFiles() {
                         source_reader.tracker_hit_particle_refs[coll_name] = new std::vector<podio::ObjectID>();
                         result = source_reader.chain->SetBranchAddress(ref_branch_name.c_str(), &source_reader.tracker_hit_particle_refs[coll_name]);
                         if (result != 0) {
-                            std::cout << "Warning: Could not set branch address for " << ref_branch_name << " (result: " << result << ")" << std::endl;
+                            std::cout << "    ❌ Could not set branch address for " << ref_branch_name << " (result: " << result << ")" << std::endl;
+                        } else {
+                            std::cout << "    ✓ Successfully set up particle ref " << ref_branch_name << std::endl;
                         }
                         
                     } else if (std::find(calo_collection_names.begin(), calo_collection_names.end(), coll_name) != calo_collection_names.end()) {
                         source_reader.calo_hit_branches[coll_name] = new std::vector<edm4hep::SimCalorimeterHitData>();
                         int result = source_reader.chain->SetBranchAddress(coll_name.c_str(), &source_reader.calo_hit_branches[coll_name]);
                         if (result != 0) {
-                            std::cout << "Warning: Could not set branch address for " << coll_name << " (result: " << result << ")" << std::endl;
+                            std::cout << "    ❌ Could not set branch address for " << coll_name << " (result: " << result << ")" << std::endl;
+                        } else {
+                            std::cout << "    ✓ Successfully set up calo collection " << coll_name << std::endl;
                         }
                     } else if (std::find(calo_contrib_collection_names.begin(), calo_contrib_collection_names.end(), coll_name) != calo_contrib_collection_names.end()) {
                         source_reader.calo_contrib_branches[coll_name] = new std::vector<edm4hep::CaloHitContributionData>();
                         int result = source_reader.chain->SetBranchAddress(coll_name.c_str(), &source_reader.calo_contrib_branches[coll_name]);
                         if (result != 0) {
-                            std::cout << "Warning: Could not set branch address for " << coll_name << " (result: " << result << ")" << std::endl;
+                            std::cout << "    ❌ Could not set branch address for " << coll_name << " (result: " << result << ")" << std::endl;
+                        } else {
+                            std::cout << "    ✓ Successfully set up calo contrib collection " << coll_name << std::endl;
                         }
                         
                         // Also setup the particle reference branch
@@ -183,10 +203,15 @@ std::vector<SourceReader> StandaloneTimesliceMerger::initializeInputFiles() {
                         source_reader.calo_contrib_particle_refs[coll_name] = new std::vector<podio::ObjectID>();
                         result = source_reader.chain->SetBranchAddress(ref_branch_name.c_str(), &source_reader.calo_contrib_particle_refs[coll_name]);
                         if (result != 0) {
-                            std::cout << "Warning: Could not set branch address for " << ref_branch_name << " (result: " << result << ")" << std::endl;
+                            std::cout << "    ❌ Could not set branch address for " << ref_branch_name << " (result: " << result << ")" << std::endl;
+                        } else {
+                            std::cout << "    ✓ Successfully set up particle ref " << ref_branch_name << std::endl;
                         }
+                    } else {
+                        std::cout << "    ⚠️  Unknown collection type: " << coll_name << std::endl;
                     }
                 }
+                std::cout << "=== Branch setup complete ===" << std::endl;
 
                 std::cout << "Successfully initialized source " << source_idx << " (" << source.name << ")" << std::endl;
 
@@ -537,17 +562,31 @@ void StandaloneTimesliceMerger::setupOutputTree(TTree* tree) {
 
 void StandaloneTimesliceMerger::writeTimesliceToTree(TTree* tree) {
     // Debug: show sizes of merged vectors before writing
-    std::cout << "Writing timeslice with:" << std::endl;
+    std::cout << "=== Writing timeslice ===" << std::endl;
     std::cout << "  MCParticles: " << merged_mcparticles.size() << std::endl;
     std::cout << "  MCParticle parents: " << merged_mcparticle_parents_refs["MCParticles"].size() << std::endl;
     std::cout << "  MCParticle daughters: " << merged_mcparticle_children_refs["MCParticles"].size() << std::endl;
     
+    std::cout << "  Tracker collections (" << merged_tracker_hits.size() << "):" << std::endl;
     for (const auto& [name, hits] : merged_tracker_hits) {
-        std::cout << "  " << name << ": " << hits.size() << " hits" << std::endl;
+        std::cout << "    " << name << ": " << hits.size() << " hits, " 
+                  << merged_tracker_hit_particle_refs[name].size() << " particle refs" << std::endl;
+    }
+    
+    std::cout << "  Calo collections (" << merged_calo_hits.size() << "):" << std::endl;
+    for (const auto& [name, hits] : merged_calo_hits) {
+        std::cout << "    " << name << ": " << hits.size() << " hits" << std::endl;
+    }
+    
+    std::cout << "  Calo contribution collections (" << merged_calo_contributions.size() << "):" << std::endl;
+    for (const auto& [name, contribs] : merged_calo_contributions) {
+        std::cout << "    " << name << ": " << contribs.size() << " contributions, " 
+                  << merged_calo_contrib_particle_refs[name].size() << " particle refs" << std::endl;
     }
     
     // Fill the tree with current merged data
     tree->Fill();
+    std::cout << "=== Timeslice written ===" << std::endl;
 }
 
 float StandaloneTimesliceMerger::generateTimeOffset(SourceConfig sourceConfig, float distance) {
@@ -580,6 +619,19 @@ std::vector<std::string> StandaloneTimesliceMerger::discoverCollectionNames(Sour
         return names;
     }
     
+    std::cout << "=== Branch Discovery for pattern: " << branch_pattern << " ===" << std::endl;
+    std::cout << "Total branches in chain: " << branches->GetEntries() << std::endl;
+    
+    // List all branches for debugging
+    for (int i = 0; i < branches->GetEntries() && i < 20; ++i) {  // Limit to first 20 for readability
+        TBranch* branch = (TBranch*)branches->At(i);
+        if (!branch) continue;
+        std::string branch_name = branch->GetName();
+        std::cout << "  Branch[" << i << "]: " << branch_name;
+        if (branch_name.find("_B0") == 0) std::cout << " (ObjectID - skipped)";
+        std::cout << std::endl;
+    }
+    
     for (int i = 0; i < branches->GetEntries(); ++i) {
         TBranch* branch = (TBranch*)branches->At(i);
         if (!branch) continue;
@@ -595,25 +647,30 @@ std::vector<std::string> StandaloneTimesliceMerger::discoverCollectionNames(Sour
             if (branch_name.find("SimTrackerHit") != std::string::npos && 
                 branch_name.find("Contribution") == std::string::npos) {
                 names.push_back(branch_name);
+                std::cout << "  ✓ MATCHED: " << branch_name << std::endl;
             }
         } else if (branch_pattern.find("SimCalorimeterHit") != std::string::npos) {
             // Look for SimCalorimeterHit collections (excluding contributions) 
             if (branch_name.find("SimCalorimeterHit") != std::string::npos && 
                 branch_name.find("Contribution") == std::string::npos) {
                 names.push_back(branch_name);
+                std::cout << "  ✓ MATCHED: " << branch_name << std::endl;
             }
         } else if (branch_pattern.find("CaloHitContribution") != std::string::npos) {
             // Look for CaloHitContribution collections
             if (branch_name.find("CaloHitContribution") != std::string::npos) {
                 names.push_back(branch_name);
+                std::cout << "  ✓ MATCHED: " << branch_name << std::endl;
             }
         }
     }
     
+    std::cout << "=== Discovery Summary ===" << std::endl;
     std::cout << "Discovered " << names.size() << " collections matching pattern: " << branch_pattern << std::endl;
     for (const auto& name : names) {
         std::cout << "  - " << name << std::endl;
     }
+    std::cout << "=========================" << std::endl;
     
     return names;
 }
