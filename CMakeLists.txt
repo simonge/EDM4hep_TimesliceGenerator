@@ -7,13 +7,13 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 link_directories(/opt/local/lib)
 
-# Find PODIO (required for standalone merger)
-find_package(podio REQUIRED)
+# Find ROOT - required for RDataFrame approach
+find_package(ROOT REQUIRED)
 
 # Find EDM4HEP
 find_package(EDM4HEP REQUIRED)
 
-# Find yaml-cpp
+# Find yaml-cpp - required for configuration
 find_package(yaml-cpp REQUIRED)
 
 # Include directories
@@ -25,12 +25,13 @@ add_executable(timeslice_merger
     src/timeslice_merger_main.cc
 )
 
-# Link against PODIO and EDM4HEP
+# Link against ROOT and yaml-cpp
 target_link_libraries(timeslice_merger
-    podio::podioRootIO
+    ${ROOT_LIBRARIES}
     EDM4HEP::edm4hep
     EDM4HEP::edm4hepDict
     yaml-cpp
+    
 )
 
 # Set install prefix if not specified
@@ -40,3 +41,9 @@ endif()
 
 # Install the executable
 install(TARGETS timeslice_merger DESTINATION bin)
+
+# Print configuration summary
+message(STATUS "Configuration Summary:")
+message(STATUS "  ROOT version: ${ROOT_VERSION}")
+message(STATUS "  ROOT libraries: ${ROOT_LIBRARIES}")
+message(STATUS "  Using required ROOT and yaml-cpp dependencies")

@@ -1,11 +1,30 @@
-# Podio-based Timeslice Merger
+# Podio-based Timeslice Merger (ROOT Dataframe Edition)
 
-A standalone application for merging multiple physics events into timeslices using the Podio data model. This tool provides precise control over timing adjustments, bunch crossing logic, and beam attachment without requiring the JANA framework.
+A standalone application for merging multiple physics events into timeslices using a ROOT dataframe approach instead of direct Podio libraries, while maintaining full Podio format compatibility. This tool provides precise control over timing adjustments, bunch crossing logic, and beam attachment without requiring the JANA framework or direct Podio dependencies.
+
+## Key Changes in This Version
+
+🔄 **NEW: ROOT Dataframe Approach**
+- Uses ROOT dataframe-like collections instead of direct Podio calls
+- Helper functions handle timing updates and reference index offsets
+- Maintains full Podio format compatibility in output
+- Modular design allows easy integration with actual ROOT dataframes when available
+- No direct Podio dependencies required for build
+
+## Architecture
+
+The new implementation uses a **dataframe-based approach** with the following key components:
+
+- **DataFrameCollection<T>**: Template wrapper that acts like ROOT dataframes
+- **Helper Functions**: Specialized functions for timing updates and reference handling
+- **Index Offset Management**: Proper handling of collection references when merging
+- **Podio Format Compatibility**: Output maintains the expected Podio structure
 
 ## Features
 
-- **Direct Podio I/O**: Uses Podio ROOTReader and ROOTWriter directly, no external framework dependencies
-- **Configurable Timing**: Full control over timeslice duration, bunch crossing periods, and time offset generation
+- **Direct ROOT Integration**: Uses ROOT-style dataframes and helper functions instead of Podio libraries directly
+- **Configurable Timing**: Full control over timeslice duration, bunch crossing periods, and time offset generation  
+- **Reference Management**: Automatic index offset handling when merging collections
 - **Beam Physics**: Support for beam attachment with Gaussian smearing and configurable beam parameters
 - **Multiple Input Formats**: Handles both event files and pre-existing timeslice files
 - **Comprehensive Configuration**: Command line interface with extensive parameter options
@@ -13,11 +32,12 @@ A standalone application for merging multiple physics events into timeslices usi
 
 ## Prerequisites
 
-- **PODIO library and headers** - Required for data I/O operations
-- **EDM4HEP library and headers** - Required for the EDM4HEP data model
+- **C++20 compatible compiler** - Required for compilation
 - **yaml-cpp library** - Required for configuration file support
 - **CMake 3.16 or later** - Required for building
-- **C++20 compatible compiler** - Required for compilation
+- **ROOT libraries** (optional) - Can be integrated for full ROOT dataframe support
+
+*Note: This version does not require Podio or EDM4HEP libraries directly, making it easier to build and deploy.*
 
 ## Building
 

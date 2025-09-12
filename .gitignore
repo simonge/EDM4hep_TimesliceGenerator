@@ -36,3 +36,4 @@ __pycache__/
 
 # Misc
 janainstall/
+test_*.txt
