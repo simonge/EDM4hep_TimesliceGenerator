@@ -22,30 +22,12 @@ MutableRootReader::MutableRootReader(const std::vector<std::string>& input_files
             throw std::runtime_error("Failed to open ROOT file: " + file_path);
         }
         
-        // Get list of trees (categories) in this file
-        TList* keys = root_file->GetListOfKeys();
-        for (int i = 0; i < keys->GetEntries(); ++i) {
-            TKey* key = static_cast<TKey*>(keys->At(i));
-            if (std::string(key->GetClassName()) == "TTree") {
-                std::string tree_name = key->GetName();
-                TTree* tree = static_cast<TTree*>(root_file->Get(tree_name.c_str()));
-                if (tree) {
-                    // Store tree pointer (only from first file for now - TODO: handle chaining)
-                    if (trees_.find(tree_name) == trees_.end()) {
-                        trees_[tree_name] = tree;
-                        total_entries_[tree_name] = tree->GetEntries();
-                        std::cout << "Found tree '" << tree_name << "' with " 
-                                  << total_entries_[tree_name] << " entries" << std::endl;
-                    }
-                }
-            }
-        }
-        
+        std::cout << "Opened ROOT file: " << file_path << std::endl;
         root_files_.push_back(std::move(root_file));
     }
     
-    if (trees_.empty()) {
-        throw std::runtime_error("No trees found in input files");
+    if (root_files_.empty()) {
+        throw std::runtime_error("No ROOT files provided");
     }
 }
 
@@ -53,46 +35,70 @@ MutableRootReader::~MutableRootReader() {
     // ROOT files will be automatically closed when unique_ptrs are destroyed
 }
 
-size_t MutableRootReader::getEntries(const std::string& category) const {
-    auto it = total_entries_.find(category);
-    if (it == total_entries_.end()) {
-        throw std::runtime_error("Category '" + category + "' not found");
+size_t MutableRootReader::getEntries(const std::string& tree_name) const {
+    // Open the tree from the first file to check entries
+    if (root_files_.empty()) {
+        throw std::runtime_error("No ROOT files available");
     }
-    return it->second;
+    
+    TTree* tree = root_files_[0]->Get<TTree>(tree_name.c_str());
+    if (!tree) {
+        throw std::runtime_error("Tree '" + tree_name + "' not found");
+    }
+    
+    return static_cast<size_t>(tree->GetEntries());
 }
 
 std::vector<std::string> MutableRootReader::getAvailableCategories() const {
     std::vector<std::string> categories;
-    for (const auto& [tree_name, _] : trees_) {
-        categories.push_back(tree_name);
+    
+    if (root_files_.empty()) {
+        return categories;
+    }
+    
+    // Get list of trees from first file
+    TList* keys = root_files_[0]->GetListOfKeys();
+    for (int i = 0; i < keys->GetEntries(); ++i) {
+        TKey* key = static_cast<TKey*>(keys->At(i));
+        if (std::string(key->GetClassName()) == "TTree") {
+            categories.push_back(key->GetName());
+        }
     }
     return categories;
 }
 
 std::unique_ptr<MutableRootReader::MutableFrame> 
-MutableRootReader::readMutableEntry(const std::string& category, size_t entry) {
-    auto tree_it = trees_.find(category);
-    if (tree_it == trees_.end()) {
-        throw std::runtime_error("Category '" + category + "' not found");
+MutableRootReader::readMutableEntry(const std::string& tree_name, size_t entry) {
+    if (root_files_.empty()) {
+        throw std::runtime_error("No ROOT files available");
     }
     
-    TTree* tree = tree_it->second;
+    // Get the tree from the first file (following podio's approach of focusing on specific trees)
+    TTree* tree = root_files_[0]->Get<TTree>(tree_name.c_str());
+    if (!tree) {
+        throw std::runtime_error("Tree '" + tree_name + "' not found");
+    }
+    
     if (entry >= static_cast<size_t>(tree->GetEntries())) {
-        throw std::runtime_error("Entry " + std::to_string(entry) + " out of range for category '" + category + "'");
+        throw std::runtime_error("Entry " + std::to_string(entry) + " out of range for tree '" + tree_name + "'");
     }
     
     auto frame = std::make_unique<MutableFrame>();
     
+    std::cout << "Reading entry " << entry << " from tree '" << tree_name << "'" << std::endl;
+    
     // Get entry from tree
     tree->GetEntry(entry);
     
-    // Iterate through branches and create mutable collections
+    // Only read branches from the requested tree, following podio's focused approach
     TObjArray* branches = tree->GetListOfBranches();
     for (int i = 0; i < branches->GetEntries(); ++i) {
         TBranch* branch = static_cast<TBranch*>(branches->At(i));
         std::string branch_name = branch->GetName();
         
-        // Create mutable collection based on branch type/name
+        std::cout << "Processing branch: " << branch_name << std::endl;
+        
+        // Create mutable collection based on branch type
         auto collection_variant = createCollectionFromBranch(branch_name, branch, entry);
         frame->putMutableVariant(std::move(collection_variant), branch_name);
     }
@@ -159,38 +165,16 @@ std::string MutableRootReader::determineCollectionType(const std::string& branch
                 }
             }
         }
-        
-        // If we have a branch but no recognizable class name, try to get more information
-        TClass* branch_class = branch->GetCurrentClass();
-        if (branch_class) {
-            std::string class_name = branch_class->GetName();
-            std::cout << "Branch '" << branch_name << "' has TClass: " << class_name << std::endl;
-            
-            // Similar mapping for TClass names
-            if (class_name.find("MCParticle") != std::string::npos) {
-                return "MCParticleCollection";
-            }
-            else if (class_name.find("EventHeader") != std::string::npos) {
-                return "EventHeaderCollection";
-            }
-            else if (class_name.find("SimTrackerHit") != std::string::npos) {
-                return "SimTrackerHitCollection";
-            }
-            else if (class_name.find("SimCalorimeterHit") != std::string::npos) {
-                return "SimCalorimeterHitCollection";
-            }
-            else if (class_name.find("CaloHitContribution") != std::string::npos) {
-                return "CaloHitContributionCollection";
-            }
-        }
     }
     
     // Try to read collection type from podio metadata 
     if (root_file) {
         // Look for podio metadata tree (commonly named "podio_metadata" or "metadata")
-        auto* metadata_tree = root_file->Get<TTree>("podio_metadata");
+        // Note: Need to cast away const to call Get method
+        TFile* non_const_file = const_cast<TFile*>(root_file);
+        auto* metadata_tree = non_const_file->Get<TTree>("podio_metadata");
         if (!metadata_tree) {
-            metadata_tree = root_file->Get<TTree>("metadata");
+            metadata_tree = non_const_file->Get<TTree>("metadata");
         }
         
         if (metadata_tree) {

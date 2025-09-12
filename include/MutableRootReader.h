@@ -213,25 +213,26 @@ public:
     ~MutableRootReader();
     
     /**
-     * @brief Get number of entries in a category (tree)
-     * @param category Tree name (e.g., "events")
+     * @brief Get number of entries in a tree
+     * @param tree_name Tree name (e.g., "events")
      * @return Number of entries
      */
-    size_t getEntries(const std::string& category) const;
+    size_t getEntries(const std::string& tree_name) const;
     
     /**
-     * @brief Get available categories (tree names)
+     * @brief Get available tree names from the first file
      * @return Vector of tree names
      */
     std::vector<std::string> getAvailableCategories() const;
     
     /**
-     * @brief Read an entry and create a mutable frame with mutable collections
-     * @param category Tree name to read from
+     * @brief Read an entry from a specific tree and create a mutable frame
+     * Following podio's approach of focused tree reading
+     * @param tree_name Tree name to read from (e.g., "events")
      * @param entry Entry index to read
      * @return Unique pointer to mutable frame containing mutable collections
      */
-    std::unique_ptr<MutableFrame> readMutableEntry(const std::string& category, size_t entry);
+    std::unique_ptr<MutableFrame> readMutableEntry(const std::string& tree_name, size_t entry);
     
 private:
     /**
@@ -267,12 +268,9 @@ private:
                                                                TBranch* branch, 
                                                                size_t entry);
     
-    // ROOT file management
+    // ROOT file management - focused approach following podio
     std::vector<std::unique_ptr<TFile>> root_files_;
-    std::unordered_map<std::string, TTree*> trees_;
-    std::unordered_map<std::string, size_t> total_entries_;
     
-    // Current file tracking for chain-like behavior
+    // Current file tracking for chain-like behavior (if needed for multiple files)
     size_t current_file_index_ = 0;
-    std::unordered_map<std::string, size_t> entries_per_file_;
 };
