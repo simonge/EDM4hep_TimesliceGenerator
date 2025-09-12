@@ -628,8 +628,16 @@ std::vector<std::string> StandaloneTimesliceMerger::discoverCollectionNames(Sour
         if (!branch) continue;
         std::string branch_name = branch->GetName();
         std::string branch_class_name = "";
-        if (branch->GetExpectedType() && branch->GetExpectedType()->GetName()) {
-            branch_class_name = branch->GetExpectedType()->GetName();
+    TClass* expectedClass = nullptr;
+    EDataType expectedType;
+    if (branch->GetExpectedType(expectedClass, expectedType) == 0 && expectedClass && expectedClass->GetName()) {
+            TClass* expectedClass = nullptr;
+            EDataType expectedType;
+            if (branch->GetExpectedType(expectedClass, expectedType) == 0 && expectedClass) {
+                branch_class_name = expectedClass->GetName();
+            } else {
+                branch_class_name = "";
+            }
         }
         std::cout << "  Branch[" << i << "]: " << branch_name << " (type: " << branch_class_name << ")";
         if (branch_name.find("_") == 0) std::cout << " (ObjectID branch)";
@@ -644,8 +652,10 @@ std::vector<std::string> StandaloneTimesliceMerger::discoverCollectionNames(Sour
         std::string branch_type = "";
         
         // Get the branch data type
-        if (branch->GetExpectedType() && branch->GetExpectedType()->GetName()) {
-            branch_type = branch->GetExpectedType()->GetName();
+        TClass* expectedClass2 = nullptr;
+        EDataType expectedType2;
+        if (branch->GetExpectedType(expectedClass2, expectedType2) == 0 && expectedClass2 && expectedClass2->GetName()) {
+            branch_type = expectedClass2->GetName();
         }
         
         // Skip branches that start with "_" for now - these are ObjectID references
