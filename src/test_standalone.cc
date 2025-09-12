@@ -6,28 +6,21 @@
 void testConfiguration() {
     std::cout << "Testing configuration..." << std::endl;
     
-    StandaloneMergerConfig config;
+    MergerConfig config;
     
     // Test default values
     assert(config.time_slice_duration == 20.0f);
-    assert(config.static_number_of_events == false);
-    assert(config.static_events_per_timeslice == 1);
-    assert(config.use_bunch_crossing == false);
-    assert(config.attach_to_beam == false);
-    assert(config.generator_status_offset == 0);
+    assert(config.max_events == 100);
+    assert(config.introduce_offsets == true);
     
     // Test configuration changes
     config.time_slice_duration = 1000.0f;
-    config.static_number_of_events = true;
-    config.static_events_per_timeslice = 5;
-    config.use_bunch_crossing = true;
-    config.bunch_crossing_period = 100.0f;
+    config.max_events = 50;
+    config.introduce_offsets = false;
     
     assert(config.time_slice_duration == 1000.0f);
-    assert(config.static_number_of_events == true);
-    assert(config.static_events_per_timeslice == 5);
-    assert(config.use_bunch_crossing == true);
-    assert(config.bunch_crossing_period == 100.0f);
+    assert(config.max_events == 50);
+    assert(config.introduce_offsets == false);
     
     std::cout << "Configuration test passed!" << std::endl;
 }
@@ -35,19 +28,23 @@ void testConfiguration() {
 void testMergerCreation() {
     std::cout << "Testing merger creation..." << std::endl;
     
-    StandaloneMergerConfig config;
+    MergerConfig config;
     config.time_slice_duration = 100.0f;
-    config.static_number_of_events = true;
-    config.static_events_per_timeslice = 2;
     config.output_file = "test_output.root";
     config.max_events = 10;
+    
+    // Add a dummy source config
+    SourceConfig source;
+    source.static_number_of_events = true;
+    source.static_events_per_timeslice = 2;
+    config.sources.push_back(source);
     
     try {
         StandaloneTimesliceMerger merger(config);
         std::cout << "Merger creation test passed!" << std::endl;
     } catch (const std::exception& e) {
         std::cout << "Merger creation failed: " << e.what() << std::endl;
-        std::cout << "This is expected if Podio is not available in the test environment." << std::endl;
+        std::cout << "This is expected if ROOT/Podio/EDM4HEP are not available in the test environment." << std::endl;
     }
 }
 
