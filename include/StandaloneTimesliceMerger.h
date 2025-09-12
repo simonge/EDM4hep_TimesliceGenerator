@@ -12,60 +12,19 @@
 #include <sstream>
 #include <random>
 #include <unordered_map>
+#include <map>
 #include <vector>
 #include <string>
 #include <memory>
+#include <podio/ObjectID.h>
 
-// Simplified EDM4HEP-like data structures for ROOT-dataframe approach
-// These represent the data that would be in ROOT dataframes
-
-struct MCParticleData {
-    int32_t PDG;
-    int32_t generatorStatus;
-    int32_t simulatorStatus;
-    float charge;
-    float time;
-    float mass;
-    // Position and momentum
-    float vertex[3];  // x, y, z
-    float momentum[3]; // px, py, pz
-    // References (indices to other particles)
-    std::vector<int32_t> parents;
-    std::vector<int32_t> daughters;
-};
-
-struct EventHeaderData {
-    int32_t eventNumber;
-    int32_t runNumber;
-    uint64_t timeStamp;
-    float weight;
-};
-
-struct SimTrackerHitData {
-    uint64_t cellID;
-    float EDep;
-    float time;
-    float pathLength;
-    int32_t quality;
-    float position[3]; // x, y, z
-    int32_t mcParticle_idx; // Reference to MCParticle
-};
-
-struct SimCalorimeterHitData {
-    uint64_t cellID;
-    float energy;
-    float time;
-    float position[3]; // x, y, z
-    // Contributions handled separately
-};
-
-struct CaloHitContributionData {
-    int32_t PDG;
-    float energy;
-    float time;
-    float stepPosition[3]; // x, y, z
-    int32_t particle_idx; // Reference to MCParticle
-};
+// EDM4HEP includes
+#include "edm4hep/MCParticle.h"
+#include "edm4hep/EventHeaderCollection.h"
+#include "edm4hep/MCParticleCollection.h"
+#include "edm4hep/SimTrackerHitCollection.h"
+#include "edm4hep/SimCalorimeterHitCollection.h"
+#include "edm4hep/CaloHitContributionCollection.h"
 
 // Collection wrapper that acts like a dataframe
 template<typename T>
@@ -108,12 +67,20 @@ struct SourceReader {
     size_t entries_needed{1};
     const SourceConfig* config;
     
-    // Collections as dataframes
-    DataFrameCollection<MCParticleData> mcparticles;
-    DataFrameCollection<EventHeaderData> eventheaders;
-    DataFrameCollection<SimTrackerHitData> trackerhits;
-    DataFrameCollection<SimCalorimeterHitData> calohits;
-    DataFrameCollection<CaloHitContributionData> contributions;
+    // Collections as dataframes - now supports multiple collections of same type
+    DataFrameCollection<edm4hep::MCParticleData> mcparticles;
+    DataFrameCollection<edm4hep::EventHeaderData> eventheaders;
+    
+    // Multiple collections of each hit type, discovered from input files
+    std::map<std::string, DataFrameCollection<edm4hep::SimTrackerHitData>> trackerhits_collections;
+    std::map<std::string, DataFrameCollection<edm4hep::SimCalorimeterHitData>> calohits_collections;
+    std::map<std::string, DataFrameCollection<edm4hep::CaloHitContributionData>> contributions_collections;
+    
+    // Discovered collection names and types
+    std::vector<std::string> discovered_trackerhit_names;
+    std::vector<std::string> discovered_calohit_names;
+    std::vector<std::string> discovered_contribution_names;
+    std::vector<std::string> discovered_reference_columns;
 };
 
 class StandaloneTimesliceMerger {
@@ -138,62 +105,70 @@ private:
 
     std::vector<SourceReader> initializeInputFiles();
     bool updateInputNEvents(std::vector<SourceReader>& inputs);
-    void createMergedTimeslice(std::vector<SourceReader>& inputs, std::ofstream& output_file);
 
-    // ROOT-specific methods for proper file I/O
+    // ROOT-specific methods for proper file I/O with multiple collections
     void createMergedTimesliceROOT(std::vector<SourceReader>& inputs, TFile* output_file);
+    void createMergedDataFrameROOT(std::vector<SourceReader>& inputs, TFile* output_file);
     void writeDataFramesToROOTFile(TFile* file,
-                                  const DataFrameCollection<MCParticleData>& particles,
-                                  const DataFrameCollection<EventHeaderData>& headers,
-                                  const DataFrameCollection<SimTrackerHitData>& tracker_hits,
-                                  const DataFrameCollection<SimCalorimeterHitData>& calo_hits,
-                                  const DataFrameCollection<CaloHitContributionData>& contributions);
+                                  const DataFrameCollection<edm4hep::MCParticleData>& particles,
+                                  const DataFrameCollection<edm4hep::EventHeaderData>& headers,
+                                  const std::map<std::string, DataFrameCollection<edm4hep::SimTrackerHitData>>& tracker_collections,
+                                  const std::map<std::string, DataFrameCollection<edm4hep::SimCalorimeterHitData>>& calo_collections,
+                                  const std::map<std::string, DataFrameCollection<edm4hep::CaloHitContributionData>>& contribution_collections);
+    
+    // Copy podio metadata from input files
+    void copyPodioMetadata(TFile* output_file, const std::vector<SourceReader>& inputs);
+    
+    // Discover collections from input dataframes
+    void discoverCollectionsFromDataFrame(const std::string& input_filename, SourceReader& reader);
 
-    // Helper methods for dataframe-based merging
+    // Helper methods for generating merged collections using RVec
+    ROOT::VecOps::RVec<edm4hep::MCParticleData> generateMergedMCParticles(std::vector<SourceReader>& inputs, int event_id);
+    ROOT::VecOps::RVec<edm4hep::EventHeaderData> generateMergedEventHeaders(std::vector<SourceReader>& inputs, int event_id);
+    ROOT::VecOps::RVec<edm4hep::SimTrackerHitData> generateMergedTrackerHits(std::vector<SourceReader>& inputs, int event_id, const std::string& collection_name);
+    ROOT::VecOps::RVec<edm4hep::SimCalorimeterHitData> generateMergedCaloHits(std::vector<SourceReader>& inputs, int event_id, const std::string& collection_name);
+    ROOT::VecOps::RVec<edm4hep::CaloHitContributionData> generateMergedContributions(std::vector<SourceReader>& inputs, int event_id, const std::string& collection_name);
+    ROOT::VecOps::RVec<podio::ObjectID> generateMergedReferenceColumn(std::vector<SourceReader>& inputs, int event_id, const std::string& column_name);
+
+    // Helper methods for dataframe-based merging with multiple collections
     void mergeCollectionsFromDataFrames(SourceReader& source, 
                                        ProcessingInfo& proc_info,
-                                       DataFrameCollection<MCParticleData>& merged_particles,
-                                       DataFrameCollection<EventHeaderData>& merged_headers,
-                                       DataFrameCollection<SimTrackerHitData>& merged_tracker_hits,
-                                       DataFrameCollection<SimCalorimeterHitData>& merged_calo_hits,
-                                       DataFrameCollection<CaloHitContributionData>& merged_contributions);
+                                       DataFrameCollection<edm4hep::MCParticleData>& merged_particles,
+                                       DataFrameCollection<edm4hep::EventHeaderData>& merged_headers,
+                                       std::map<std::string, DataFrameCollection<edm4hep::SimTrackerHitData>>& merged_tracker_collections,
+                                       std::map<std::string, DataFrameCollection<edm4hep::SimCalorimeterHitData>>& merged_calo_collections,
+                                       std::map<std::string, DataFrameCollection<edm4hep::CaloHitContributionData>>& merged_contribution_collections);
     
     // Helper functions for time updates and reference handling  
-    void updateParticleDataTiming(DataFrameCollection<MCParticleData>& particles, 
+    void updateParticleDataTiming(DataFrameCollection<edm4hep::MCParticleData>& particles, 
                                  float time_offset, int32_t status_offset);
-    void updateTrackerHitDataTiming(DataFrameCollection<SimTrackerHitData>& hits, 
+    void updateTrackerHitDataTiming(DataFrameCollection<edm4hep::SimTrackerHitData>& hits, 
                                    float time_offset);
-    void updateTrackerHitReferences(DataFrameCollection<SimTrackerHitData>& hits, 
+    void updateTrackerHitReferences(DataFrameCollection<edm4hep::SimTrackerHitData>& hits, 
                                    size_t particle_offset);
-    void updateCaloHitDataTiming(DataFrameCollection<SimCalorimeterHitData>& hits, 
+    void updateCaloHitDataTiming(DataFrameCollection<edm4hep::SimCalorimeterHitData>& hits, 
                                 float time_offset);
-    void updateContributionReferences(DataFrameCollection<CaloHitContributionData>& contribs, 
+    void updateContributionReferences(DataFrameCollection<edm4hep::CaloHitContributionData>& contribs, 
                                      size_t particle_offset);
                          
     float generateTimeOffset(SourceConfig sourceConfig, float distance);
     
     // File I/O for demonstration (would be replaced with ROOT dataframe I/O)
     bool readDataFrameFromFile(SourceReader& reader, size_t entry_index);
-    void writeDataFramesToFile(std::ofstream& file,
-                              const DataFrameCollection<MCParticleData>& particles,
-                              const DataFrameCollection<EventHeaderData>& headers,
-                              const DataFrameCollection<SimTrackerHitData>& tracker_hits,
-                              const DataFrameCollection<SimCalorimeterHitData>& calo_hits,
-                              const DataFrameCollection<CaloHitContributionData>& contributions);
 };
 
 // Template specializations for dataframe operations
 template<>
-void DataFrameCollection<MCParticleData>::updateTiming(float offset);
+void DataFrameCollection<edm4hep::MCParticle>::updateTiming(float offset);
 
 template<>
-void DataFrameCollection<SimTrackerHitData>::updateTiming(float offset);
+void DataFrameCollection<edm4hep::SimTrackerHit>::updateTiming(float offset);
 
 template<>
-void DataFrameCollection<SimCalorimeterHitData>::updateTiming(float offset);
+void DataFrameCollection<edm4hep::SimCalorimeterHit>::updateTiming(float offset);
 
 template<>
-void DataFrameCollection<SimTrackerHitData>::updateReferences(size_t index_offset);
+void DataFrameCollection<edm4hep::SimTrackerHit>::updateReferences(size_t index_offset);
 
 template<>
-void DataFrameCollection<CaloHitContributionData>::updateReferences(size_t index_offset);
+void DataFrameCollection<edm4hep::CaloHitContribution>::updateReferences(size_t index_offset);

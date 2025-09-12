@@ -5,15 +5,19 @@ project(TimesliceMerger VERSION 1.0.0)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+link_directories(/opt/local/lib)
+
 # Find ROOT - required for RDataFrame approach
-find_package(ROOT REQUIRED COMPONENTS Core RIO Tree TreePlayer RDataFrame)
+find_package(ROOT REQUIRED)
+
+# Find EDM4HEP
+find_package(EDM4HEP REQUIRED)
 
 # Find yaml-cpp - required for configuration
 find_package(yaml-cpp REQUIRED)
 
 # Include directories
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
-include_directories(${ROOT_INCLUDE_DIRS})
 
 # Create the standalone executable
 add_executable(timeslice_merger
@@ -24,11 +28,11 @@ add_executable(timeslice_merger
 # Link against ROOT and yaml-cpp
 target_link_libraries(timeslice_merger
     ${ROOT_LIBRARIES}
+    EDM4HEP::edm4hep
+    EDM4HEP::edm4hepDict
     yaml-cpp
+    
 )
-
-# Set ROOT compile definitions
-target_compile_definitions(timeslice_merger PRIVATE ${ROOT_CXX_FLAGS})
 
 # Set install prefix if not specified
 if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
