@@ -127,19 +127,21 @@ std::vector<SourceReader> StandaloneTimesliceMerger::initializeInputFiles() {
                         }
                         
                         // Also setup the parent and children reference branches
-                        std::string parents_branch_name = "_B0" + coll_name + "_parents";
-                        std::string children_branch_name = "_B0" + coll_name + "_daughters";
+                        std::string parents_branch_name = "_MCParticles_parents";
+                        std::string children_branch_name = "_MCParticles_daughters";
                         source_reader.mcparticle_parents_refs[coll_name] = new std::vector<podio::ObjectID>();
                         source_reader.mcparticle_children_refs[coll_name] = new std::vector<podio::ObjectID>();
                         
                         result = source_reader.chain->SetBranchAddress(parents_branch_name.c_str(), &source_reader.mcparticle_parents_refs[coll_name]);
                         if (result != 0) {
                             std::cout << "Warning: Could not set branch address for " << parents_branch_name << " (result: " << result << ")" << std::endl;
+                            std::cout << "  This may be normal if the input file doesn't contain MCParticle relationship information" << std::endl;
                         }
                         
                         result = source_reader.chain->SetBranchAddress(children_branch_name.c_str(), &source_reader.mcparticle_children_refs[coll_name]);
                         if (result != 0) {
                             std::cout << "Warning: Could not set branch address for " << children_branch_name << " (result: " << result << ")" << std::endl;
+                            std::cout << "  This may be normal if the input file doesn't contain MCParticle relationship information" << std::endl;
                         }
                         
                     } else if (coll_name == "EventHeader" || coll_name == "SubEventHeaders") {
@@ -337,6 +339,9 @@ void StandaloneTimesliceMerger::mergeEventData(SourceReader& source, size_t even
         const auto& parents_refs = *source.mcparticle_parents_refs["MCParticles"];
         const auto& children_refs = *source.mcparticle_children_refs["MCParticles"];
         
+        std::cout << "Processing MCParticle relationships: " << parents_refs.size() << " parent refs, " 
+                  << children_refs.size() << " children refs" << std::endl;
+        
         // Initialize merged relationship vectors if not already done
         if (merged_mcparticle_parents_refs.find("MCParticles") == merged_mcparticle_parents_refs.end()) {
             merged_mcparticle_parents_refs["MCParticles"] = std::vector<podio::ObjectID>();
@@ -362,6 +367,8 @@ void StandaloneTimesliceMerger::mergeEventData(SourceReader& source, size_t even
             }
             merged_mcparticle_children_refs["MCParticles"].push_back(new_child_ref);
         }
+    } else {
+        std::cout << "No MCParticle parent-child relationship branches found in input" << std::endl;
     }
 
     // Process SubEventHeaders
@@ -503,8 +510,8 @@ void StandaloneTimesliceMerger::setupOutputTree(TTree* tree) {
     tree->Branch("SubEventHeaders", &merged_sub_event_headers);
     
     // Setup branches for MCParticle parent-child relationships
-    tree->Branch("_B0MCParticles_parents", &merged_mcparticle_parents_refs["MCParticles"]);
-    tree->Branch("_B0MCParticles_daughters", &merged_mcparticle_children_refs["MCParticles"]);
+    tree->Branch("_MCParticles_parents", &merged_mcparticle_parents_refs["MCParticles"]);
+    tree->Branch("_MCParticles_daughters", &merged_mcparticle_children_refs["MCParticles"]);
     
     // Setup branches for tracker hits
     for (const auto& name : tracker_collection_names) {
@@ -529,6 +536,16 @@ void StandaloneTimesliceMerger::setupOutputTree(TTree* tree) {
 }
 
 void StandaloneTimesliceMerger::writeTimesliceToTree(TTree* tree) {
+    // Debug: show sizes of merged vectors before writing
+    std::cout << "Writing timeslice with:" << std::endl;
+    std::cout << "  MCParticles: " << merged_mcparticles.size() << std::endl;
+    std::cout << "  MCParticle parents: " << merged_mcparticle_parents_refs["MCParticles"].size() << std::endl;
+    std::cout << "  MCParticle daughters: " << merged_mcparticle_children_refs["MCParticles"].size() << std::endl;
+    
+    for (const auto& [name, hits] : merged_tracker_hits) {
+        std::cout << "  " << name << ": " << hits.size() << " hits" << std::endl;
+    }
+    
     // Fill the tree with current merged data
     tree->Fill();
 }
