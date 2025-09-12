@@ -142,6 +142,17 @@ private:
     bool updateInputNEvents(std::vector<SourceReader>& inputs);
     void createMergedTimeslice(std::vector<SourceReader>& inputs, std::ofstream& output_file);
 
+#ifdef USE_ROOT
+    // ROOT-specific methods for proper file I/O
+    void createMergedTimesliceROOT(std::vector<SourceReader>& inputs, TFile* output_file);
+    void writeDataFramesToROOTFile(TFile* file,
+                                  const DataFrameCollection<MCParticleData>& particles,
+                                  const DataFrameCollection<EventHeaderData>& headers,
+                                  const DataFrameCollection<SimTrackerHitData>& tracker_hits,
+                                  const DataFrameCollection<SimCalorimeterHitData>& calo_hits,
+                                  const DataFrameCollection<CaloHitContributionData>& contributions);
+#endif
+
     // Helper methods for dataframe-based merging
     void mergeCollectionsFromDataFrames(SourceReader& source, 
                                        ProcessingInfo& proc_info,
