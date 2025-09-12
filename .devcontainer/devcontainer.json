@@ -1,48 +1,13 @@
 {
-  "name": "TimeframeGenerator2 Development",
-  "image": "ubuntu:22.04",
-  
-  "features": {
-    "ghcr.io/devcontainers/features/common-utils:2": {
-      "installZsh": true,
-      "configureZshAsDefaultShell": true,
-      "installOhMyZsh": true
-    },
-    "ghcr.io/devcontainers/features/git:1": {},
-    "ghcr.io/devcontainers/features/github-cli:1": {}
-  },
-
-  "runArgs": [
-    "--privileged"
-  ],
-
-  "postCreateCommand": [
-    "bash",
-    "-c",
-    "apt-get update && apt-get install -y cmake build-essential libroot-dev root-system libyaml-cpp-dev pkg-config gdb valgrind && echo 'Development environment ready!'"
-  ],
-
+  "image": "ghcr.io/eic/eic_ci:nightly",
+  "postCreateCommand": "./.devcontainer/postCreateCommand.sh",
   "customizations": {
     "vscode": {
       "extensions": [
-        "ms-vscode.cpptools",
         "ms-vscode.cmake-tools",
-        "ms-vscode.cpptools-extension-pack",
-        "twxs.cmake",
-        "ms-vscode.hexeditor",
-        "GitHub.copilot",
-        "GitHub.copilot-chat"
-      ],
-      "settings": {
-        "terminal.integrated.defaultProfile.linux": "zsh",
-        "cmake.configureOnOpen": true,
-        "C_Cpp.default.cppStandard": "c++20",
-        "C_Cpp.default.intelliSenseMode": "gcc-x64"
-      }
+        "ms-vscode.cpptools",
+        "ms-vscode.cpptools-extension-pack"
+      ]
     }
-  },
-
-  "forwardPorts": [],
-  "workspaceFolder": "/workspace",
-  "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind"
+  }
 }

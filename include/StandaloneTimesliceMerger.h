@@ -1,6 +1,15 @@
 #pragma once
 
 #include "StandaloneMergerConfig.h"
+
+// ROOT DataFrames support when available
+#ifdef USE_ROOT
+#include <ROOT/RDataFrame.hxx>
+#include <TFile.h>
+#include <TTree.h>
+#include <TChain.h>
+#endif
+
 #include <fstream>
 #include <sstream>
 #include <random>

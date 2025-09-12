@@ -1,5 +1,10 @@
 #include "StandaloneTimesliceMerger.h"
+
+// Optional yaml-cpp support
+#ifdef USE_YAML_CPP
 #include <yaml-cpp/yaml.h>
+#endif
+
 #include <iostream>
 #include <string>
 #include <vector>
@@ -7,7 +12,18 @@
 
 void printUsage(const char* program_name) {
     std::cout << "Usage: " << program_name << " [options] input_file1 [input_file2 ...]\n"
-              << "Options:\n"
+              << "TimeframeGenerator2 - ROOT DataFrame-based Timeslice Merger\n";
+#ifdef USE_ROOT
+    std::cout << "Built with ROOT RDataFrame support\n";
+#else 
+    std::cout << "Built with dataframe-like collections (ROOT not available)\n";
+#endif
+#ifdef USE_YAML_CPP
+    std::cout << "Built with YAML configuration support\n";
+#else
+    std::cout << "Built without YAML support - use command line options\n";  
+#endif
+    std::cout << "\nOptions:\n"
               << "  --config FILE                YAML config file (default: config.yml)\n"
               << "  -o, --output FILE           Output file name (default: merged_timeslices.root)\n"
               << "  -n, --nevents N             Maximum number of timeslices to generate (default: 100)\n"
@@ -102,36 +118,47 @@ int main(int argc, char* argv[]) {
     
     // If config_file specified, parse YAML
     if (!config_file.empty()) {
-        YAML::Node yaml = YAML::LoadFile(config_file);
-        if (yaml["output_file"]) config.output_file = yaml["output_file"].as<std::string>();
-        if (yaml["max_events"]) config.max_events = yaml["max_events"].as<size_t>();
-        if (yaml["time_slice_duration"]) config.time_slice_duration = yaml["time_slice_duration"].as<float>();
-        if (yaml["bunch_crossing_period"]) config.bunch_crossing_period = yaml["bunch_crossing_period"].as<float>();
-        if (yaml["introduce_offsets"]) config.introduce_offsets = yaml["introduce_offsets"].as<bool>();
-        
-        if (yaml["sources"]) {
-            config.sources.clear();
-            for (const auto& source_yaml : yaml["sources"]) {
-                SourceConfig source;
-                if (source_yaml["input_files"]) {
-                    for (const auto& f : source_yaml["input_files"]) {
-                        source.input_files.push_back(f.as<std::string>());
+#ifdef USE_YAML_CPP
+        try {
+            YAML::Node yaml = YAML::LoadFile(config_file);
+            if (yaml["output_file"]) config.output_file = yaml["output_file"].as<std::string>();
+            if (yaml["max_events"]) config.max_events = yaml["max_events"].as<size_t>();
+            if (yaml["time_slice_duration"]) config.time_slice_duration = yaml["time_slice_duration"].as<float>();
+            if (yaml["bunch_crossing_period"]) config.bunch_crossing_period = yaml["bunch_crossing_period"].as<float>();
+            if (yaml["introduce_offsets"]) config.introduce_offsets = yaml["introduce_offsets"].as<bool>();
+            
+            if (yaml["sources"]) {
+                config.sources.clear();
+                for (const auto& source_yaml : yaml["sources"]) {
+                    SourceConfig source;
+                    if (source_yaml["input_files"]) {
+                        for (const auto& f : source_yaml["input_files"]) {
+                            source.input_files.push_back(f.as<std::string>());
+                        }
                     }
+                    if (source_yaml["name"]) source.name = source_yaml["name"].as<std::string>();
+                    if (source_yaml["already_merged"]) source.already_merged = source_yaml["already_merged"].as<bool>();
+                    if (source_yaml["static_number_of_events"]) source.static_number_of_events = source_yaml["static_number_of_events"].as<bool>();
+                    if (source_yaml["static_events_per_timeslice"]) source.static_events_per_timeslice = source_yaml["static_events_per_timeslice"].as<size_t>();
+                    if (source_yaml["mean_event_frequency"]) source.mean_event_frequency = source_yaml["mean_event_frequency"].as<float>();
+                    if (source_yaml["use_bunch_crossing"]) source.use_bunch_crossing = source_yaml["use_bunch_crossing"].as<bool>();
+                    if (source_yaml["attach_to_beam"]) source.attach_to_beam = source_yaml["attach_to_beam"].as<bool>();
+                    if (source_yaml["beam_angle"]) source.beam_angle = source_yaml["beam_angle"].as<float>();
+                    if (source_yaml["beam_speed"]) source.beam_speed = source_yaml["beam_speed"].as<float>();
+                    if (source_yaml["beam_spread"]) source.beam_spread = source_yaml["beam_spread"].as<float>();
+                    if (source_yaml["generator_status_offset"]) source.generator_status_offset = source_yaml["generator_status_offset"].as<int32_t>();
+                    config.sources.push_back(source);
                 }
-                if (source_yaml["name"]) source.name = source_yaml["name"].as<std::string>();
-                if (source_yaml["already_merged"]) source.already_merged = source_yaml["already_merged"].as<bool>();
-                if (source_yaml["static_number_of_events"]) source.static_number_of_events = source_yaml["static_number_of_events"].as<bool>();
-                if (source_yaml["static_events_per_timeslice"]) source.static_events_per_timeslice = source_yaml["static_events_per_timeslice"].as<size_t>();
-                if (source_yaml["mean_event_frequency"]) source.mean_event_frequency = source_yaml["mean_event_frequency"].as<float>();
-                if (source_yaml["use_bunch_crossing"]) source.use_bunch_crossing = source_yaml["use_bunch_crossing"].as<bool>();
-                if (source_yaml["attach_to_beam"]) source.attach_to_beam = source_yaml["attach_to_beam"].as<bool>();
-                if (source_yaml["beam_angle"]) source.beam_angle = source_yaml["beam_angle"].as<float>();
-                if (source_yaml["beam_speed"]) source.beam_speed = source_yaml["beam_speed"].as<float>();
-                if (source_yaml["beam_spread"]) source.beam_spread = source_yaml["beam_spread"].as<float>();
-                if (source_yaml["generator_status_offset"]) source.generator_status_offset = source_yaml["generator_status_offset"].as<int32_t>();
-                config.sources.push_back(source);
             }
+        } catch (const std::exception& e) {
+            std::cerr << "Error parsing YAML config file '" << config_file << "': " << e.what() << std::endl;
+            return 1;
         }
+#else
+        std::cerr << "Error: YAML configuration support not available. Please use command line options instead." << std::endl;
+        std::cerr << "Rebuild with yaml-cpp support to use YAML configuration files." << std::endl;
+        return 1;
+#endif
     }
     
     // Command-line input files override YAML - add to default source

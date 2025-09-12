@@ -7,11 +7,19 @@
 
 StandaloneTimesliceMerger::StandaloneTimesliceMerger(const MergerConfig& config)
     : m_config(config), gen(rd()), events_generated(0) {
+#ifdef USE_ROOT
+    std::cout << "Initialized ROOT RDataFrame-based timeslice merger with native ROOT support" << std::endl;
+#else
     std::cout << "Initialized ROOT-dataframe-based timeslice merger (using dataframe-like collections)" << std::endl;
+#endif
 }
 
 void StandaloneTimesliceMerger::run() {
+#ifdef USE_ROOT
+    std::cout << "Starting ROOT RDataFrame-based timeslice merger..." << std::endl;
+#else
     std::cout << "Starting dataframe-based timeslice merger..." << std::endl;
+#endif
     std::cout << "Sources: " << m_config.sources.size() << std::endl;
     std::cout << "Output file: " << m_config.output_file << std::endl;
     std::cout << "Max events: " << m_config.max_events << std::endl;
