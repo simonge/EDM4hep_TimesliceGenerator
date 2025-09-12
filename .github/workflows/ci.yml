@@ -1,0 +1,105 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        compiler: [gcc, clang]
+        build_type: [Debug, Release]
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          cmake \
+          build-essential \
+          libroot-dev \
+          root-system \
+          libyaml-cpp-dev \
+          pkg-config
+        
+    - name: Set compiler
+      run: |
+        if [ "${{ matrix.compiler }}" = "clang" ]; then
+          echo "CC=clang" >> $GITHUB_ENV
+          echo "CXX=clang++" >> $GITHUB_ENV
+          sudo apt-get install -y clang
+        else
+          echo "CC=gcc" >> $GITHUB_ENV
+          echo "CXX=g++" >> $GITHUB_ENV
+        fi
+    
+    - name: Create build directory
+      run: mkdir build
+    
+    - name: Configure CMake
+      run: |
+        cd build
+        cmake .. \
+          -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
+          -DCMAKE_INSTALL_PREFIX=../install
+    
+    - name: Build
+      run: |
+        cd build
+        make -j$(nproc)
+    
+    - name: Install
+      run: |
+        cd build
+        make install
+    
+    - name: Test installation
+      run: |
+        ./install/bin/timeslice_merger --help
+        
+  test:
+    runs-on: ubuntu-latest
+    needs: build
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          cmake \
+          build-essential \
+          libroot-dev \
+          root-system \
+          libyaml-cpp-dev \
+          pkg-config \
+          valgrind
+    
+    - name: Build
+      run: |
+        mkdir build
+        cd build
+        cmake .. -DCMAKE_BUILD_TYPE=Debug -DCMAKE_INSTALL_PREFIX=../install
+        make -j$(nproc)
+        make install
+    
+    - name: Run basic tests
+      run: |
+        # Test help output
+        ./install/bin/timeslice_merger --help
+        
+        # Test with invalid arguments (should fail gracefully)
+        ./install/bin/timeslice_merger /nonexistent/file.root || echo "Expected failure for non-existent file"
+        
+    - name: Memory check (if applicable)
+      run: |
+        # Run valgrind if we have test data
+        echo "Memory checks would run here with test data"

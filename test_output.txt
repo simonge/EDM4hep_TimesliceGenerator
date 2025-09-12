@@ -1,0 +1,37 @@
+# TimeframeGenerator2 - ROOT Dataframe Format (Podio Compatible)
+# Generated with dataframe-based merger using helper functions
+# Format maintains podio compatibility while using ROOT libraries directly
+
+# Timeslice 0 (Podio-compatible format from dataframes)
+Timeslice: 0
+Collections: MCParticles EventHeader TrackerHits CalorimeterHits CaloHitContributions
+
+[MCParticles] size=3 type=
+0: PDG=11 status=1 time=702.033 pos=(0.000,0.000,0.000) mom=(1000.000,0.000,0.000)
+1: PDG=-11 status=1 time=702.033 pos=(0.000,0.000,0.000) mom=(2000.000,0.000,0.000)
+2: PDG=22 status=1 time=702.033 pos=(0.000,0.000,0.000) mom=(3000.000,0.000,0.000)
+
+[TrackerHits] size=5 type=
+0: cellID=1000 EDep=0.100 time=702.033 mcParticle=0
+1: cellID=1001 EDep=0.200 time=702.033 mcParticle=1
+2: cellID=1002 EDep=0.300 time=702.033 mcParticle=2
+3: cellID=1003 EDep=0.400 time=702.033 mcParticle=0
+4: cellID=1004 EDep=0.500 time=702.033 mcParticle=1
+# End timeslice 0
+
+# Timeslice 1 (Podio-compatible format from dataframes)
+Timeslice: 1
+Collections: MCParticles EventHeader TrackerHits CalorimeterHits CaloHitContributions
+
+[MCParticles] size=3 type=
+0: PDG=11 status=1 time=545.610 pos=(0.000,0.000,0.000) mom=(1000.000,0.000,0.000)
+1: PDG=-11 status=1 time=545.610 pos=(0.000,0.000,0.000) mom=(2000.000,0.000,0.000)
+2: PDG=22 status=1 time=545.610 pos=(0.000,0.000,0.000) mom=(3000.000,0.000,0.000)
+
+[TrackerHits] size=5 type=
+0: cellID=1000 EDep=0.100 time=545.610 mcParticle=0
+1: cellID=1001 EDep=0.200 time=545.610 mcParticle=1
+2: cellID=1002 EDep=0.300 time=545.610 mcParticle=2
+3: cellID=1003 EDep=0.400 time=545.610 mcParticle=0
+4: cellID=1004 EDep=0.500 time=545.610 mcParticle=1
+# End timeslice 1
