@@ -603,38 +603,100 @@ void StandaloneTimesliceMerger::mergeEventData(SourceReader& source, size_t even
 }
 
 void StandaloneTimesliceMerger::setupOutputTree(TTree* tree) {
-    // Set branch addresses for output tree
-    tree->Branch("MCParticles", &merged_mcparticles);
-    tree->Branch("EventHeader", &merged_event_headers);
-    tree->Branch("SubEventHeaders", &merged_sub_event_headers);
+    // Create a list of all collections and their reference branches in alphabetical order
+    struct BranchInfo {
+        std::string name;
+        std::string type; // "main", "mcparticle", "tracker", "calo", "calocontrib", "header"
+        bool is_reference;
+        std::string ref_suffix;
+    };
     
-    // Setup branches for MCParticle parent-child relationships
-    tree->Branch("_MCParticles_parents", &merged_mcparticle_parents_refs["MCParticles"]);
-    tree->Branch("_MCParticles_daughters", &merged_mcparticle_children_refs["MCParticles"]);
+    std::vector<BranchInfo> branches_to_create;
     
-    // Setup branches for tracker hits
+    // Add fixed header branches first (these don't follow alphabetical ordering)
+    branches_to_create.push_back({"EventHeader", "header", false, ""});
+    branches_to_create.push_back({"SubEventHeaders", "header", false, ""});
+    
+    // Add MCParticles and its reference branches
+    branches_to_create.push_back({"MCParticles", "mcparticle", false, ""});
+    branches_to_create.push_back({"_MCParticles_daughters", "mcparticle", true, "daughters"});
+    branches_to_create.push_back({"_MCParticles_parents", "mcparticle", true, "parents"});
+    
+    // Collect all other collections and sort them alphabetically
+    std::vector<std::string> all_collections;
+    
+    // Add tracker collections
     for (const auto& name : tracker_collection_names) {
-        tree->Branch(name.c_str(), &merged_tracker_hits[name]);
-        // Also create the particle reference branch
-        std::string ref_branch_name = "_" + name + "_particle";
-        tree->Branch(ref_branch_name.c_str(), &merged_tracker_hit_particle_refs[name]);
+        all_collections.push_back(name + "|tracker");
     }
     
-    // Setup branches for calo hits
+    // Add calo collections  
     for (const auto& name : calo_collection_names) {
-        tree->Branch(name.c_str(), &merged_calo_hits[name]);
-        // Also create the contributions reference branch
-        std::string contrib_ref_branch_name = "_" + name + "_contributions";
-        tree->Branch(contrib_ref_branch_name.c_str(), &merged_calo_hit_contributions_refs[name]);
+        all_collections.push_back(name + "|calo");
     }
     
-    // Setup branches for calo contributions
+    // Add calo contribution collections
     for (const auto& name : calo_contrib_collection_names) {
-        tree->Branch(name.c_str(), &merged_calo_contributions[name]);
-        // Also create the particle reference branch
-        std::string ref_branch_name = "_" + name + "_particle";
-        tree->Branch(ref_branch_name.c_str(), &merged_calo_contrib_particle_refs[name]);
+        all_collections.push_back(name + "|calocontrib");
     }
+    
+    // Sort alphabetically by collection name
+    std::sort(all_collections.begin(), all_collections.end());
+    
+    // Create branch entries for sorted collections
+    for (const auto& collection_with_type : all_collections) {
+        size_t pos = collection_with_type.find("|");
+        std::string collection_name = collection_with_type.substr(0, pos);
+        std::string collection_type = collection_with_type.substr(pos + 1);
+        
+        // Add main collection branch
+        branches_to_create.push_back({collection_name, collection_type, false, ""});
+        
+        // Add reference branches immediately after main branch
+        if (collection_type == "tracker") {
+            branches_to_create.push_back({"_" + collection_name + "_particle", collection_type, true, "particle"});
+        } else if (collection_type == "calo") {
+            branches_to_create.push_back({"_" + collection_name + "_contributions", collection_type, true, "contributions"});
+        } else if (collection_type == "calocontrib") {
+            branches_to_create.push_back({"_" + collection_name + "_particle", collection_type, true, "particle"});
+        }
+    }
+    
+    // Create all branches in the determined order
+    for (const auto& branch : branches_to_create) {
+        if (branch.type == "header") {
+            if (branch.name == "EventHeader") {
+                tree->Branch("EventHeader", &merged_event_headers);
+            } else if (branch.name == "SubEventHeaders") {
+                tree->Branch("SubEventHeaders", &merged_sub_event_headers);
+            }
+        } else if (branch.type == "mcparticle" && !branch.is_reference) {
+            tree->Branch("MCParticles", &merged_mcparticles);
+        } else if (branch.type == "mcparticle" && branch.is_reference) {
+            if (branch.ref_suffix == "parents") {
+                tree->Branch("_MCParticles_parents", &merged_mcparticle_parents_refs["MCParticles"]);
+            } else if (branch.ref_suffix == "daughters") {
+                tree->Branch("_MCParticles_daughters", &merged_mcparticle_children_refs["MCParticles"]);
+            }
+        } else if (branch.type == "tracker" && !branch.is_reference) {
+            tree->Branch(branch.name.c_str(), &merged_tracker_hits[branch.name]);
+        } else if (branch.type == "tracker" && branch.is_reference) {
+            std::string collection_name = branch.name.substr(1, branch.name.length() - 10); // Remove "_" and "_particle"
+            tree->Branch(branch.name.c_str(), &merged_tracker_hit_particle_refs[collection_name]);
+        } else if (branch.type == "calo" && !branch.is_reference) {
+            tree->Branch(branch.name.c_str(), &merged_calo_hits[branch.name]);
+        } else if (branch.type == "calo" && branch.is_reference) {
+            std::string collection_name = branch.name.substr(1, branch.name.length() - 15); // Remove "_" and "_contributions"
+            tree->Branch(branch.name.c_str(), &merged_calo_hit_contributions_refs[collection_name]);
+        } else if (branch.type == "calocontrib" && !branch.is_reference) {
+            tree->Branch(branch.name.c_str(), &merged_calo_contributions[branch.name]);
+        } else if (branch.type == "calocontrib" && branch.is_reference) {
+            std::string collection_name = branch.name.substr(1, branch.name.length() - 10); // Remove "_" and "_particle"
+            tree->Branch(branch.name.c_str(), &merged_calo_contrib_particle_refs[collection_name]);
+        }
+    }
+    
+    std::cout << "Created " << branches_to_create.size() << " branches in alphabetical order" << std::endl;
 }
 
 void StandaloneTimesliceMerger::writeTimesliceToTree(TTree* tree) {
