@@ -36,11 +36,14 @@ public:
     bool loadNextEvent();
     
     // Time offset generation
-    float generateTimeOffset(float distance, std::mt19937& rng) const;
+    float generateTimeOffset(float distance, float time_slice_duration, float bunch_crossing_period, std::mt19937& rng) const;
     
     // Data merging methods
     void mergeEventData(size_t event_index, 
                        size_t particle_index_offset,
+                       float time_slice_duration,
+                       float bunch_crossing_period,
+                       std::mt19937& rng,
                        std::vector<edm4hep::MCParticleData>& merged_mcparticles,
                        std::unordered_map<std::string, std::vector<edm4hep::SimTrackerHitData>>& merged_tracker_hits,
                        std::unordered_map<std::string, std::vector<edm4hep::SimCalorimeterHitData>>& merged_calo_hits,

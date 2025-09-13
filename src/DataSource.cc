@@ -79,10 +79,17 @@ bool DataSource::loadNextEvent() {
     return true;
 }
 
-float DataSource::generateTimeOffset(float distance, std::mt19937& rng) const {
-    float time_offset = 0.0f;
+float DataSource::generateTimeOffset(float distance, float time_slice_duration, float bunch_crossing_period, std::mt19937& rng) const {
+    std::uniform_real_distribution<float> uniform(0.0f, time_slice_duration);
+    float time_offset = uniform(rng);
     
     if (!config_->already_merged) {
+        // Apply bunch crossing if enabled
+        if (config_->use_bunch_crossing) {
+            time_offset = std::floor(time_offset / bunch_crossing_period) * bunch_crossing_period;
+        }
+        
+        // Apply beam effects if enabled
         if (config_->attach_to_beam) {
             // Add time offset based on distance along beam
             time_offset += distance / config_->beam_speed;
@@ -100,6 +107,9 @@ float DataSource::generateTimeOffset(float distance, std::mt19937& rng) const {
 
 void DataSource::mergeEventData(size_t event_index,
                                size_t particle_index_offset,
+                               float time_slice_duration,
+                               float bunch_crossing_period,
+                               std::mt19937& rng,
                                std::vector<edm4hep::MCParticleData>& merged_mcparticles,
                                std::unordered_map<std::string, std::vector<edm4hep::SimTrackerHitData>>& merged_tracker_hits,
                                std::unordered_map<std::string, std::vector<edm4hep::SimCalorimeterHitData>>& merged_calo_hits,
@@ -137,6 +147,7 @@ void DataSource::mergeEventData(size_t event_index,
                 std::cout << "Warning: Could not access MCParticles for beam attachment: " << e.what() << std::endl;
             }
         }
+        time_offset = generateTimeOffset(distance, time_slice_duration, bunch_crossing_period, rng);
     }
 
     // Process particles if this is first source or not already merged

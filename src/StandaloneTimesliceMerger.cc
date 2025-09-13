@@ -164,6 +164,9 @@ void StandaloneTimesliceMerger::createMergedTimeslice(std::vector<std::unique_pt
             // Read and merge event data from this source
             data_source->mergeEventData(data_source->getCurrentEntryIndex(), 
                                       particle_index_offset,
+                                      m_config.time_slice_duration,
+                                      m_config.bunch_crossing_period,
+                                      gen,
                                       merged_mcparticles,
                                       merged_tracker_hits,
                                       merged_calo_hits,
