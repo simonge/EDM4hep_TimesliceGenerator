@@ -7,7 +7,10 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 link_directories(/opt/local/lib)
 
-# Find PODIO (required for standalone merger)
+# Find ROOT (required for TTree/TChain approach)
+find_package(ROOT REQUIRED)
+
+# Find PODIO (required for data types)
 find_package(podio REQUIRED)
 
 # Find EDM4HEP
@@ -18,6 +21,7 @@ find_package(yaml-cpp REQUIRED)
 
 # Include directories
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
+include_directories(${ROOT_INCLUDE_DIRS})
 
 # Create the standalone executable
 add_executable(timeslice_merger
@@ -25,13 +29,17 @@ add_executable(timeslice_merger
     src/timeslice_merger_main.cc
 )
 
-# Link against PODIO and EDM4HEP
+# Link against ROOT, PODIO and EDM4HEP
 target_link_libraries(timeslice_merger
+    ${ROOT_LIBRARIES}
     podio::podioRootIO
     EDM4HEP::edm4hep
     EDM4HEP::edm4hepDict
     yaml-cpp
 )
+
+# Add ROOT compilation flags
+#target_compile_definitions(timeslice_merger PRIVATE ${ROOT_CXX_FLAGS})
 
 # Set install prefix if not specified
 if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
