@@ -38,6 +38,16 @@ target_link_libraries(timeslice_merger
     yaml-cpp
 )
 
+# Create test executable for file format verification
+add_executable(test_file_format
+    src/test_file_format.cc
+)
+
+# Link against ROOT only for basic format test
+target_link_libraries(test_file_format
+    ${ROOT_LIBRARIES}
+)
+
 # Add ROOT compilation flags
 #target_compile_definitions(timeslice_merger PRIVATE ${ROOT_CXX_FLAGS})
 
@@ -46,5 +56,5 @@ if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
     set(CMAKE_INSTALL_PREFIX "${CMAKE_CURRENT_SOURCE_DIR}/install" CACHE PATH "Installation directory" FORCE)
 endif()
 
-# Install the executable
-install(TARGETS timeslice_merger DESTINATION bin)
+# Install the executables
+install(TARGETS timeslice_merger test_file_format DESTINATION bin)
