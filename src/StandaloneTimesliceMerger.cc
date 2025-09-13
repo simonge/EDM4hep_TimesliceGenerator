@@ -512,7 +512,41 @@ void StandaloneTimesliceMerger::mergeEventData(SourceReader& source, size_t even
         }
     }
 
-    // Process calorimeter hits and their contribution relationships
+    // Process calorimeter contributions FIRST (before calorimeter hits that reference them)
+    for (const auto& name : calo_contrib_collection_names) {
+        if (source.calo_contrib_branches.count(name) && source.calo_contrib_particle_refs.count(name)) {
+            const auto& contribs = *source.calo_contrib_branches[name];
+            const auto& particle_refs = *source.calo_contrib_particle_refs[name];
+            
+            if (contribs.size() != particle_refs.size()) {
+                std::cout << "Warning: Mismatch between contribution count (" << contribs.size() 
+                         << ") and particle reference count (" << particle_refs.size() 
+                         << ") for collection " << name << std::endl;
+                continue;
+            }
+            
+            for (size_t i = 0; i < contribs.size(); ++i) {
+                const auto& contrib = contribs[i];
+                const auto& particle_ref = particle_refs[i];
+                
+                edm4hep::CaloHitContributionData new_contrib = contrib;
+                new_contrib.time += time_offset;
+                merged_calo_contributions[name].push_back(new_contrib);
+                
+                // Update particle reference if valid
+                podio::ObjectID new_particle_ref = particle_ref;
+                if (particle_ref.index >= 0 && particle_ref.index < static_cast<int>(particles.size())) {
+                    new_particle_ref.index = particle_index_offset + particle_ref.index;
+                } else if (particle_ref.index >= 0) {
+                    std::cout << "Warning: Calo contribution particle reference index " << particle_ref.index 
+                             << " is out of range for particle collection size " << particles.size() << std::endl;
+                }
+                merged_calo_contrib_particle_refs[name].push_back(new_particle_ref);
+            }
+        }
+    }
+
+    // Process calorimeter hits and their contribution relationships (AFTER contributions are processed)
     for (const auto& name : calo_collection_names) {
         if (source.calo_hit_branches.count(name)) {
             const auto& hits = *source.calo_hit_branches[name];
@@ -523,15 +557,33 @@ void StandaloneTimesliceMerger::mergeEventData(SourceReader& source, size_t even
                 contributions_refs = *source.calo_hit_contributions_refs[name];
             }
             
-            // Calculate contribution index offset based on the first available contribution collection
-            // TODO: This assumes all hits reference the same contribution collection type
-            // In a proper implementation, we'd need to know which contribution collection each hit references
+            // Calculate contribution index offset based on the corresponding contribution collection
+            // NOTE: This offset was calculated BEFORE the contributions from this event were added,
+            // so it represents where the contributions from this event start in the merged collection
+            std::string corresponding_contrib_collection = getCorrespondingContributionCollection(name);
             size_t contribution_index_offset = 0;
-            if (!calo_contrib_collection_names.empty()) {
-                const std::string& first_contrib_name = calo_contrib_collection_names[0];
-                if (merged_calo_contributions.count(first_contrib_name)) {
-                    contribution_index_offset = merged_calo_contributions[first_contrib_name].size();
+            
+            if (!corresponding_contrib_collection.empty() && merged_calo_contributions.count(corresponding_contrib_collection)) {
+                // Find the offset that was valid BEFORE adding contributions from this event
+                // We need to subtract the number of contributions just added from this event
+                size_t current_size = merged_calo_contributions[corresponding_contrib_collection].size();
+                size_t contributions_from_this_event = 0;
+                
+                if (source.calo_contrib_branches.count(corresponding_contrib_collection)) {
+                    contributions_from_this_event = source.calo_contrib_branches[corresponding_contrib_collection]->size();
                 }
+                
+                contribution_index_offset = current_size - contributions_from_this_event;
+                
+                if (m_config.max_events <= 5) { // Debug logging for first few events
+                    std::cout << "    Debug: Calo collection " << name 
+                             << " using contribution collection " << corresponding_contrib_collection
+                             << " with offset " << contribution_index_offset 
+                             << " (current size: " << current_size << ", added: " << contributions_from_this_event << ")" << std::endl;
+                }
+            } else if (!corresponding_contrib_collection.empty()) {
+                std::cout << "Warning: Contribution collection " << corresponding_contrib_collection 
+                         << " not found in merged collections for " << name << std::endl;
             }
             
             for (size_t i = 0; i < hits.size(); ++i) {
@@ -563,40 +615,6 @@ void StandaloneTimesliceMerger::mergeEventData(SourceReader& source, size_t even
                     invalid_ref.index = -1;
                     merged_calo_hit_contributions_refs[name].push_back(invalid_ref);
                 }
-            }
-        }
-    }
-
-    // Process calorimeter contributions
-    for (const auto& name : calo_contrib_collection_names) {
-        if (source.calo_contrib_branches.count(name) && source.calo_contrib_particle_refs.count(name)) {
-            const auto& contribs = *source.calo_contrib_branches[name];
-            const auto& particle_refs = *source.calo_contrib_particle_refs[name];
-            
-            if (contribs.size() != particle_refs.size()) {
-                std::cout << "Warning: Mismatch between contribution count (" << contribs.size() 
-                         << ") and particle reference count (" << particle_refs.size() 
-                         << ") for collection " << name << std::endl;
-                continue;
-            }
-            
-            for (size_t i = 0; i < contribs.size(); ++i) {
-                const auto& contrib = contribs[i];
-                const auto& particle_ref = particle_refs[i];
-                
-                edm4hep::CaloHitContributionData new_contrib = contrib;
-                new_contrib.time += time_offset;
-                merged_calo_contributions[name].push_back(new_contrib);
-                
-                // Update particle reference if valid
-                podio::ObjectID new_particle_ref = particle_ref;
-                if (particle_ref.index >= 0 && particle_ref.index < static_cast<int>(particles.size())) {
-                    new_particle_ref.index = particle_index_offset + particle_ref.index;
-                } else if (particle_ref.index >= 0) {
-                    std::cout << "Warning: Calo contribution particle reference index " << particle_ref.index 
-                             << " is out of range for particle collection size " << particles.size() << std::endl;
-                }
-                merged_calo_contrib_particle_refs[name].push_back(new_particle_ref);
             }
         }
     }
@@ -1010,4 +1028,43 @@ void StandaloneTimesliceMerger::validateObjectIDConsistency() {
     }
     
     std::cout << "=== Validation Complete ===" << std::endl;
+}
+
+std::string StandaloneTimesliceMerger::getCorrespondingContributionCollection(const std::string& calo_collection_name) {
+    // Try to find a matching contribution collection based on naming patterns
+    // Common patterns:
+    // EcalBarrelHits -> EcalBarrelContributions
+    // HcalEndcapHits -> HcalEndcapContributions
+    // SomeCaloHits -> SomeCaloContributions
+    
+    for (const auto& contrib_name : calo_contrib_collection_names) {
+        // Try removing "Hits" from calo name and "Contributions" from contrib name
+        std::string calo_base = calo_collection_name;
+        std::string contrib_base = contrib_name;
+        
+        // Remove "Hits" suffix from calorimeter collection name
+        if (calo_base.length() > 4 && calo_base.substr(calo_base.length() - 4) == "Hits") {
+            calo_base = calo_base.substr(0, calo_base.length() - 4);
+        }
+        
+        // Remove "Contributions" suffix from contribution collection name  
+        if (contrib_base.length() > 13 && contrib_base.substr(contrib_base.length() - 13) == "Contributions") {
+            contrib_base = contrib_base.substr(0, contrib_base.length() - 13);
+        }
+        
+        // Check if the base names match
+        if (calo_base == contrib_base) {
+            return contrib_name;
+        }
+    }
+    
+    // If no specific match found, return the first contribution collection as fallback
+    // This maintains backward compatibility with the old behavior
+    if (!calo_contrib_collection_names.empty()) {
+        std::cout << "Warning: No specific contribution collection found for " << calo_collection_name 
+                 << ", using first available: " << calo_contrib_collection_names[0] << std::endl;
+        return calo_contrib_collection_names[0];
+    }
+    
+    return ""; // No contribution collections available
 }

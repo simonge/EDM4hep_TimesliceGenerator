@@ -96,4 +96,5 @@ private:
     std::vector<std::string> discoverCollectionNames(SourceReader& reader, const std::string& branch_pattern);
     void copyPodioMetadata(std::vector<SourceReader>& inputs, std::unique_ptr<TFile>& output_file);
     void validateObjectIDConsistency();
+    std::string getCorrespondingContributionCollection(const std::string& calo_collection_name);
 };
