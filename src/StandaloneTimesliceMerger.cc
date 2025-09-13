@@ -28,6 +28,9 @@ void StandaloneTimesliceMerger::run() {
     auto inputs = initializeInputFiles();
     setupOutputTree(output_tree);
 
+    // Copy podio_metadata tree from first source file to output file
+    copyPodioMetadata(inputs, output_file);
+
     std::cout << "Processing " << m_config.max_events << " timeslices..." << std::endl;
 
     while (events_generated < m_config.max_events) {
@@ -124,8 +127,8 @@ std::vector<SourceReader> StandaloneTimesliceMerger::initializeInputFiles() {
                     std::cout << "  Setting up: " << coll_name << std::endl;
                     
                     if (coll_name == "MCParticles") {
-                        source_reader.mcparticle_branches[coll_name] = new std::vector<edm4hep::MCParticleData>();
-                        int result = source_reader.chain->SetBranchAddress(coll_name.c_str(), &source_reader.mcparticle_branches[coll_name]);
+                        source_reader.mcparticle_branch = new std::vector<edm4hep::MCParticleData>();
+                        int result = source_reader.chain->SetBranchAddress(coll_name.c_str(), &source_reader.mcparticle_branch);
                         if (result != 0) {
                             std::cout << "    ❌ Could not set branch address for " << coll_name << " (result: " << result << ")" << std::endl;
                         } else {
@@ -135,18 +138,18 @@ std::vector<SourceReader> StandaloneTimesliceMerger::initializeInputFiles() {
                         // Also setup the parent and children reference branches
                         std::string parents_branch_name = "_MCParticles_parents";
                         std::string children_branch_name = "_MCParticles_daughters";
-                        source_reader.mcparticle_parents_refs[coll_name] = new std::vector<podio::ObjectID>();
-                        source_reader.mcparticle_children_refs[coll_name] = new std::vector<podio::ObjectID>();
-                        
-                        result = source_reader.chain->SetBranchAddress(parents_branch_name.c_str(), &source_reader.mcparticle_parents_refs[coll_name]);
+                        source_reader.mcparticle_parents_refs = new std::vector<podio::ObjectID>();
+                        source_reader.mcparticle_children_refs = new std::vector<podio::ObjectID>();
+
+                        result = source_reader.chain->SetBranchAddress(parents_branch_name.c_str(), &source_reader.mcparticle_parents_refs);
                         if (result != 0) {
                             std::cout << "    ⚠️  Could not set branch address for " << parents_branch_name << " (result: " << result << ")" << std::endl;
                             std::cout << "       This may be normal if the input file doesn't contain MCParticle relationship information" << std::endl;
                         } else {
                             std::cout << "    ✓ Successfully set up " << parents_branch_name << std::endl;
                         }
-                        
-                        result = source_reader.chain->SetBranchAddress(children_branch_name.c_str(), &source_reader.mcparticle_children_refs[coll_name]);
+
+                        result = source_reader.chain->SetBranchAddress(children_branch_name.c_str(), &source_reader.mcparticle_children_refs);
                         if (result != 0) {
                             std::cout << "    ⚠️  Could not set branch address for " << children_branch_name << " (result: " << result << ")" << std::endl;
                             std::cout << "       This may be normal if the input file doesn't contain MCParticle relationship information" << std::endl;
@@ -289,12 +292,8 @@ void StandaloneTimesliceMerger::createMergedTimeslice(std::vector<SourceReader>&
     for (auto& [name, vec] : merged_calo_contrib_particle_refs) {
         vec.clear();
     }
-    for (auto& [name, vec] : merged_mcparticle_parents_refs) {
-        vec.clear();
-    }
-    for (auto& [name, vec] : merged_mcparticle_children_refs) {
-        vec.clear();
-    }
+    merged_mcparticle_parents_refs.clear();
+    merged_mcparticle_children_refs.clear();
     for (auto& [name, vec] : merged_calo_hit_contributions_refs) {
         vec.clear();
     }
@@ -337,11 +336,10 @@ void StandaloneTimesliceMerger::mergeEventData(SourceReader& source, size_t even
     float distance = 0.0f;
     
     // Get the particles vector for reference handling
-    std::vector<edm4hep::MCParticleData> particles;
-    if (source.mcparticle_branches.count("MCParticles")) {
-        particles = *source.mcparticle_branches["MCParticles"];
-    }
-    
+    auto& particles = *source.mcparticle_branch;
+    auto& parents_refs = *source.mcparticle_parents_refs;
+    auto& children_refs = *source.mcparticle_children_refs;
+
     // Calculate time offset if not already merged
     if (!sourceConfig.already_merged) {
         if (sourceConfig.attach_to_beam && !particles.empty()) {
@@ -361,255 +359,301 @@ void StandaloneTimesliceMerger::mergeEventData(SourceReader& source, size_t even
         time_offset = generateTimeOffset(sourceConfig, distance);
     }
 
-    // Keep track of starting index for MCParticles from this event
-    size_t particle_index_offset = merged_mcparticles.size();
+    // Start the merging process
+    if(!sourceConfig.already_merged && merged_mcparticles.empty()) {
+        // If first source is already merged, just need to move data and not update times or references
+        // Keep track of starting index for MCParticles from this event
+        size_t particle_index_offset = merged_mcparticles.size();
 
-    // Process MCParticles
-    for (const auto& particle : particles) {
-        edm4hep::MCParticleData new_particle = particle;
-        new_particle.time += time_offset;
-        // Update generator status offset
-        new_particle.generatorStatus += sourceConfig.generator_status_offset;
-        merged_mcparticles.push_back(new_particle);
-    }
-    
-    // Process MCParticle parent-child relationships
-    if (source.mcparticle_parents_refs.count("MCParticles") && source.mcparticle_children_refs.count("MCParticles")) {
-        const auto& parents_refs = *source.mcparticle_parents_refs["MCParticles"];
-        const auto& children_refs = *source.mcparticle_children_refs["MCParticles"];
-        
-        std::cout << "Processing MCParticle relationships: " << parents_refs.size() << " parent refs, " 
-                  << children_refs.size() << " children refs" << std::endl;
-        
-        // Initialize merged relationship vectors if not already done
-        if (merged_mcparticle_parents_refs.find("MCParticles") == merged_mcparticle_parents_refs.end()) {
-            merged_mcparticle_parents_refs["MCParticles"] = std::vector<podio::ObjectID>();
+        // Process MCParticles
+        for (auto& particle : particles) {
+            // edm4hep::MCParticleData new_particle = particle;
+            particle.time += time_offset;
+            // Update generator status offset
+            particle.generatorStatus += sourceConfig.generator_status_offset;
+            particle.parents_begin   += particle_index_offset;
+            particle.parents_end     += particle_index_offset;
+            particle.daughters_begin += particle_index_offset;
+            particle.daughters_end   += particle_index_offset;
+            // merged_mcparticles.push_back(particle);
         }
-        if (merged_mcparticle_children_refs.find("MCParticles") == merged_mcparticle_children_refs.end()) {
-            merged_mcparticle_children_refs["MCParticles"] = std::vector<podio::ObjectID>();
-        }
+
         
+        // Process MCParticle parent-child relationships
         // Update parent references - adjust indices to account for particle offset
-        for (const auto& parent_ref : parents_refs) {
-            podio::ObjectID new_parent_ref = parent_ref;
-            if (parent_ref.index >= 0 && parent_ref.index < static_cast<int>(particles.size())) {
-                new_parent_ref.index = particle_index_offset + parent_ref.index;
-            }
-            merged_mcparticle_parents_refs["MCParticles"].push_back(new_parent_ref);
+        for (auto& parent_ref : parents_refs) {
+            parent_ref.index = particle_index_offset + parent_ref.index;
         }
         
         // Update children references - adjust indices to account for particle offset
-        for (const auto& child_ref : children_refs) {
-            podio::ObjectID new_child_ref = child_ref;
-            if (child_ref.index >= 0 && child_ref.index < static_cast<int>(particles.size())) {
-                new_child_ref.index = particle_index_offset + child_ref.index;
-            }
-            merged_mcparticle_children_refs["MCParticles"].push_back(new_child_ref);
+        for (auto& child_ref : children_refs) {
+            child_ref.index = particle_index_offset + child_ref.index;
         }
-    } else {
-        std::cout << "No MCParticle parent-child relationship branches found in input" << std::endl;
-    }
 
-    // Process SubEventHeaders
-    if (sourceConfig.already_merged && source.event_header_branches.count("SubEventHeaders")) {
-        const auto& sub_headers = *source.event_header_branches["SubEventHeaders"];
-        for (const auto& header : sub_headers) {
-            edm4hep::EventHeaderData new_header = header;
-            new_header.eventNumber = merged_sub_event_headers.size();
-            // Update timestamp to reflect new MCParticle index offset
-            new_header.timeStamp = particle_index_offset + header.timeStamp;
-            merged_sub_event_headers.push_back(new_header);
-        }
-    } else {
-        // Create new SubEventHeader for regular source
-        edm4hep::EventHeaderData sub_header{};
-        sub_header.eventNumber = merged_sub_event_headers.size();
-        sub_header.runNumber = 0;
-        sub_header.timeStamp = particle_index_offset; // index of first MCParticle for this sub-event
-        sub_header.weight = time_offset; // time offset
-        
-        // Copy weights from EventHeader if available
-        if (source.event_header_branches.count("EventHeader")) {
-            const auto& event_headers = *source.event_header_branches["EventHeader"];
-            if (!event_headers.empty()) {
-                const auto& event_header = event_headers[0];
-                // Note: EventHeaderData doesn't have weights vector, so we store time_offset in weight field
-            }
-        }
-        merged_sub_event_headers.push_back(sub_header);
-    }
 
-    // Initialize merged collections for tracker hits if not already done
-    for (const auto& name : tracker_collection_names) {
-        if (merged_tracker_hits.find(name) == merged_tracker_hits.end()) {
-            merged_tracker_hits[name] = std::vector<edm4hep::SimTrackerHitData>();
-        }
-        if (merged_tracker_hit_particle_refs.find(name) == merged_tracker_hit_particle_refs.end()) {
-            merged_tracker_hit_particle_refs[name] = std::vector<podio::ObjectID>();
-        }
-    }
-
-    // Initialize merged collections for calo hits if not already done  
-    for (const auto& name : calo_collection_names) {
-        if (merged_calo_hits.find(name) == merged_calo_hits.end()) {
-            merged_calo_hits[name] = std::vector<edm4hep::SimCalorimeterHitData>();
-        }
-        if (merged_calo_hit_contributions_refs.find(name) == merged_calo_hit_contributions_refs.end()) {
-            merged_calo_hit_contributions_refs[name] = std::vector<podio::ObjectID>();
-        }
-    }
-
-    // Initialize merged collections for calo contributions if not already done
-    for (const auto& name : calo_contrib_collection_names) {
-        if (merged_calo_contributions.find(name) == merged_calo_contributions.end()) {
-            merged_calo_contributions[name] = std::vector<edm4hep::CaloHitContributionData>();
-        }
-        if (merged_calo_contrib_particle_refs.find(name) == merged_calo_contrib_particle_refs.end()) {
-            merged_calo_contrib_particle_refs[name] = std::vector<podio::ObjectID>();
-        }
-    }
-
-    // Process tracker hits
-    for (const auto& name : tracker_collection_names) {
-        if (source.tracker_hit_branches.count(name) && source.tracker_hit_particle_refs.count(name)) {
-            const auto& hits = *source.tracker_hit_branches[name];
-            const auto& particle_refs = *source.tracker_hit_particle_refs[name];
+        // Process SubEventHeaders
+        // if (sourceConfig.already_merged && source.event_header_branches.count("SubEventHeaders")) {
+        //     const auto& sub_headers = *source.event_header_branches["SubEventHeaders"];
+        //     for (const auto& header : sub_headers) {
+        //         edm4hep::EventHeaderData new_header = header;
+        //         new_header.eventNumber = merged_sub_event_headers.size();
+        //         // Update timestamp to reflect new MCParticle index offset
+        //         new_header.timeStamp = particle_index_offset + header.timeStamp;
+        //         merged_sub_event_headers.push_back(new_header);
+        //     }
+        // } else {
+        //     // Create new SubEventHeader for regular source
+        //     edm4hep::EventHeaderData sub_header{};
+        //     sub_header.eventNumber = merged_sub_event_headers.size();
+        //     sub_header.runNumber = 0;
+        //     sub_header.timeStamp = particle_index_offset; // index of first MCParticle for this sub-event
+        //     sub_header.weight = time_offset; // time offset
             
-            if (hits.size() != particle_refs.size()) {
-                std::cout << "Warning: Mismatch between hit count (" << hits.size() 
-                         << ") and particle reference count (" << particle_refs.size() 
-                         << ") for collection " << name << std::endl;
-                continue;
-            }
-            
-            for (size_t i = 0; i < hits.size(); ++i) {
-                const auto& hit = hits[i];
-                const auto& particle_ref = particle_refs[i];
+        //     // Copy weights from EventHeader if available
+        //     if (source.event_header_branches.count("EventHeader")) {
+        //         const auto& event_headers = *source.event_header_branches["EventHeader"];
+        //         if (!event_headers.empty()) {
+        //             const auto& event_header = event_headers[0];
+        //             // Note: EventHeaderData doesn't have weights vector, so we store time_offset in weight field
+        //         }
+        //     }
+        //     merged_sub_event_headers.push_back(sub_header);
+        // }
+
+
+
+        // Process edm4hep::SimTrackerHits
+        for (const auto& name : tracker_collection_names) {
+            if (source.tracker_hit_branches.count(name) && source.tracker_hit_particle_refs.count(name)) {
+                auto& hits = *source.tracker_hit_branches[name];
+                auto& particle_refs = *source.tracker_hit_particle_refs[name];
                 
-                edm4hep::SimTrackerHitData new_hit = hit;
-                new_hit.time += time_offset;
-                merged_tracker_hits[name].push_back(new_hit);
-                
-                // Update particle reference if valid
-                podio::ObjectID new_particle_ref = particle_ref;
-                if (particle_ref.index >= 0 && particle_ref.index < static_cast<int>(particles.size())) {
-                    new_particle_ref.index = particle_index_offset + particle_ref.index;
-                }
-                merged_tracker_hit_particle_refs[name].push_back(new_particle_ref);
-            }
-        }
-    }
-
-    // Process calorimeter hits and their contribution relationships
-    for (const auto& name : calo_collection_names) {
-        if (source.calo_hit_branches.count(name)) {
-            const auto& hits = *source.calo_hit_branches[name];
-            
-            // Process the contribution relationships if available
-            std::vector<podio::ObjectID> contributions_refs;
-            if (source.calo_hit_contributions_refs.count(name)) {
-                contributions_refs = *source.calo_hit_contributions_refs[name];
-            }
-            
-            size_t contribution_index_offset = 0;
-            for (const auto& contrib_name : calo_contrib_collection_names) {
-                if (merged_calo_contributions.count(contrib_name)) {
-                    contribution_index_offset = merged_calo_contributions[contrib_name].size();
-                    break; // Assume all contribution collections have the same offset
+                for (size_t i = 0; i < hits.size(); ++i) {
+                    auto& hit = hits[i];
+                    auto& particle_ref = particle_refs[i];
+                    hit.time += time_offset;            
+                    particle_ref.index = particle_index_offset + particle_ref.index;
                 }
             }
+        }
+
+        // Process calorimeter hits and contributions together
+        for (const auto& calo_name : calo_collection_names) {
+            // Only process if the branches exist for this source
+            if (!source.calo_hit_branches.count(calo_name)) {
+                continue; // Skip this collection if not available in this source
+            }
+
+            //Get size of contributions before adding new ones
+            size_t existing_contrib_size = merged_calo_contributions[calo_name].size();
+                    
+            auto& hits = *source.calo_hit_branches[calo_name];
             
-            for (size_t i = 0; i < hits.size(); ++i) {
-                const auto& hit = hits[i];
-                edm4hep::SimCalorimeterHitData new_hit = hit;
-                // Note: SimCalorimeterHitData doesn't have time field directly, 
-                // time is in the contributions
-                merged_calo_hits[name].push_back(new_hit);
+            // Check if contribution references exist for this source
+            if (source.calo_hit_contributions_refs.count(calo_name)) {
+                auto& contributions_refs = *source.calo_hit_contributions_refs[calo_name];
                 
-                // Process contribution references if available
-                if (i < contributions_refs.size()) {
-                    podio::ObjectID new_contrib_ref = contributions_refs[i];
-                    // Update contribution reference indices to account for merging offset
-                    if (new_contrib_ref.index >= 0) {
-                        new_contrib_ref.index = contribution_index_offset + new_contrib_ref.index;
+                //process hits 
+                for (size_t i = 0; i < hits.size(); ++i) {
+                    auto& hit = hits[i];
+                    hit.contributions_begin += existing_contrib_size;
+                    hit.contributions_end   += existing_contrib_size;
+
+                    if (i < contributions_refs.size()) {
+                        auto& contributions_ref = contributions_refs[i];
+                        contributions_ref.index = existing_contrib_size + contributions_ref.index;
                     }
-                    merged_calo_hit_contributions_refs[name].push_back(new_contrib_ref);
+                }
+            } else {
+                // Process hits without contribution references
+                for (size_t i = 0; i < hits.size(); ++i) {
+                    auto& hit = hits[i];
+                    hit.contributions_begin += existing_contrib_size;
+                    hit.contributions_end   += existing_contrib_size;
+                }
+            }
+            
+            // Find the corresponding contribution collection and process if available
+            std::string corresponding_contrib_collection = getCorrespondingContributionCollection(calo_name);
+            if (!corresponding_contrib_collection.empty() && 
+                source.calo_contrib_branches.count(corresponding_contrib_collection) &&
+                source.calo_contrib_particle_refs.count(corresponding_contrib_collection)) {
+                
+                auto& contribs = *source.calo_contrib_branches[corresponding_contrib_collection];
+                auto& particle_refs = *source.calo_contrib_particle_refs[corresponding_contrib_collection];
+                
+                // Process contributions directly into merged vectors
+                for (size_t i = 0; i < contribs.size(); ++i) {
+                    auto& contrib = contribs[i];
+                    auto& particle_ref = particle_refs[i];
+                    
+                    contrib.time += time_offset;
+                    particle_ref.index = particle_index_offset + particle_ref.index;
                 }
             }
         }
     }
 
-    // Process calorimeter contributions
-    for (const auto& name : calo_contrib_collection_names) {
-        if (source.calo_contrib_branches.count(name) && source.calo_contrib_particle_refs.count(name)) {
-            const auto& contribs = *source.calo_contrib_branches[name];
-            const auto& particle_refs = *source.calo_contrib_particle_refs[name];
-            
-            if (contribs.size() != particle_refs.size()) {
-                std::cout << "Warning: Mismatch between contribution count (" << contribs.size() 
-                         << ") and particle reference count (" << particle_refs.size() 
-                         << ") for collection " << name << std::endl;
-                continue;
-            }
-            
-            for (size_t i = 0; i < contribs.size(); ++i) {
-                const auto& contrib = contribs[i];
-                const auto& particle_ref = particle_refs[i];
-                
-                edm4hep::CaloHitContributionData new_contrib = contrib;
-                new_contrib.time += time_offset;
-                merged_calo_contributions[name].push_back(new_contrib);
-                
-                // Update particle reference if valid
-                podio::ObjectID new_particle_ref = particle_ref;
-                if (particle_ref.index >= 0 && particle_ref.index < static_cast<int>(particles.size())) {
-                    new_particle_ref.index = particle_index_offset + particle_ref.index;
-                }
-                merged_calo_contrib_particle_refs[name].push_back(new_particle_ref);
-            }
+    // Concatenate all of this events vectors into their merged vectors
+    merged_mcparticles.insert(merged_mcparticles.end(), std::make_move_iterator(particles.begin()), std::make_move_iterator(particles.end()));
+    merged_mcparticle_parents_refs.insert(merged_mcparticle_parents_refs.end(), std::make_move_iterator(parents_refs.begin()), std::make_move_iterator(parents_refs.end()));
+    merged_mcparticle_children_refs.insert(merged_mcparticle_children_refs.end(), std::make_move_iterator(children_refs.begin()), std::make_move_iterator(children_refs.end()));
+
+    for (const auto& name : tracker_collection_names) {
+        if (source.tracker_hit_branches.count(name)) {
+            const auto& hits = *source.tracker_hit_branches[name];
+            merged_tracker_hits[name].insert(merged_tracker_hits[name].end(), std::make_move_iterator(hits.begin()), std::make_move_iterator(hits.end()));
+        }
+        if (source.tracker_hit_particle_refs.count(name)) {
+            const auto& refs = *source.tracker_hit_particle_refs[name];
+            merged_tracker_hit_particle_refs[name].insert(merged_tracker_hit_particle_refs[name].end(), std::make_move_iterator(refs.begin()), std::make_move_iterator(refs.end()));
         }
     }
+
+    for (const auto& calo_name : calo_collection_names) {
+        if (source.calo_hit_branches.count(calo_name)) {
+            const auto& hits = *source.calo_hit_branches[calo_name];
+            merged_calo_hits[calo_name].insert(merged_calo_hits[calo_name].end(), std::make_move_iterator(hits.begin()), std::make_move_iterator(hits.end()));
+        }
+        if (source.calo_hit_contributions_refs.count(calo_name)) {
+            const auto& refs = *source.calo_hit_contributions_refs[calo_name];
+            merged_calo_hit_contributions_refs[calo_name].insert(merged_calo_hit_contributions_refs[calo_name].end(), std::make_move_iterator(refs.begin()), std::make_move_iterator(refs.end()));
+        }
+
+        // Also merge contributions from corresponding contribution collection using proper key mapping
+        std::string corresponding_contrib_collection = getCorrespondingContributionCollection(calo_name);
+        if (!corresponding_contrib_collection.empty() && source.calo_contrib_branches.count(corresponding_contrib_collection)) {
+            const auto& contribs = *source.calo_contrib_branches[corresponding_contrib_collection];
+            merged_calo_contributions[calo_name].insert(merged_calo_contributions[calo_name].end(), std::make_move_iterator(contribs.begin()), std::make_move_iterator(contribs.end()));
+        }
+        if (!corresponding_contrib_collection.empty() && source.calo_contrib_particle_refs.count(corresponding_contrib_collection)) {
+            const auto& refs = *source.calo_contrib_particle_refs[corresponding_contrib_collection];
+            merged_calo_contrib_particle_refs[calo_name].insert(merged_calo_contrib_particle_refs[calo_name].end(), std::make_move_iterator(refs.begin()), std::make_move_iterator(refs.end()));
+        }
+    }
+
 }
 
 void StandaloneTimesliceMerger::setupOutputTree(TTree* tree) {
-    // Set branch addresses for output tree
-    tree->Branch("MCParticles", &merged_mcparticles);
-    tree->Branch("EventHeader", &merged_event_headers);
-    tree->Branch("SubEventHeaders", &merged_sub_event_headers);
+    // Create a list of all collections and their reference branches in alphabetical order
+    struct BranchInfo {
+        std::string name;
+        std::string type; // "main", "mcparticle", "tracker", "calo", "calocontrib", "header"
+        bool is_reference;
+        std::string ref_suffix;
+    };
     
-    // Setup branches for MCParticle parent-child relationships
-    tree->Branch("_MCParticles_parents", &merged_mcparticle_parents_refs["MCParticles"]);
-    tree->Branch("_MCParticles_daughters", &merged_mcparticle_children_refs["MCParticles"]);
+    std::vector<BranchInfo> branches_to_create;
     
-    // Setup branches for tracker hits
+    // Add fixed header branches first (these don't follow alphabetical ordering)
+    branches_to_create.push_back({"EventHeader", "header", false, ""});
+    branches_to_create.push_back({"SubEventHeaders", "header", false, ""});
+    
+    // Add MCParticles and its reference branches
+    branches_to_create.push_back({"MCParticles", "mcparticle", false, ""});
+    branches_to_create.push_back({"_MCParticles_daughters", "mcparticle", true, "daughters"});
+    branches_to_create.push_back({"_MCParticles_parents", "mcparticle", true, "parents"});
+    
+    // Collect all other collections and sort them alphabetically
+    std::vector<std::string> all_collections;
+    
+    // Add tracker collections
     for (const auto& name : tracker_collection_names) {
-        tree->Branch(name.c_str(), &merged_tracker_hits[name]);
-        // Also create the particle reference branch
-        std::string ref_branch_name = "_" + name + "_particle";
-        tree->Branch(ref_branch_name.c_str(), &merged_tracker_hit_particle_refs[name]);
+        all_collections.push_back(name + "|tracker");
     }
     
-    // Setup branches for calo hits
+    // Add calo collections  
     for (const auto& name : calo_collection_names) {
-        tree->Branch(name.c_str(), &merged_calo_hits[name]);
+        all_collections.push_back(name + "|calo");
     }
     
-    // Setup branches for calo contributions
+    // Add calo contribution collections (using original contribution collection names for the actual branch names)
     for (const auto& name : calo_contrib_collection_names) {
-        tree->Branch(name.c_str(), &merged_calo_contributions[name]);
-        // Also create the particle reference branch
-        std::string ref_branch_name = "_" + name + "_particle";
-        tree->Branch(ref_branch_name.c_str(), &merged_calo_contrib_particle_refs[name]);
+        all_collections.push_back(name + "|calocontrib");
     }
+    
+    // Sort alphabetically by collection name
+    std::sort(all_collections.begin(), all_collections.end());
+    
+    // Create branch entries for sorted collections
+    for (const auto& collection_with_type : all_collections) {
+        size_t pos = collection_with_type.find("|");
+        std::string collection_name = collection_with_type.substr(0, pos);
+        std::string collection_type = collection_with_type.substr(pos + 1);
+        
+        // Add main collection branch
+        branches_to_create.push_back({collection_name, collection_type, false, ""});
+        
+        // Add reference branches immediately after main branch
+        if (collection_type == "tracker") {
+            branches_to_create.push_back({"_" + collection_name + "_particle", collection_type, true, "particle"});
+        } else if (collection_type == "calo") {
+            branches_to_create.push_back({"_" + collection_name + "_contributions", collection_type, true, "contributions"});
+        } else if (collection_type == "calocontrib") {
+            branches_to_create.push_back({"_" + collection_name + "_particle", collection_type, true, "particle"});
+        }
+    }
+    
+    // Create all branches in the determined order
+    for (const auto& branch : branches_to_create) {
+        if (branch.type == "header") {
+            if (branch.name == "EventHeader") {
+                tree->Branch("EventHeader", &merged_event_headers);
+            } //else if (branch.name == "SubEventHeaders") {
+            //     tree->Branch("SubEventHeaders", &merged_sub_event_headers);
+            // }
+        } else if (branch.type == "mcparticle" && !branch.is_reference) {
+            tree->Branch("MCParticles", &merged_mcparticles);
+        } else if (branch.type == "mcparticle" && branch.is_reference) {
+            if (branch.ref_suffix == "parents") {
+                tree->Branch("_MCParticles_parents", &merged_mcparticle_parents_refs);
+            } else if (branch.ref_suffix == "daughters") {
+                tree->Branch("_MCParticles_daughters", &merged_mcparticle_children_refs);
+            }
+        } else if (branch.type == "tracker" && !branch.is_reference) {
+            tree->Branch(branch.name.c_str(), &merged_tracker_hits[branch.name]);
+        } else if (branch.type == "tracker" && branch.is_reference) {
+            std::string collection_name = branch.name.substr(1, branch.name.length() - 10); // Remove "_" and "_particle"
+            tree->Branch(branch.name.c_str(), &merged_tracker_hit_particle_refs[collection_name]);
+        } else if (branch.type == "calo" && !branch.is_reference) {
+            tree->Branch(branch.name.c_str(), &merged_calo_hits[branch.name]);
+        } else if (branch.type == "calo" && branch.is_reference) {
+            std::string collection_name = branch.name.substr(1, branch.name.length() - 15); // Remove "_" and "_contributions"
+            tree->Branch(branch.name.c_str(), &merged_calo_hit_contributions_refs[collection_name]);
+        } else if (branch.type == "calocontrib" && !branch.is_reference) {
+            // Find the corresponding calo collection name for this contribution collection
+            std::string corresponding_calo_name = "";
+            for (const auto& calo_name : calo_collection_names) {
+                if (getCorrespondingContributionCollection(calo_name) == branch.name) {
+                    corresponding_calo_name = calo_name;
+                    tree->Branch(branch.name.c_str(), &merged_calo_contributions[calo_name]);
+                    break;
+                }
+            }
+        } else if (branch.type == "calocontrib" && branch.is_reference) {
+            // Find the corresponding calo collection name for this contribution collection
+            std::string contrib_collection_name = branch.name.substr(1, branch.name.length() - 10); // Remove "_" and "_particle"
+            std::string corresponding_calo_name = "";
+            for (const auto& calo_name : calo_collection_names) {
+                if (getCorrespondingContributionCollection(calo_name) == contrib_collection_name) {
+                    corresponding_calo_name = calo_name;
+                    tree->Branch(branch.name.c_str(), &merged_calo_contrib_particle_refs[calo_name]);
+                    break;
+                }
+            }
+        }
+    }
+    
+    std::cout << "Created " << branches_to_create.size() << " branches in alphabetical order" << std::endl;
 }
 
 void StandaloneTimesliceMerger::writeTimesliceToTree(TTree* tree) {
     // Debug: show sizes of merged vectors before writing
     std::cout << "=== Writing timeslice ===" << std::endl;
     std::cout << "  MCParticles: " << merged_mcparticles.size() << std::endl;
-    std::cout << "  MCParticle parents: " << merged_mcparticle_parents_refs["MCParticles"].size() << std::endl;
-    std::cout << "  MCParticle daughters: " << merged_mcparticle_children_refs["MCParticles"].size() << std::endl;
-    
+    std::cout << "  MCParticle parents: " << merged_mcparticle_parents_refs.size() << std::endl;
+    std::cout << "  MCParticle daughters: " << merged_mcparticle_children_refs.size() << std::endl;
+
     std::cout << "  Tracker collections (" << merged_tracker_hits.size() << "):" << std::endl;
     for (const auto& [name, hits] : merged_tracker_hits) {
         std::cout << "    " << name << ": " << hits.size() << " hits, " 
@@ -618,7 +662,12 @@ void StandaloneTimesliceMerger::writeTimesliceToTree(TTree* tree) {
     
     std::cout << "  Calo collections (" << merged_calo_hits.size() << "):" << std::endl;
     for (const auto& [name, hits] : merged_calo_hits) {
-        std::cout << "    " << name << ": " << hits.size() << " hits" << std::endl;
+        size_t contrib_refs_size = 0;
+        if (merged_calo_hit_contributions_refs.count(name)) {
+            contrib_refs_size = merged_calo_hit_contributions_refs.at(name).size();
+        }
+        std::cout << "    " << name << ": " << hits.size() << " hits, " 
+                  << contrib_refs_size << " contribution refs" << std::endl;
     }
     
     std::cout << "  Calo contribution collections (" << merged_calo_contributions.size() << "):" << std::endl;
@@ -626,6 +675,8 @@ void StandaloneTimesliceMerger::writeTimesliceToTree(TTree* tree) {
         std::cout << "    " << name << ": " << contribs.size() << " contributions, " 
                   << merged_calo_contrib_particle_refs[name].size() << " particle refs" << std::endl;
     }
+    
+
     
     // Fill the tree with current merged data
     tree->Fill();
@@ -738,4 +789,71 @@ std::vector<std::string> StandaloneTimesliceMerger::discoverCollectionNames(Sour
     std::cout << "=========================" << std::endl;
     
     return names;
+}
+
+void StandaloneTimesliceMerger::copyPodioMetadata(std::vector<SourceReader>& inputs, std::unique_ptr<TFile>& output_file) {
+    if (inputs.empty()) {
+        std::cout << "Warning: No input sources available for podio_metadata copying" << std::endl;
+        return;
+    }
+    
+    // Get the first source file to copy podio_metadata from
+    const auto& first_source = inputs[0];
+    if (!first_source.config->input_files.empty()) {
+        std::string first_file = first_source.config->input_files[0];
+        std::cout << "Attempting to copy podio_metadata from: " << first_file << std::endl;
+        
+        // Open the first source file directly to access podio_metadata tree
+        auto source_file = std::make_unique<TFile>(first_file.c_str(), "READ");
+        if (!source_file || source_file->IsZombie()) {
+            std::cout << "Warning: Could not open source file for metadata copying: " << first_file << std::endl;
+            return;
+        }
+        
+        // Look for podio_metadata tree
+        TTree* metadata_tree = dynamic_cast<TTree*>(source_file->Get("podio_metadata"));
+        if (metadata_tree) {
+            std::cout << "Found podio_metadata tree, copying to output..." << std::endl;
+            output_file->cd();
+            
+            // Clone the tree structure and data
+            TTree* output_metadata = metadata_tree->CloneTree(-1, "fast");
+            if (output_metadata) {
+                output_metadata->Write();
+                std::cout << "Successfully copied podio_metadata tree" << std::endl;
+            } else {
+                std::cout << "Warning: Failed to clone podio_metadata tree" << std::endl;
+            }
+        } else {
+            std::cout << "Info: No podio_metadata tree found in source file" << std::endl;
+        }
+        
+        source_file->Close();
+    }
+}
+
+std::string StandaloneTimesliceMerger::getCorrespondingContributionCollection(const std::string& calo_collection_name) {
+    // Try to find a matching contribution collection based on naming patterns
+    // Common patterns:
+    // EcalBarrelHits -> EcalBarrelContributions
+    // HcalEndcapHits -> HcalEndcapContributions
+    // SomeCaloHits -> SomeCaloContributions
+
+    // // Remove "Hits" suffix if present
+    // std::string base = calo_collection_name;
+    // if (base.length() > 4 && base.substr(base.length() - 4) == "Hits") {
+    //     base = base.substr(0, base.length() - 4);
+    // }
+    // Add "Contributions" suffix to get the contribution collection name
+    return calo_collection_name + "Contributions";
+}
+
+std::string StandaloneTimesliceMerger::getCorrespondingCaloCollection(const std::string& contrib_collection_name) {
+    // Remove "Contributions" suffix if present
+    std::string base = contrib_collection_name;
+    if (base.length() > 13 && base.substr(base.length() - 13) == "Contributions") {
+        base = base.substr(0, base.length() - 13);
+    }
+    // Add "Hits" suffix to get the calorimeter hit collection name
+    return base;
 }

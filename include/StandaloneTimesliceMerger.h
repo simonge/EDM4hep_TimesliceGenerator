@@ -26,7 +26,7 @@ struct SourceReader {
     const SourceConfig* config;
     
     // Branch pointers for reading data as vectors
-    std::unordered_map<std::string, std::vector<edm4hep::MCParticleData>*> mcparticle_branches;
+    std::vector<edm4hep::MCParticleData>* mcparticle_branch;
     std::unordered_map<std::string, std::vector<edm4hep::SimTrackerHitData>*> tracker_hit_branches;
     std::unordered_map<std::string, std::vector<edm4hep::SimCalorimeterHitData>*> calo_hit_branches;
     std::unordered_map<std::string, std::vector<edm4hep::CaloHitContributionData>*> calo_contrib_branches;
@@ -37,8 +37,8 @@ struct SourceReader {
     std::unordered_map<std::string, std::vector<podio::ObjectID>*> calo_contrib_particle_refs;
     
     // Branch pointers for MCParticle parent-child relationships
-    std::unordered_map<std::string, std::vector<podio::ObjectID>*> mcparticle_parents_refs;
-    std::unordered_map<std::string, std::vector<podio::ObjectID>*> mcparticle_children_refs;
+    std::vector<podio::ObjectID>* mcparticle_parents_refs;
+    std::vector<podio::ObjectID>* mcparticle_children_refs;
     
     // Branch pointers for SimCalorimeterHit-CaloHitContribution relationships
     std::unordered_map<std::string, std::vector<podio::ObjectID>*> calo_hit_contributions_refs;
@@ -62,19 +62,20 @@ private:
 
     // Global vectors for merged data
     std::vector<edm4hep::MCParticleData> merged_mcparticles;
+
     std::vector<edm4hep::EventHeaderData> merged_event_headers;
     std::vector<edm4hep::EventHeaderData> merged_sub_event_headers;
     std::unordered_map<std::string, std::vector<edm4hep::SimTrackerHitData>> merged_tracker_hits;
     std::unordered_map<std::string, std::vector<edm4hep::SimCalorimeterHitData>> merged_calo_hits;
     std::unordered_map<std::string, std::vector<edm4hep::CaloHitContributionData>> merged_calo_contributions;
     
+    // Global vectors for MCParticle parent-child relationships
+    std::vector<podio::ObjectID> merged_mcparticle_parents_refs;
+    std::vector<podio::ObjectID> merged_mcparticle_children_refs;
+
     // Global vectors for merged ObjectID references  
     std::unordered_map<std::string, std::vector<podio::ObjectID>> merged_tracker_hit_particle_refs;
     std::unordered_map<std::string, std::vector<podio::ObjectID>> merged_calo_contrib_particle_refs;
-    
-    // Global vectors for MCParticle parent-child relationships
-    std::unordered_map<std::string, std::vector<podio::ObjectID>> merged_mcparticle_parents_refs;
-    std::unordered_map<std::string, std::vector<podio::ObjectID>> merged_mcparticle_children_refs;
     
     // Global vectors for SimCalorimeterHit-CaloHitContribution relationships
     std::unordered_map<std::string, std::vector<podio::ObjectID>> merged_calo_hit_contributions_refs;
@@ -94,4 +95,8 @@ private:
     void mergeEventData(SourceReader& source, size_t event_index, const SourceConfig& sourceConfig);
     float generateTimeOffset(SourceConfig sourceConfig, float distance);
     std::vector<std::string> discoverCollectionNames(SourceReader& reader, const std::string& branch_pattern);
+    void copyPodioMetadata(std::vector<SourceReader>& inputs, std::unique_ptr<TFile>& output_file);
+    
+    std::string getCorrespondingContributionCollection(const std::string& calo_collection_name);
+    std::string getCorrespondingCaloCollection(const std::string& contrib_collection_name);
 };
