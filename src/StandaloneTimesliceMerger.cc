@@ -28,6 +28,9 @@ void StandaloneTimesliceMerger::run() {
     auto inputs = initializeInputFiles();
     setupOutputTree(output_tree);
 
+    // Copy podio_metadata tree from first source file to output file
+    copyPodioMetadata(inputs, output_file);
+
     std::cout << "Processing " << m_config.max_events << " timeslices..." << std::endl;
 
     while (events_generated < m_config.max_events) {
@@ -592,6 +595,9 @@ void StandaloneTimesliceMerger::setupOutputTree(TTree* tree) {
     // Setup branches for calo hits
     for (const auto& name : calo_collection_names) {
         tree->Branch(name.c_str(), &merged_calo_hits[name]);
+        // Also create the contributions reference branch
+        std::string contrib_ref_branch_name = "_" + name + "_contributions";
+        tree->Branch(contrib_ref_branch_name.c_str(), &merged_calo_hit_contributions_refs[name]);
     }
     
     // Setup branches for calo contributions
@@ -618,7 +624,12 @@ void StandaloneTimesliceMerger::writeTimesliceToTree(TTree* tree) {
     
     std::cout << "  Calo collections (" << merged_calo_hits.size() << "):" << std::endl;
     for (const auto& [name, hits] : merged_calo_hits) {
-        std::cout << "    " << name << ": " << hits.size() << " hits" << std::endl;
+        size_t contrib_refs_size = 0;
+        if (merged_calo_hit_contributions_refs.count(name)) {
+            contrib_refs_size = merged_calo_hit_contributions_refs.at(name).size();
+        }
+        std::cout << "    " << name << ": " << hits.size() << " hits, " 
+                  << contrib_refs_size << " contribution refs" << std::endl;
     }
     
     std::cout << "  Calo contribution collections (" << merged_calo_contributions.size() << "):" << std::endl;
@@ -738,4 +749,45 @@ std::vector<std::string> StandaloneTimesliceMerger::discoverCollectionNames(Sour
     std::cout << "=========================" << std::endl;
     
     return names;
+}
+
+void StandaloneTimesliceMerger::copyPodioMetadata(std::vector<SourceReader>& inputs, std::unique_ptr<TFile>& output_file) {
+    if (inputs.empty()) {
+        std::cout << "Warning: No input sources available for podio_metadata copying" << std::endl;
+        return;
+    }
+    
+    // Get the first source file to copy podio_metadata from
+    const auto& first_source = inputs[0];
+    if (!first_source.config->input_files.empty()) {
+        std::string first_file = first_source.config->input_files[0];
+        std::cout << "Attempting to copy podio_metadata from: " << first_file << std::endl;
+        
+        // Open the first source file directly to access podio_metadata tree
+        auto source_file = std::make_unique<TFile>(first_file.c_str(), "READ");
+        if (!source_file || source_file->IsZombie()) {
+            std::cout << "Warning: Could not open source file for metadata copying: " << first_file << std::endl;
+            return;
+        }
+        
+        // Look for podio_metadata tree
+        TTree* metadata_tree = dynamic_cast<TTree*>(source_file->Get("podio_metadata"));
+        if (metadata_tree) {
+            std::cout << "Found podio_metadata tree, copying to output..." << std::endl;
+            output_file->cd();
+            
+            // Clone the tree structure and data
+            TTree* output_metadata = metadata_tree->CloneTree(-1, "fast");
+            if (output_metadata) {
+                output_metadata->Write();
+                std::cout << "Successfully copied podio_metadata tree" << std::endl;
+            } else {
+                std::cout << "Warning: Failed to clone podio_metadata tree" << std::endl;
+            }
+        } else {
+            std::cout << "Info: No podio_metadata tree found in source file" << std::endl;
+        }
+        
+        source_file->Close();
+    }
 }

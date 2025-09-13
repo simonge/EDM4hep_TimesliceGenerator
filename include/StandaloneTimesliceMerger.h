@@ -94,4 +94,5 @@ private:
     void mergeEventData(SourceReader& source, size_t event_index, const SourceConfig& sourceConfig);
     float generateTimeOffset(SourceConfig sourceConfig, float distance);
     std::vector<std::string> discoverCollectionNames(SourceReader& reader, const std::string& branch_pattern);
+    void copyPodioMetadata(std::vector<SourceReader>& inputs, std::unique_ptr<TFile>& output_file);
 };
