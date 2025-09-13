@@ -133,63 +133,20 @@ void DataSource::mergeEventData(size_t event_index,
     // Calculate time offset if not already merged
     if (!config_->already_merged) {
         if (config_->attach_to_beam && !particles.empty()) {
-            // Get position of first particle with generatorStatus 1
-            try {
-                for (const auto& particle : particles) {
-                    if (particle.generatorStatus == 1) {
-                        // Distance is dot product of position vector relative to rotation around y of beam relative to z-axis
-                        distance = particle.vertex.z * std::cos(config_->beam_angle) + 
-                                 particle.vertex.x * std::sin(config_->beam_angle);
-                        break;
-                    }
-                }
-            } catch (const std::exception& e) {
-                std::cout << "Warning: Could not access MCParticles for beam attachment: " << e.what() << std::endl;
-            }
+            distance = calculateBeamDistance(particles);
         }
         time_offset = generateTimeOffset(distance, time_slice_duration, bunch_crossing_period, rng);
     }
 
     // Process particles if this is first source or not already merged
     if(!config_->already_merged && merged_mcparticles.empty()) {
-        // Process MCParticles
-        for (auto& particle : particles) {
-            particle.time += time_offset;
-            // Update generator status offset
-            particle.generatorStatus += config_->generator_status_offset;
-            particle.parents_begin   += particle_index_offset;
-            particle.parents_end     += particle_index_offset;
-            particle.daughters_begin += particle_index_offset;
-            particle.daughters_end   += particle_index_offset;
-        }
-
-        // Process MCParticle parent-child relationships
-        // Update parent references - adjust indices to account for particle offset
-        for (auto& parent_ref : parents_refs) {
-            parent_ref.index = particle_index_offset + parent_ref.index;
-        }
+        // Update particle references and time
+        updateParticleReferences(particles, parents_refs, children_refs, particle_index_offset, time_offset);
         
-        // Update children references - adjust indices to account for particle offset
-        for (auto& child_ref : children_refs) {
-            child_ref.index = particle_index_offset + child_ref.index;
-        }
-
-        // Process edm4hep::SimTrackerHits
-        for (const auto& name : *tracker_collection_names_) {
-            if (tracker_hit_branches_.count(name) && tracker_hit_particle_refs_.count(name)) {
-                auto& hits = *tracker_hit_branches_[name];
-                auto& particle_refs = *tracker_hit_particle_refs_[name];
-                
-                for (size_t i = 0; i < hits.size(); ++i) {
-                    auto& hit = hits[i];
-                    auto& particle_ref = particle_refs[i];
-                    hit.time += time_offset;            
-                    particle_ref.index = particle_index_offset + particle_ref.index;
-                }
-            }
-        }
-
-        // Process calorimeter hits and contributions together
+        // Update tracker hit data
+        updateTrackerHitData(time_offset, particle_index_offset);
+        
+        // Process calorimeter hits and contributions together (requires access to merged collections)
         for (const auto& calo_name : *calo_collection_names_) {
             // Only process if the branches exist for this source
             if (!calo_hit_branches_.count(calo_name)) {
@@ -467,4 +424,95 @@ std::string DataSource::getCorrespondingCaloCollection(const std::string& contri
         return "HcalEndcapHits";
     }
     return "";
+}
+
+float DataSource::calculateBeamDistance(const std::vector<edm4hep::MCParticleData>& particles) const {
+    float distance = 0.0f;
+    
+    // Get position of first particle with generatorStatus 1
+    try {
+        for (const auto& particle : particles) {
+            if (particle.generatorStatus == 1) {
+                // Distance is dot product of position vector relative to rotation around y of beam relative to z-axis
+                distance = particle.vertex.z * std::cos(config_->beam_angle) + 
+                          particle.vertex.x * std::sin(config_->beam_angle);
+                break;
+            }
+        }
+    } catch (const std::exception& e) {
+        std::cout << "Warning: Could not access MCParticles for beam attachment: " << e.what() << std::endl;
+    }
+    
+    return distance;
+}
+
+void DataSource::updateParticleReferences(std::vector<edm4hep::MCParticleData>& particles, 
+                                         std::vector<podio::ObjectID>& parents_refs,
+                                         std::vector<podio::ObjectID>& children_refs,
+                                         size_t particle_index_offset,
+                                         float time_offset) const {
+    // Process MCParticles
+    for (auto& particle : particles) {
+        particle.time += time_offset;
+        // Update generator status offset
+        particle.generatorStatus += config_->generator_status_offset;
+        particle.parents_begin   += particle_index_offset;
+        particle.parents_end     += particle_index_offset;
+        particle.daughters_begin += particle_index_offset;
+        particle.daughters_end   += particle_index_offset;
+    }
+
+    // Process MCParticle parent-child relationships
+    // Update parent references - adjust indices to account for particle offset
+    for (auto& parent_ref : parents_refs) {
+        parent_ref.index = particle_index_offset + parent_ref.index;
+    }
+    
+    // Update children references - adjust indices to account for particle offset
+    for (auto& child_ref : children_refs) {
+        child_ref.index = particle_index_offset + child_ref.index;
+    }
+}
+
+void DataSource::updateTrackerHitData(float time_offset, size_t particle_index_offset) const {
+    // Process edm4hep::SimTrackerHits
+    for (const auto& name : *tracker_collection_names_) {
+        if (tracker_hit_branches_.count(name) && tracker_hit_particle_refs_.count(name)) {
+            auto& hits = *tracker_hit_branches_[name];
+            auto& particle_refs = *tracker_hit_particle_refs_[name];
+            
+            for (size_t i = 0; i < hits.size(); ++i) {
+                auto& hit = hits[i];
+                auto& particle_ref = particle_refs[i];
+                hit.time += time_offset;            
+                particle_ref.index = particle_index_offset + particle_ref.index;
+            }
+        }
+    }
+}
+
+void DataSource::updateCalorimeterHitData(float time_offset, size_t particle_index_offset) const {
+    // This method is kept for potential future use, but the calorimeter hit processing
+    // is handled in the main mergeEventData method due to the need to access merged collections
+    // for proper contribution index management.
+}
+
+void DataSource::printStatus() const {
+    std::cout << "=== DataSource Status ===" << std::endl;
+    std::cout << "Source: " << source_index_ << " (" << config_->name << ")" << std::endl;
+    std::cout << "Total entries: " << total_entries_ << std::endl;
+    std::cout << "Current entry: " << current_entry_index_ << std::endl;
+    std::cout << "Entries needed: " << entries_needed_ << std::endl;
+    std::cout << "Initialized: " << (isInitialized() ? "Yes" : "No") << std::endl;
+    
+    if (tracker_collection_names_) {
+        std::cout << "Tracker collections: " << tracker_collection_names_->size() << std::endl;
+    }
+    if (calo_collection_names_) {
+        std::cout << "Calorimeter collections: " << calo_collection_names_->size() << std::endl;
+    }
+    if (calo_contrib_collection_names_) {
+        std::cout << "Calorimeter contribution collections: " << calo_contrib_collection_names_->size() << std::endl;
+    }
+    std::cout << "=========================" << std::endl;
 }

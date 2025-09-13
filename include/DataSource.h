@@ -58,6 +58,10 @@ public:
     const SourceConfig& getConfig() const { return *config_; }
     const std::string& getName() const { return config_->name; }
     size_t getSourceIndex() const { return source_index_; }
+    
+    // Status and diagnostics
+    void printStatus() const;
+    bool isInitialized() const { return chain_ != nullptr; }
 
 private:
     // Configuration
@@ -100,6 +104,16 @@ private:
     void setupCalorimeterBranches();
     void setupEventHeaderBranches();
     void cleanup();
+    
+    // Helper methods for physics calculations
+    float calculateBeamDistance(const std::vector<edm4hep::MCParticleData>& particles) const;
+    void updateParticleReferences(std::vector<edm4hep::MCParticleData>& particles, 
+                                 std::vector<podio::ObjectID>& parents_refs,
+                                 std::vector<podio::ObjectID>& children_refs,
+                                 size_t particle_index_offset,
+                                 float time_offset) const;
+    void updateTrackerHitData(float time_offset, size_t particle_index_offset) const;
+    void updateCalorimeterHitData(float time_offset, size_t particle_index_offset) const;
     
     // Helper methods for collection name mapping
     std::string getCorrespondingContributionCollection(const std::string& calo_collection_name) const;
