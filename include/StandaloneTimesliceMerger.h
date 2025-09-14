@@ -1,12 +1,12 @@
 #pragma once
 
 #include "StandaloneMergerConfig.h"
+#include "DataSource.h"
 #include <edm4hep/MCParticleData.h>
 #include <edm4hep/SimTrackerHitData.h>
 #include <edm4hep/SimCalorimeterHitData.h>
 #include <edm4hep/CaloHitContributionData.h>
 #include <edm4hep/EventHeaderData.h>
-#include <podio/ROOTWriter.h>
 #include <podio/ObjectID.h>
 #include <ROOT/RVec.hxx>
 #include <TFile.h>
@@ -16,32 +16,30 @@
 #include <unordered_map>
 #include <vector>
 #include <string>
+#include <memory>
 
-struct SourceReader {
-    std::unique_ptr<TChain> chain;
-    size_t total_entries{0};
-    size_t current_entry_index{0};
-    size_t entries_needed{1};
-    std::vector<std::string> collection_names_to_read;
-    const SourceConfig* config;
+// Struct to organize all merged collections in one place
+struct MergedCollections {
+    // Event and particle data
+    std::vector<edm4hep::MCParticleData> mcparticles;
+    std::vector<edm4hep::EventHeaderData> event_headers;
+    std::vector<double> event_header_weights; 
+    std::vector<edm4hep::EventHeaderData> sub_event_headers;
     
-    // Branch pointers for reading data as vectors
-    std::vector<edm4hep::MCParticleData>* mcparticle_branch;
-    std::unordered_map<std::string, std::vector<edm4hep::SimTrackerHitData>*> tracker_hit_branches;
-    std::unordered_map<std::string, std::vector<edm4hep::SimCalorimeterHitData>*> calo_hit_branches;
-    std::unordered_map<std::string, std::vector<edm4hep::CaloHitContributionData>*> calo_contrib_branches;
-    std::unordered_map<std::string, std::vector<edm4hep::EventHeaderData>*> event_header_branches;
+    // Hit data collections
+    std::unordered_map<std::string, std::vector<edm4hep::SimTrackerHitData>> tracker_hits;
+    std::unordered_map<std::string, std::vector<edm4hep::SimCalorimeterHitData>> calo_hits;
+    std::unordered_map<std::string, std::vector<edm4hep::CaloHitContributionData>> calo_contributions;
     
-    // Branch pointers for reading ObjectID references
-    std::unordered_map<std::string, std::vector<podio::ObjectID>*> tracker_hit_particle_refs;
-    std::unordered_map<std::string, std::vector<podio::ObjectID>*> calo_contrib_particle_refs;
+    // Reference collections
+    std::vector<podio::ObjectID> mcparticle_parents_refs;
+    std::vector<podio::ObjectID> mcparticle_children_refs;
+    std::unordered_map<std::string, std::vector<podio::ObjectID>> tracker_hit_particle_refs;
+    std::unordered_map<std::string, std::vector<podio::ObjectID>> calo_contrib_particle_refs;
+    std::unordered_map<std::string, std::vector<podio::ObjectID>> calo_hit_contributions_refs;
     
-    // Branch pointers for MCParticle parent-child relationships
-    std::vector<podio::ObjectID>* mcparticle_parents_refs;
-    std::vector<podio::ObjectID>* mcparticle_children_refs;
-    
-    // Branch pointers for SimCalorimeterHit-CaloHitContribution relationships
-    std::unordered_map<std::string, std::vector<podio::ObjectID>*> calo_hit_contributions_refs;
+    // Utility method to clear all collections
+    void clear();
 };
 
 class StandaloneTimesliceMerger {
@@ -60,43 +58,29 @@ private:
     // State variables
     size_t events_generated;
 
-    // Global vectors for merged data
-    std::vector<edm4hep::MCParticleData> merged_mcparticles;
-
-    std::vector<edm4hep::EventHeaderData> merged_event_headers;
-    std::vector<edm4hep::EventHeaderData> merged_sub_event_headers;
-    std::unordered_map<std::string, std::vector<edm4hep::SimTrackerHitData>> merged_tracker_hits;
-    std::unordered_map<std::string, std::vector<edm4hep::SimCalorimeterHitData>> merged_calo_hits;
-    std::unordered_map<std::string, std::vector<edm4hep::CaloHitContributionData>> merged_calo_contributions;
-    
-    // Global vectors for MCParticle parent-child relationships
-    std::vector<podio::ObjectID> merged_mcparticle_parents_refs;
-    std::vector<podio::ObjectID> merged_mcparticle_children_refs;
-
-    // Global vectors for merged ObjectID references  
-    std::unordered_map<std::string, std::vector<podio::ObjectID>> merged_tracker_hit_particle_refs;
-    std::unordered_map<std::string, std::vector<podio::ObjectID>> merged_calo_contrib_particle_refs;
-    
-    // Global vectors for SimCalorimeterHit-CaloHitContribution relationships
-    std::unordered_map<std::string, std::vector<podio::ObjectID>> merged_calo_hit_contributions_refs;
+    // Merged collections organized in a struct
+    MergedCollections merged_collections_;
 
     // Collection names discovered from first source
-    std::vector<std::string> tracker_collection_names;
-    std::vector<std::string> calo_collection_names;
-    std::vector<std::string> calo_contrib_collection_names;
+    std::vector<std::string> tracker_collection_names_;
+    std::vector<std::string> calo_collection_names_;
+    std::vector<std::string> calo_contrib_collection_names_;
 
-    std::vector<SourceReader> initializeInputFiles();
-    bool updateInputNEvents(std::vector<SourceReader>& inputs);
-    void createMergedTimeslice(std::vector<SourceReader>& inputs, std::unique_ptr<TFile>& output_file, TTree* output_tree);
+    // Data sources
+    std::vector<std::unique_ptr<DataSource>> data_sources_;
+
+    // Core functionality methods
+    std::vector<std::unique_ptr<DataSource>> initializeDataSources();
+    bool updateInputNEvents(std::vector<std::unique_ptr<DataSource>>& sources);
+    void createMergedTimeslice(std::vector<std::unique_ptr<DataSource>>& sources, std::unique_ptr<TFile>& output_file, TTree* output_tree);
     void setupOutputTree(TTree* tree);
     void writeTimesliceToTree(TTree* tree);
 
-    // Helper methods for vector-based merging logic
-    void mergeEventData(SourceReader& source, size_t event_index, const SourceConfig& sourceConfig);
-    float generateTimeOffset(SourceConfig sourceConfig, float distance);
-    std::vector<std::string> discoverCollectionNames(SourceReader& reader, const std::string& branch_pattern);
-    void copyPodioMetadata(std::vector<SourceReader>& inputs, std::unique_ptr<TFile>& output_file);
+    // Helper methods for collection discovery
+    std::vector<std::string> discoverCollectionNames(DataSource& source, const std::string& branch_pattern);
+    void copyPodioMetadata(std::vector<std::unique_ptr<DataSource>>& sources, std::unique_ptr<TFile>& output_file);
     
-    std::string getCorrespondingContributionCollection(const std::string& calo_collection_name);
-    std::string getCorrespondingCaloCollection(const std::string& contrib_collection_name);
+    // Utility methods for collection name mapping
+    std::string getCorrespondingContributionCollection(const std::string& calo_collection_name) const;
+    std::string getCorrespondingCaloCollection(const std::string& contrib_collection_name) const;
 };
