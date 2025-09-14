@@ -19,6 +19,29 @@
 #include <string>
 #include <memory>
 
+// Struct to organize all merged collections in one place
+struct MergedCollections {
+    // Event and particle data
+    std::vector<edm4hep::MCParticleData> mcparticles;
+    std::vector<edm4hep::EventHeaderData> event_headers;
+    std::vector<edm4hep::EventHeaderData> sub_event_headers;
+    
+    // Hit data collections
+    std::unordered_map<std::string, std::vector<edm4hep::SimTrackerHitData>> tracker_hits;
+    std::unordered_map<std::string, std::vector<edm4hep::SimCalorimeterHitData>> calo_hits;
+    std::unordered_map<std::string, std::vector<edm4hep::CaloHitContributionData>> calo_contributions;
+    
+    // Reference collections
+    std::vector<podio::ObjectID> mcparticle_parents_refs;
+    std::vector<podio::ObjectID> mcparticle_children_refs;
+    std::unordered_map<std::string, std::vector<podio::ObjectID>> tracker_hit_particle_refs;
+    std::unordered_map<std::string, std::vector<podio::ObjectID>> calo_contrib_particle_refs;
+    std::unordered_map<std::string, std::vector<podio::ObjectID>> calo_hit_contributions_refs;
+    
+    // Utility method to clear all collections
+    void clear();
+};
+
 class StandaloneTimesliceMerger {
 public:
     StandaloneTimesliceMerger(const MergerConfig& config);
@@ -35,34 +58,18 @@ private:
     // State variables
     size_t events_generated;
 
-    // Global vectors for merged data
-    std::vector<edm4hep::MCParticleData> merged_mcparticles;
-
-    std::vector<edm4hep::EventHeaderData> merged_event_headers;
-    std::vector<edm4hep::EventHeaderData> merged_sub_event_headers;
-    std::unordered_map<std::string, std::vector<edm4hep::SimTrackerHitData>> merged_tracker_hits;
-    std::unordered_map<std::string, std::vector<edm4hep::SimCalorimeterHitData>> merged_calo_hits;
-    std::unordered_map<std::string, std::vector<edm4hep::CaloHitContributionData>> merged_calo_contributions;
-    
-    // Global vectors for MCParticle parent-child relationships
-    std::vector<podio::ObjectID> merged_mcparticle_parents_refs;
-    std::vector<podio::ObjectID> merged_mcparticle_children_refs;
-
-    // Global vectors for merged ObjectID references  
-    std::unordered_map<std::string, std::vector<podio::ObjectID>> merged_tracker_hit_particle_refs;
-    std::unordered_map<std::string, std::vector<podio::ObjectID>> merged_calo_contrib_particle_refs;
-    
-    // Global vectors for SimCalorimeterHit-CaloHitContribution relationships
-    std::unordered_map<std::string, std::vector<podio::ObjectID>> merged_calo_hit_contributions_refs;
+    // Merged collections organized in a struct
+    MergedCollections merged_collections_;
 
     // Collection names discovered from first source
-    std::vector<std::string> tracker_collection_names;
-    std::vector<std::string> calo_collection_names;
-    std::vector<std::string> calo_contrib_collection_names;
+    std::vector<std::string> tracker_collection_names_;
+    std::vector<std::string> calo_collection_names_;
+    std::vector<std::string> calo_contrib_collection_names_;
 
     // Data sources
     std::vector<std::unique_ptr<DataSource>> data_sources_;
 
+    // Core functionality methods
     std::vector<std::unique_ptr<DataSource>> initializeDataSources();
     bool updateInputNEvents(std::vector<std::unique_ptr<DataSource>>& sources);
     void createMergedTimeslice(std::vector<std::unique_ptr<DataSource>>& sources, std::unique_ptr<TFile>& output_file, TTree* output_tree);
@@ -73,6 +80,7 @@ private:
     std::vector<std::string> discoverCollectionNames(DataSource& source, const std::string& branch_pattern);
     void copyPodioMetadata(std::vector<std::unique_ptr<DataSource>>& sources, std::unique_ptr<TFile>& output_file);
     
-    std::string getCorrespondingContributionCollection(const std::string& calo_collection_name);
-    std::string getCorrespondingCaloCollection(const std::string& contrib_collection_name);
+    // Utility methods for collection name mapping
+    std::string getCorrespondingContributionCollection(const std::string& calo_collection_name) const;
+    std::string getCorrespondingCaloCollection(const std::string& contrib_collection_name) const;
 };
