@@ -8,6 +8,7 @@
 void MergedCollections::clear() {
     mcparticles.clear();
     event_headers.clear();
+    event_header_weights.clear();
     sub_event_headers.clear();
     
     for (auto& [name, vec] : tracker_hits) {
@@ -98,7 +99,6 @@ std::vector<std::unique_ptr<DataSource>> StandaloneTimesliceMerger::initializeDa
         // Discover collection names using the first source
         tracker_collection_names_ = discoverCollectionNames(*data_sources[0], "SimTrackerHit");
         calo_collection_names_ = discoverCollectionNames(*data_sources[0], "SimCalorimeterHit");
-        calo_contrib_collection_names_ = discoverCollectionNames(*data_sources[0], "CaloHitContribution");
         
         std::cout << "Global collection names discovered:" << std::endl;
         std::cout << "  Tracker: ";
@@ -107,13 +107,10 @@ std::vector<std::unique_ptr<DataSource>> StandaloneTimesliceMerger::initializeDa
         std::cout << "  Calo: ";
         for (const auto& name : calo_collection_names_) std::cout << name << " ";
         std::cout << std::endl;
-        std::cout << "  Calo contributions: ";
-        for (const auto& name : calo_contrib_collection_names_) std::cout << name << " ";
-        std::cout << std::endl;
         
         // Initialize all data sources with discovered collection names
         for (auto& data_source : data_sources) {
-            data_source->initialize(tracker_collection_names_, calo_collection_names_, calo_contrib_collection_names_);
+            data_source->initialize(tracker_collection_names_, calo_collection_names_);
         }
     }
     
@@ -166,21 +163,69 @@ void StandaloneTimesliceMerger::createMergedTimeslice(std::vector<std::unique_pt
             // Calculate particle index offset for this event
             size_t particle_index_offset = merged_collections_.mcparticles.size();
             
-            // Read and merge event data from this source
-            data_source->mergeEventData(data_source->getCurrentEntryIndex(), 
-                                      particle_index_offset,
-                                      m_config.time_slice_duration,
-                                      m_config.bunch_crossing_period,
-                                      gen,
-                                      merged_collections_.mcparticles,
-                                      merged_collections_.tracker_hits,
-                                      merged_collections_.calo_hits,
-                                      merged_collections_.calo_contributions,
-                                      merged_collections_.mcparticle_parents_refs,
-                                      merged_collections_.mcparticle_children_refs,
-                                      merged_collections_.tracker_hit_particle_refs,
-                                      merged_collections_.calo_contrib_particle_refs,
-                                      merged_collections_.calo_hit_contributions_refs);
+            // Load the event data from this source
+            data_source->loadEvent(data_source->getCurrentEntryIndex());
+            
+            // Process MCParticles
+            auto& processed_particles = data_source->processMCParticles(particle_index_offset,
+                                                                       m_config.time_slice_duration,
+                                                                       m_config.bunch_crossing_period,
+                                                                       gen);
+            merged_collections_.mcparticles.insert(merged_collections_.mcparticles.end(), 
+                                                  processed_particles.begin(), processed_particles.end());
+            
+            // Process MCParticle references
+            std::string parent_ref_branch_name = "_MCParticles_parents";
+            auto& processed_parents = data_source->processObjectID(parent_ref_branch_name, particle_index_offset);
+            merged_collections_.mcparticle_parents_refs.insert(merged_collections_.mcparticle_parents_refs.end(),
+                                                              processed_parents.begin(), processed_parents.end());
+
+            std::string children_ref_branch_name = "_MCParticles_daughters";
+            auto& processed_children = data_source->processObjectID(children_ref_branch_name, particle_index_offset);
+            std::cout << "MCParticle daughters refs: " << processed_children.size() << std::endl;
+            merged_collections_.mcparticle_children_refs.insert(merged_collections_.mcparticle_children_refs.end(),
+                                                               processed_children.begin(), processed_children.end());
+            
+            // Process tracker hits
+            for (const auto& name : tracker_collection_names_) {
+                std::cout << "Processing tracker hits for collection: " << name << std::endl;
+                auto& processed_hits = data_source->processTrackerHits(name, particle_index_offset); // time_offset handled in processMCParticles
+                merged_collections_.tracker_hits[name].insert(merged_collections_.tracker_hits[name].end(),
+                                                             processed_hits.begin(), processed_hits.end());
+
+                std::string ref_branch_name = "_" + name + "_particle";
+                std::cout << "Processing tracker hit particle refs for " << name << std::endl;
+                auto& processed_refs = data_source->processObjectID(ref_branch_name, particle_index_offset);
+                merged_collections_.tracker_hit_particle_refs[name].insert(merged_collections_.tracker_hit_particle_refs[name].end(),
+                                                                          processed_refs.begin(), processed_refs.end());
+                                                                          std::cout << "Tracker hit particle refs for " << name << ": " << processed_refs.size() << std::endl;
+            }
+            
+            // Process calorimeter hits
+            for (const auto& name : calo_collection_names_) {
+                size_t existing_contrib_size = merged_collections_.calo_contributions[name].size();
+                
+                auto& processed_hits = data_source->processCaloHits(name, particle_index_offset); // time_offset handled in processMCParticles
+                merged_collections_.calo_hits[name].insert(merged_collections_.calo_hits[name].end(),
+                                                          processed_hits.begin(), processed_hits.end());
+                
+                std::string ref_branch_name = "_" + name + "_contributions";
+                auto& processed_contrib_refs = data_source->processObjectID(ref_branch_name, existing_contrib_size);
+                std::cout << "Calo hit contributions refs for " << name << ": " << processed_contrib_refs.size() << std::endl;
+                merged_collections_.calo_hit_contributions_refs[name].insert(merged_collections_.calo_hit_contributions_refs[name].end(),
+                                                                            processed_contrib_refs.begin(), processed_contrib_refs.end());
+                
+                // Process contributions
+                std::string contrib_branch_name = name + "Contributions";
+                auto& processed_contribs = data_source->processCaloContributions(contrib_branch_name, particle_index_offset);
+                merged_collections_.calo_contributions[name].insert(merged_collections_.calo_contributions[name].end(),
+                                                                   processed_contribs.begin(), processed_contribs.end());
+                
+                std::string ref_branch_name_contrib = "_" + contrib_branch_name + "_particle";
+                auto& processed_contrib_particle_refs = data_source->processObjectID(ref_branch_name_contrib, particle_index_offset);
+                merged_collections_.calo_contrib_particle_refs[name].insert(merged_collections_.calo_contrib_particle_refs[name].end(),
+                                                                           processed_contrib_particle_refs.begin(), processed_contrib_particle_refs.end());
+            }
 
             data_source->setCurrentEntryIndex(data_source->getCurrentEntryIndex() + 1);
             sourceEventsConsumed++;
@@ -203,114 +248,35 @@ void StandaloneTimesliceMerger::createMergedTimeslice(std::vector<std::unique_pt
 }
 
 void StandaloneTimesliceMerger::setupOutputTree(TTree* tree) {
-    // Create a list of all collections and their reference branches in alphabetical order
-    struct BranchInfo {
-        std::string name;
-        std::string type; // "header", "mcparticle", "tracker", "calo", "calocontrib"
-        bool is_reference;
-        std::string ref_suffix;
-    };
-    
-    std::vector<BranchInfo> branches_to_create;
-    
-    // Add fixed header branches first
-    branches_to_create.push_back({"EventHeader", "header", false, ""});
-    branches_to_create.push_back({"SubEventHeaders", "header", false, ""});
-    
-    // Add MCParticles and its reference branches
-    branches_to_create.push_back({"MCParticles", "mcparticle", false, ""});
-    branches_to_create.push_back({"_MCParticles_daughters", "mcparticle", true, "daughters"});
-    branches_to_create.push_back({"_MCParticles_parents", "mcparticle", true, "parents"});
-    
-    // Collect all other collections and sort them alphabetically
-    std::vector<std::string> all_collections;
-    
-    // Add tracker collections
+    // Directly create all required branches, no sorting or BranchInfo struct
+    tree->Branch("EventHeader", &merged_collections_.event_headers);
+    tree->Branch("_EventHeader_weights", &merged_collections_.event_header_weights);
+    // tree->Branch("SubEventHeaders", &merged_collections_.sub_event_headers); // Uncomment if needed
+
+    tree->Branch("MCParticles", &merged_collections_.mcparticles);
+    tree->Branch("_MCParticles_daughters", &merged_collections_.mcparticle_children_refs);
+    tree->Branch("_MCParticles_parents", &merged_collections_.mcparticle_parents_refs);
+
+    // Tracker collections and their references
     for (const auto& name : tracker_collection_names_) {
-        all_collections.push_back(name + "|tracker");
+        tree->Branch(name.c_str(), &merged_collections_.tracker_hits[name]);
+        std::string ref_name = "_" + name + "_particle";
+        tree->Branch(ref_name.c_str(), &merged_collections_.tracker_hit_particle_refs[name]);
     }
-    
-    // Add calo collections  
+
+    // Calorimeter collections and their references
     for (const auto& name : calo_collection_names_) {
-        all_collections.push_back(name + "|calo");
+        tree->Branch(name.c_str(), &merged_collections_.calo_hits[name]);
+        std::string ref_name = "_" + name + "_contributions";
+        tree->Branch(ref_name.c_str(), &merged_collections_.calo_hit_contributions_refs[name]);
+        std::string contrib_name = name + "Contributions";
+        tree->Branch(contrib_name.c_str(), &merged_collections_.calo_contributions[name]);
+        std::string ref_name_contrib = "_" + contrib_name + "_particle";
+        tree->Branch(ref_name_contrib.c_str(), &merged_collections_.calo_contrib_particle_refs[name]);
     }
-    
-    // Add calo contribution collections
-    for (const auto& name : calo_contrib_collection_names_) {
-        all_collections.push_back(name + "|calocontrib");
-    }
-    
-    // Sort alphabetically by collection name
-    std::sort(all_collections.begin(), all_collections.end());
-    
-    // Create branch entries for sorted collections
-    for (const auto& collection_with_type : all_collections) {
-        size_t pos = collection_with_type.find("|");
-        std::string collection_name = collection_with_type.substr(0, pos);
-        std::string collection_type = collection_with_type.substr(pos + 1);
-        
-        // Add main collection branch
-        branches_to_create.push_back({collection_name, collection_type, false, ""});
-        
-        // Add reference branches immediately after main branch
-        if (collection_type == "tracker") {
-            branches_to_create.push_back({"_" + collection_name + "_particle", collection_type, true, "particle"});
-        } else if (collection_type == "calo") {
-            branches_to_create.push_back({"_" + collection_name + "_contributions", collection_type, true, "contributions"});
-        } else if (collection_type == "calocontrib") {
-            branches_to_create.push_back({"_" + collection_name + "_particle", collection_type, true, "particle"});
-        }
-    }
-    
-    // Create all branches in the determined order
-    for (const auto& branch : branches_to_create) {
-        if (branch.type == "header") {
-            if (branch.name == "EventHeader") {
-                tree->Branch("EventHeader", &merged_collections_.event_headers);
-            }
-            // SubEventHeaders are commented out for now
-            // else if (branch.name == "SubEventHeaders") {
-            //     tree->Branch("SubEventHeaders", &merged_collections_.sub_event_headers);
-            // }
-        } else if (branch.type == "mcparticle" && !branch.is_reference) {
-            tree->Branch("MCParticles", &merged_collections_.mcparticles);
-        } else if (branch.type == "mcparticle" && branch.is_reference) {
-            if (branch.ref_suffix == "parents") {
-                tree->Branch("_MCParticles_parents", &merged_collections_.mcparticle_parents_refs);
-            } else if (branch.ref_suffix == "daughters") {
-                tree->Branch("_MCParticles_daughters", &merged_collections_.mcparticle_children_refs);
-            }
-        } else if (branch.type == "tracker" && !branch.is_reference) {
-            tree->Branch(branch.name.c_str(), &merged_collections_.tracker_hits[branch.name]);
-        } else if (branch.type == "tracker" && branch.is_reference) {
-            std::string collection_name = branch.name.substr(1, branch.name.length() - 10); // Remove "_" and "_particle"
-            tree->Branch(branch.name.c_str(), &merged_collections_.tracker_hit_particle_refs[collection_name]);
-        } else if (branch.type == "calo" && !branch.is_reference) {
-            tree->Branch(branch.name.c_str(), &merged_collections_.calo_hits[branch.name]);
-        } else if (branch.type == "calo" && branch.is_reference) {
-            std::string collection_name = branch.name.substr(1, branch.name.length() - 15); // Remove "_" and "_contributions"
-            tree->Branch(branch.name.c_str(), &merged_collections_.calo_hit_contributions_refs[collection_name]);
-        } else if (branch.type == "calocontrib" && !branch.is_reference) {
-            // Find the corresponding calo collection name for this contribution collection
-            for (const auto& calo_name : calo_collection_names_) {
-                if (getCorrespondingContributionCollection(calo_name) == branch.name) {
-                    tree->Branch(branch.name.c_str(), &merged_collections_.calo_contributions[calo_name]);
-                    break;
-                }
-            }
-        } else if (branch.type == "calocontrib" && branch.is_reference) {
-            // Find the corresponding calo collection name for this contribution collection
-            std::string contrib_collection_name = branch.name.substr(1, branch.name.length() - 10); // Remove "_" and "_particle"
-            for (const auto& calo_name : calo_collection_names_) {
-                if (getCorrespondingContributionCollection(calo_name) == contrib_collection_name) {
-                    tree->Branch(branch.name.c_str(), &merged_collections_.calo_contrib_particle_refs[calo_name]);
-                    break;
-                }
-            }
-        }
-    }
-    
-    std::cout << "Created " << branches_to_create.size() << " branches in alphabetical order" << std::endl;
+    // Print the number of created branches
+    std::cout << "Total branches created: " << tree->GetListOfBranches()->GetEntries() << std::endl;
+    std::cout << "Created branches for all required collections" << std::endl;
 }
 
 void StandaloneTimesliceMerger::writeTimesliceToTree(TTree* tree) {
@@ -332,14 +298,18 @@ void StandaloneTimesliceMerger::writeTimesliceToTree(TTree* tree) {
         if (merged_collections_.calo_hit_contributions_refs.count(name)) {
             contrib_refs_size = merged_collections_.calo_hit_contributions_refs.at(name).size();
         }
+        size_t contrib_size = 0;
+        if (merged_collections_.calo_contributions.count(name)) {
+            contrib_size = merged_collections_.calo_contributions.at(name).size();          
+        }
+        size_t contrib_particle_refs_size = 0;
+        if (merged_collections_.calo_contrib_particle_refs.count(name)) {
+            contrib_particle_refs_size = merged_collections_.calo_contrib_particle_refs.at(name).size();          
+        }
         std::cout << "    " << name << ": " << hits.size() << " hits, " 
-                  << contrib_refs_size << " contribution refs" << std::endl;
-    }
-    
-    std::cout << "  Calo contribution collections (" << merged_collections_.calo_contributions.size() << "):" << std::endl;
-    for (const auto& [name, contribs] : merged_collections_.calo_contributions) {
-        std::cout << "    " << name << ": " << contribs.size() << " contributions, " 
-                  << merged_collections_.calo_contrib_particle_refs[name].size() << " particle refs" << std::endl;
+                  << contrib_refs_size << " contribution refs, "
+                  << contrib_size << " contributions, "
+                  << contrib_particle_refs_size << " contrib particle refs" << std::endl;
     }
     
     // Fill the tree with current merged data
@@ -368,23 +338,7 @@ std::vector<std::string> StandaloneTimesliceMerger::discoverCollectionNames(Data
     }
     
     std::cout << "=== Branch Discovery for pattern: " << branch_pattern << " ===" << std::endl;
-    std::cout << "Total branches in chain: " << branches->GetEntries() << std::endl;
-    
-    // List all branches for debugging
-    for (int i = 0; i < branches->GetEntries() && i < 20; ++i) {  // Limit to first 20 for readability
-        TBranch* branch = (TBranch*)branches->At(i);
-        if (!branch) continue;
-        std::string branch_name = branch->GetName();
-        std::string branch_class_name = "";
-        TClass* expectedClass = nullptr;
-        EDataType expectedType;
-        if (branch->GetExpectedType(expectedClass, expectedType) == 0 && expectedClass && expectedClass->GetName()) {
-            branch_class_name = expectedClass->GetName();
-        }
-        std::cout << "  Branch[" << i << "]: " << branch_name << " (type: " << branch_class_name << ")";
-        if (branch_name.find("_") == 0) std::cout << " (ObjectID branch)";
-        std::cout << std::endl;
-    }
+    std::cout << "Total branches in chain: " << branches->GetEntries() << std::endl;   
     
     for (int i = 0; i < branches->GetEntries(); ++i) {
         TBranch* branch = (TBranch*)branches->At(i);
@@ -402,35 +356,25 @@ std::vector<std::string> StandaloneTimesliceMerger::discoverCollectionNames(Data
         
         // Skip branches that start with "_" for now - these are ObjectID references
         if (branch_name.find("_") == 0) continue;
+        // if branch type doesnt match pattern continue
+        if (branch_type.find(branch_pattern) == std::string::npos) continue;
         
-        // Look for collections based on data type rather than branch name
-        if (branch_pattern.find("SimTrackerHit") != std::string::npos) {
-            if (branch_type.find("vector<edm4hep::SimTrackerHitData>") != std::string::npos ||
-                branch_type.find("SimTrackerHitData") != std::string::npos) {
-                names.push_back(branch_name);
-                std::cout << "  ✓ MATCHED TRACKER: " << branch_name << " (type: " << branch_type << ")" << std::endl;
-            }
-        } else if (branch_pattern.find("SimCalorimeterHit") != std::string::npos) {
-            if (branch_type.find("vector<edm4hep::SimCalorimeterHitData>") != std::string::npos ||
-                branch_type.find("SimCalorimeterHitData") != std::string::npos) {
-                names.push_back(branch_name);
-                std::cout << "  ✓ MATCHED CALO: " << branch_name << " (type: " << branch_type << ")" << std::endl;
-            }
-        } else if (branch_pattern.find("CaloHitContribution") != std::string::npos) {
-            if (branch_type.find("vector<edm4hep::CaloHitContributionData>") != std::string::npos ||
-                branch_type.find("CaloHitContributionData") != std::string::npos) {
-                names.push_back(branch_name);
-                std::cout << "  ✓ MATCHED CONTRIB: " << branch_name << " (type: " << branch_type << ")" << std::endl;
-            }
+        // Look for collections based on data type
+        if (branch_type == "vector<edm4hep::SimTrackerHitData>") {
+            names.push_back(branch_name);
+            std::cout << "  ✓ MATCHED TRACKER: " << branch_name << " (type: " << branch_type << ")" << std::endl;
+        } else if (branch_type == "vector<edm4hep::SimCalorimeterHitData>") {
+            names.push_back(branch_name);
+            std::cout << "  ✓ MATCHED CALO: " << branch_name << " (type: " << branch_type << ")" << std::endl;            
         }
     }
     
-    std::cout << "=== Discovery Summary ===" << std::endl;
-    std::cout << "Discovered " << names.size() << " collections matching pattern: " << branch_pattern << std::endl;
-    for (const auto& name : names) {
-        std::cout << "  - " << name << std::endl;
-    }
-    std::cout << "=========================" << std::endl;
+    // std::cout << "=== Discovery Summary ===" << std::endl;
+    // std::cout << "Discovered " << names.size() << " collections matching pattern: " << branch_pattern << std::endl;
+    // for (const auto& name : names) {
+    //     std::cout << "  - " << name << std::endl;
+    // }
+    // std::cout << "=========================" << std::endl;
     
     return names;
 }

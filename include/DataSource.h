@@ -21,8 +21,7 @@ public:
     
     // Initialization
     void initialize(const std::vector<std::string>& tracker_collections,
-                   const std::vector<std::string>& calo_collections, 
-                   const std::vector<std::string>& calo_contrib_collections);
+                   const std::vector<std::string>& calo_collections);
     
     // Data access
     bool hasMoreEntries() const;
@@ -38,21 +37,27 @@ public:
     // Time offset generation
     float generateTimeOffset(float distance, float time_slice_duration, float bunch_crossing_period, std::mt19937& rng) const;
     
-    // Data merging methods
-    void mergeEventData(size_t event_index, 
-                       size_t particle_index_offset,
-                       float time_slice_duration,
-                       float bunch_crossing_period,
-                       std::mt19937& rng,
-                       std::vector<edm4hep::MCParticleData>& merged_mcparticles,
-                       std::unordered_map<std::string, std::vector<edm4hep::SimTrackerHitData>>& merged_tracker_hits,
-                       std::unordered_map<std::string, std::vector<edm4hep::SimCalorimeterHitData>>& merged_calo_hits,
-                       std::unordered_map<std::string, std::vector<edm4hep::CaloHitContributionData>>& merged_calo_contributions,
-                       std::vector<podio::ObjectID>& merged_mcparticle_parents_refs,
-                       std::vector<podio::ObjectID>& merged_mcparticle_children_refs,
-                       std::unordered_map<std::string, std::vector<podio::ObjectID>>& merged_tracker_hit_particle_refs,
-                       std::unordered_map<std::string, std::vector<podio::ObjectID>>& merged_calo_contrib_particle_refs,
-                       std::unordered_map<std::string, std::vector<podio::ObjectID>>& merged_calo_hit_contributions_refs);
+    // New typed data merging methods
+    void loadEvent(size_t event_index);
+    
+    std::vector<edm4hep::MCParticleData>& processMCParticles(size_t particle_index_offset,
+                                                           float time_slice_duration,
+                                                           float bunch_crossing_period,
+                                                           std::mt19937& rng);
+    
+    std::vector<podio::ObjectID>& processObjectID(const std::string& collection_name, size_t index_offset);
+    
+    std::vector<edm4hep::SimTrackerHitData>& processTrackerHits(const std::string& collection_name,
+                                                              size_t particle_index_offset);
+    
+    std::vector<edm4hep::SimCalorimeterHitData>& processCaloHits(const std::string& collection_name,
+                                                                size_t particle_index_offset);
+    
+    
+    std::vector<edm4hep::CaloHitContributionData>& processCaloContributions(const std::string& collection_name,
+                                                                           size_t particle_index_offset);
+    
+
     
     // Configuration access
     const SourceConfig& getConfig() const { return *config_; }
@@ -77,7 +82,6 @@ private:
     // Collection names (references to shared data)
     const std::vector<std::string>* tracker_collection_names_;
     const std::vector<std::string>* calo_collection_names_;
-    const std::vector<std::string>* calo_contrib_collection_names_;
     
     // Branch pointers for reading data as vectors
     std::vector<edm4hep::MCParticleData>* mcparticle_branch_;
@@ -86,16 +90,13 @@ private:
     std::unordered_map<std::string, std::vector<edm4hep::CaloHitContributionData>*> calo_contrib_branches_;
     std::unordered_map<std::string, std::vector<edm4hep::EventHeaderData>*> event_header_branches_;
     
-    // Branch pointers for reading ObjectID references
-    std::unordered_map<std::string, std::vector<podio::ObjectID>*> tracker_hit_particle_refs_;
-    std::unordered_map<std::string, std::vector<podio::ObjectID>*> calo_contrib_particle_refs_;
+    // Branch pointers for reading ObjectID references - consolidated into single map
+    std::unordered_map<std::string, std::vector<podio::ObjectID>*> objectid_branches_;
     
-    // Branch pointers for MCParticle parent-child relationships
-    std::vector<podio::ObjectID>* mcparticle_parents_refs_;
-    std::vector<podio::ObjectID>* mcparticle_children_refs_;
     
-    // Branch pointers for SimCalorimeterHit-CaloHitContribution relationships
-    std::unordered_map<std::string, std::vector<podio::ObjectID>*> calo_hit_contributions_refs_;
+    // Current event processing state
+    float current_time_offset_;
+    size_t current_particle_index_offset_;
     
     // Private helper methods
     void setupBranches();
@@ -107,13 +108,6 @@ private:
     
     // Helper methods for physics calculations
     float calculateBeamDistance(const std::vector<edm4hep::MCParticleData>& particles) const;
-    void updateParticleReferences(std::vector<edm4hep::MCParticleData>& particles, 
-                                 std::vector<podio::ObjectID>& parents_refs,
-                                 std::vector<podio::ObjectID>& children_refs,
-                                 size_t particle_index_offset,
-                                 float time_offset) const;
-    void updateTrackerHitData(float time_offset, size_t particle_index_offset) const;
-    void updateCalorimeterHitData(float time_offset, size_t particle_index_offset) const;
     
     // Helper methods for collection name mapping
     std::string getCorrespondingContributionCollection(const std::string& calo_collection_name) const;

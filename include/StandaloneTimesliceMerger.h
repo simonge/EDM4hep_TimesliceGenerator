@@ -7,7 +7,6 @@
 #include <edm4hep/SimCalorimeterHitData.h>
 #include <edm4hep/CaloHitContributionData.h>
 #include <edm4hep/EventHeaderData.h>
-#include <podio/ROOTWriter.h>
 #include <podio/ObjectID.h>
 #include <ROOT/RVec.hxx>
 #include <TFile.h>
@@ -24,6 +23,7 @@ struct MergedCollections {
     // Event and particle data
     std::vector<edm4hep::MCParticleData> mcparticles;
     std::vector<edm4hep::EventHeaderData> event_headers;
+    std::vector<double> event_header_weights; 
     std::vector<edm4hep::EventHeaderData> sub_event_headers;
     
     // Hit data collections
