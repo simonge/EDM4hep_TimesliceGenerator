@@ -7,6 +7,7 @@
 #include <TObjArray.h>
 
 void MergedCollections::clear() {
+    // Use clear() but preserve capacity to avoid repeated memory allocations
     mcparticles.clear();
     event_headers.clear();
     event_header_weights.clear();
@@ -43,6 +44,9 @@ void MergedCollections::clear() {
     gp_float_values.clear();
     gp_double_values.clear();
     gp_string_values.clear();
+    
+    // Note: Using clear() instead of shrink_to_fit() preserves capacity
+    // This avoids repeated memory allocations for vectors that will grow again
 }
 
 StandaloneTimesliceMerger::StandaloneTimesliceMerger(const MergerConfig& config)
@@ -57,13 +61,21 @@ void StandaloneTimesliceMerger::run() {
     std::cout << "Max events: " << m_config.max_events << std::endl;
     std::cout << "Timeslice duration: " << m_config.time_slice_duration << std::endl;
     
-    // Open output file and create tree
+    // Open output file and create tree with optimizations
     auto output_file = std::make_unique<TFile>(m_config.output_file.c_str(), "RECREATE");
     if (!output_file || output_file->IsZombie()) {
         throw std::runtime_error("Could not create output file: " + m_config.output_file);
     }
     
+    // Set ROOT I/O optimizations
+    output_file->SetCompressionLevel(1); // Fast compression (1-9, where 1=fast, 9=best compression)
+    
     TTree* output_tree = new TTree("events", "Merged timeslices");
+    
+    // Optimize TTree settings for performance
+    output_tree->SetMaxTreeSize(10000000000LL); // 10GB max tree size to reduce file splits
+    output_tree->SetCacheSize(50000000); // 50MB cache for better I/O performance
+    output_tree->SetAutoFlush(-50000000); // Auto-flush every 50MB for better I/O patterns
     
     data_sources_ = initializeDataSources();
     setupOutputTree(output_tree);
@@ -166,6 +178,7 @@ void StandaloneTimesliceMerger::createMergedTimeslice(std::vector<std::unique_pt
     // Clear all merged collections for new timeslice
     merged_collections_.clear();
 
+
     int totalEventsConsumed = 0;
 
     // Loop over sources and read needed events
@@ -180,88 +193,97 @@ void StandaloneTimesliceMerger::createMergedTimeslice(std::vector<std::unique_pt
             // Load the event data from this source
             data_source->loadEvent(data_source->getCurrentEntryIndex());
             
-            // Process MCParticles
+            // Process MCParticles - use move semantics to avoid copying
             auto& processed_particles = data_source->processMCParticles(particle_index_offset,
                                                                        m_config.time_slice_duration,
                                                                        m_config.bunch_crossing_period,
-                                                                       gen);
+                                                                       gen,totalEventsConsumed);
             merged_collections_.mcparticles.insert(merged_collections_.mcparticles.end(), 
-                                                  processed_particles.begin(), processed_particles.end());
+                                                  std::make_move_iterator(processed_particles.begin()), 
+                                                  std::make_move_iterator(processed_particles.end()));
             
-            // Process MCParticle references
+            // Process MCParticle references - use move semantics
             std::string parent_ref_branch_name = "_MCParticles_parents";
-            auto& processed_parents = data_source->processObjectID(parent_ref_branch_name, particle_index_offset);
+            auto& processed_parents = data_source->processObjectID(parent_ref_branch_name, particle_index_offset,totalEventsConsumed);
             merged_collections_.mcparticle_parents_refs.insert(merged_collections_.mcparticle_parents_refs.end(),
-                                                              processed_parents.begin(), processed_parents.end());
+                                                              std::make_move_iterator(processed_parents.begin()), 
+                                                              std::make_move_iterator(processed_parents.end()));
 
             std::string children_ref_branch_name = "_MCParticles_daughters";
-            auto& processed_children = data_source->processObjectID(children_ref_branch_name, particle_index_offset);
+            auto& processed_children = data_source->processObjectID(children_ref_branch_name, particle_index_offset,totalEventsConsumed);
             merged_collections_.mcparticle_children_refs.insert(merged_collections_.mcparticle_children_refs.end(),
-                                                               processed_children.begin(), processed_children.end());
+                                                               std::make_move_iterator(processed_children.begin()), 
+                                                               std::make_move_iterator(processed_children.end()));
             
-            // Process tracker hits
+            // Process tracker hits - use move semantics to avoid copying
             for (const auto& name : tracker_collection_names_) {
-                auto& processed_hits = data_source->processTrackerHits(name, particle_index_offset); // time_offset handled in processMCParticles
+                auto& processed_hits = data_source->processTrackerHits(name, particle_index_offset,totalEventsConsumed);
                 merged_collections_.tracker_hits[name].insert(merged_collections_.tracker_hits[name].end(),
-                                                             processed_hits.begin(), processed_hits.end());
+                                                             std::make_move_iterator(processed_hits.begin()), 
+                                                             std::make_move_iterator(processed_hits.end()));
 
                 std::string ref_branch_name = "_" + name + "_particle";
-                auto& processed_refs = data_source->processObjectID(ref_branch_name, particle_index_offset);
+                auto& processed_refs = data_source->processObjectID(ref_branch_name, particle_index_offset,totalEventsConsumed);
                 merged_collections_.tracker_hit_particle_refs[name].insert(merged_collections_.tracker_hit_particle_refs[name].end(),
-                                                                          processed_refs.begin(), processed_refs.end());
+                                                                          std::make_move_iterator(processed_refs.begin()), 
+                                                                          std::make_move_iterator(processed_refs.end()));
             }
             
-            // Process calorimeter hits
+            // Process calorimeter hits - use move semantics to avoid copying
             for (const auto& name : calo_collection_names_) {
                 size_t existing_contrib_size = merged_collections_.calo_contributions[name].size();
-                
-                auto& processed_hits = data_source->processCaloHits(name, existing_contrib_size); // time_offset handled in processMCParticles
+
+                auto& processed_hits = data_source->processCaloHits(name, existing_contrib_size,totalEventsConsumed);
                 merged_collections_.calo_hits[name].insert(merged_collections_.calo_hits[name].end(),
-                                                          processed_hits.begin(), processed_hits.end());
+                                                          std::make_move_iterator(processed_hits.begin()), 
+                                                          std::make_move_iterator(processed_hits.end()));
                 
                 std::string ref_branch_name = "_" + name + "_contributions";
-                auto& processed_contrib_refs = data_source->processObjectID(ref_branch_name, existing_contrib_size);
+                auto& processed_contrib_refs = data_source->processObjectID(ref_branch_name, existing_contrib_size,totalEventsConsumed);
                 merged_collections_.calo_hit_contributions_refs[name].insert(merged_collections_.calo_hit_contributions_refs[name].end(),
-                                                                            processed_contrib_refs.begin(), processed_contrib_refs.end());
+                                                                            std::make_move_iterator(processed_contrib_refs.begin()), 
+                                                                            std::make_move_iterator(processed_contrib_refs.end()));
                 
                 // Process contributions
                 std::string contrib_branch_name = name + "Contributions";
-                auto& processed_contribs = data_source->processCaloContributions(contrib_branch_name, particle_index_offset);
+                auto& processed_contribs = data_source->processCaloContributions(contrib_branch_name, particle_index_offset,totalEventsConsumed);
                 merged_collections_.calo_contributions[name].insert(merged_collections_.calo_contributions[name].end(),
-                                                                   processed_contribs.begin(), processed_contribs.end());
+                                                                   std::make_move_iterator(processed_contribs.begin()), 
+                                                                   std::make_move_iterator(processed_contribs.end()));
                 
                 std::string ref_branch_name_contrib = "_" + contrib_branch_name + "_particle";
-                auto& processed_contrib_particle_refs = data_source->processObjectID(ref_branch_name_contrib, particle_index_offset);
+                auto& processed_contrib_particle_refs = data_source->processObjectID(ref_branch_name_contrib, particle_index_offset,totalEventsConsumed);
                 merged_collections_.calo_contrib_particle_refs[name].insert(merged_collections_.calo_contrib_particle_refs[name].end(),
-                                                                           processed_contrib_particle_refs.begin(), processed_contrib_particle_refs.end());
+                                                                           std::make_move_iterator(processed_contrib_particle_refs.begin()), 
+                                                                           std::make_move_iterator(processed_contrib_particle_refs.end()));
             }
             
             // Process GP (Global Parameter) branches - only from first event of first source
             if (totalEventsConsumed == 0 && !gp_collection_names_.empty()) {
                 std::cout << "Processing GP branches from first event..." << std::endl;
                 
-                // Process GP key branches
+                // Process GP key branches - use move semantics to avoid copying
                 for (const auto& name : gp_collection_names_) {
                     auto& gp_keys = data_source->processGPBranch(name);
-                    merged_collections_.gp_key_branches[name] = gp_keys; // Copy all GP key data
+                    merged_collections_.gp_key_branches[name] = std::move(gp_keys); // Move GP key data
                     // std::cout << "GP key branch " << name << ": " << gp_keys.size() << " entries" << std::endl;
                 }
                 
-                // Process GP value branches
+                // Process GP value branches - use move semantics to avoid copying
                 auto& gp_int_values = data_source->processGPIntValues();
-                merged_collections_.gp_int_values = gp_int_values;
+                merged_collections_.gp_int_values = std::move(gp_int_values);
                 // std::cout << "GP int values: " << gp_int_values.size() << " vectors" << std::endl;
                 
                 auto& gp_float_values = data_source->processGPFloatValues();
-                merged_collections_.gp_float_values = gp_float_values;
+                merged_collections_.gp_float_values = std::move(gp_float_values);
                 // std::cout << "GP float values: " << gp_float_values.size() << " vectors" << std::endl;
                 
                 auto& gp_double_values = data_source->processGPDoubleValues();
-                merged_collections_.gp_double_values = gp_double_values;
+                merged_collections_.gp_double_values = std::move(gp_double_values);
                 // std::cout << "GP double values: " << gp_double_values.size() << " vectors" << std::endl;
                 
                 auto& gp_string_values = data_source->processGPStringValues();
-                merged_collections_.gp_string_values = gp_string_values;
+                merged_collections_.gp_string_values = std::move(gp_string_values);
                 // std::cout << "GP string values: " << gp_string_values.size() << " vectors" << std::endl;
             }
 
@@ -287,46 +309,72 @@ void StandaloneTimesliceMerger::createMergedTimeslice(std::vector<std::unique_pt
 
 void StandaloneTimesliceMerger::setupOutputTree(TTree* tree) {
     // Directly create all required branches, no sorting or BranchInfo struct
-    tree->Branch("EventHeader", &merged_collections_.event_headers);
-    tree->Branch("_EventHeader_weights", &merged_collections_.event_header_weights);
+    auto eventHeaderBranch = tree->Branch("EventHeader", &merged_collections_.event_headers);
+    eventHeaderBranch->SetBasketSize(32000); // Optimize basket size for I/O
+    
+    auto eventHeaderWeightsBranch = tree->Branch("_EventHeader_weights", &merged_collections_.event_header_weights);
+    eventHeaderWeightsBranch->SetBasketSize(32000);
     // tree->Branch("SubEventHeaders", &merged_collections_.sub_event_headers); // Uncomment if needed
 
-    tree->Branch("MCParticles", &merged_collections_.mcparticles);
-    tree->Branch("_MCParticles_daughters", &merged_collections_.mcparticle_children_refs);
-    tree->Branch("_MCParticles_parents", &merged_collections_.mcparticle_parents_refs);
+    auto mcParticlesBranch = tree->Branch("MCParticles", &merged_collections_.mcparticles);
+    mcParticlesBranch->SetBasketSize(64000); // Larger basket for main physics data
+    
+    auto mcDaughtersBranch = tree->Branch("_MCParticles_daughters", &merged_collections_.mcparticle_children_refs);
+    mcDaughtersBranch->SetBasketSize(32000);
+    
+    auto mcParentsBranch = tree->Branch("_MCParticles_parents", &merged_collections_.mcparticle_parents_refs);
+    mcParentsBranch->SetBasketSize(32000);
 
     // Tracker collections and their references
     for (const auto& name : tracker_collection_names_) {
-        tree->Branch(name.c_str(), &merged_collections_.tracker_hits[name]);
+        auto trackerBranch = tree->Branch(name.c_str(), &merged_collections_.tracker_hits[name]);
+        trackerBranch->SetBasketSize(64000); // Large basket for hit data
+        
         std::string ref_name = "_" + name + "_particle";
-        tree->Branch(ref_name.c_str(), &merged_collections_.tracker_hit_particle_refs[name]);
+        auto trackerRefBranch = tree->Branch(ref_name.c_str(), &merged_collections_.tracker_hit_particle_refs[name]);
+        trackerRefBranch->SetBasketSize(32000);
     }
 
     // Calorimeter collections and their references
     for (const auto& name : calo_collection_names_) {
-        tree->Branch(name.c_str(), &merged_collections_.calo_hits[name]);
+        auto caloBranch = tree->Branch(name.c_str(), &merged_collections_.calo_hits[name]);
+        caloBranch->SetBasketSize(64000); // Large basket for hit data
+        
         std::string ref_name = "_" + name + "_contributions";
-        tree->Branch(ref_name.c_str(), &merged_collections_.calo_hit_contributions_refs[name]);
+        auto caloRefBranch = tree->Branch(ref_name.c_str(), &merged_collections_.calo_hit_contributions_refs[name]);
+        caloRefBranch->SetBasketSize(32000);
+        
         std::string contrib_name = name + "Contributions";
-        tree->Branch(contrib_name.c_str(), &merged_collections_.calo_contributions[name]);
+        auto contribBranch = tree->Branch(contrib_name.c_str(), &merged_collections_.calo_contributions[name]);
+        contribBranch->SetBasketSize(64000); // Large basket for contribution data
+        
         std::string ref_name_contrib = "_" + contrib_name + "_particle";
-        tree->Branch(ref_name_contrib.c_str(), &merged_collections_.calo_contrib_particle_refs[name]);
+        auto contribRefBranch = tree->Branch(ref_name_contrib.c_str(), &merged_collections_.calo_contrib_particle_refs[name]);
+        contribRefBranch->SetBasketSize(32000);
     }
     
     // GP (Global Parameter) branches - keys and values
     for (const auto& name : gp_collection_names_) {
-        tree->Branch(name.c_str(), &merged_collections_.gp_key_branches[name]);
+        auto gpBranch = tree->Branch(name.c_str(), &merged_collections_.gp_key_branches[name]);
+        gpBranch->SetBasketSize(16000); // Smaller basket for GP data
     }
     
-    // GP value branches (fixed names)
-    tree->Branch("GPIntValues", &merged_collections_.gp_int_values);
-    tree->Branch("GPFloatValues", &merged_collections_.gp_float_values);
-    tree->Branch("GPDoubleValues", &merged_collections_.gp_double_values);
-    tree->Branch("GPStringValues", &merged_collections_.gp_string_values);
+    // GP value branches (fixed names) - smaller baskets as they're written once per timeslice
+    auto gpIntBranch = tree->Branch("GPIntValues", &merged_collections_.gp_int_values);
+    gpIntBranch->SetBasketSize(16000);
+    
+    auto gpFloatBranch = tree->Branch("GPFloatValues", &merged_collections_.gp_float_values);
+    gpFloatBranch->SetBasketSize(16000);
+    
+    auto gpDoubleBranch = tree->Branch("GPDoubleValues", &merged_collections_.gp_double_values);
+    gpDoubleBranch->SetBasketSize(16000);
+    
+    auto gpStringBranch = tree->Branch("GPStringValues", &merged_collections_.gp_string_values);
+    gpStringBranch->SetBasketSize(16000);
     
     // Print the number of created branches
     std::cout << "Total branches created: " << tree->GetListOfBranches()->GetEntries() << std::endl;
-    std::cout << "Created branches for all required collections" << std::endl;
+    std::cout << "Created branches for all required collections with optimized basket sizes" << std::endl;
 }
 
 void StandaloneTimesliceMerger::writeTimesliceToTree(TTree* tree) {
@@ -343,24 +391,24 @@ void StandaloneTimesliceMerger::writeTimesliceToTree(TTree* tree) {
     // }
     
     // std::cout << "  Calo collections (" << merged_collections_.calo_hits.size() << "):" << std::endl;
-    for (const auto& [name, hits] : merged_collections_.calo_hits) {
-        size_t contrib_refs_size = 0;
-        if (merged_collections_.calo_hit_contributions_refs.count(name)) {
-            contrib_refs_size = merged_collections_.calo_hit_contributions_refs.at(name).size();
-        }
-        size_t contrib_size = 0;
-        if (merged_collections_.calo_contributions.count(name)) {
-            contrib_size = merged_collections_.calo_contributions.at(name).size();          
-        }
-        size_t contrib_particle_refs_size = 0;
-        if (merged_collections_.calo_contrib_particle_refs.count(name)) {
-            contrib_particle_refs_size = merged_collections_.calo_contrib_particle_refs.at(name).size();          
-        }
-        // std::cout << "    " << name << ": " << hits.size() << " hits, " 
-        //           << contrib_refs_size << " contribution refs, "
-        //           << contrib_size << " contributions, "
-        //           << contrib_particle_refs_size << " contrib particle refs" << std::endl;
-    }
+    // for (const auto& [name, hits] : merged_collections_.calo_hits) {
+    //     size_t contrib_refs_size = 0;
+    //     if (merged_collections_.calo_hit_contributions_refs.count(name)) {
+    //         contrib_refs_size = merged_collections_.calo_hit_contributions_refs.at(name).size();
+    //     }
+    //     size_t contrib_size = 0;
+    //     if (merged_collections_.calo_contributions.count(name)) {
+    //         contrib_size = merged_collections_.calo_contributions.at(name).size();          
+    //     }
+    //     size_t contrib_particle_refs_size = 0;
+    //     if (merged_collections_.calo_contrib_particle_refs.count(name)) {
+    //         contrib_particle_refs_size = merged_collections_.calo_contrib_particle_refs.at(name).size();          
+    //     }
+    //     // std::cout << "    " << name << ": " << hits.size() << " hits, " 
+    //     //           << contrib_refs_size << " contribution refs, "
+    //     //           << contrib_size << " contributions, "
+    //     //           << contrib_particle_refs_size << " contrib particle refs" << std::endl;
+    // }
     
     // Fill the tree with current merged data
     tree->Fill();

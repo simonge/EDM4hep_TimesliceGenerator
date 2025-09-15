@@ -107,12 +107,25 @@ float DataSource::generateTimeOffset(float distance, float time_slice_duration, 
 }
 
 void DataSource::loadEvent(size_t event_index) {
-    // Load the event data from the TChain
+    // Load the event data from the TChain with potential cache optimization
     chain_->GetEntry(event_index);
+    
+    // Enable TTreeCache if not already enabled (ROOT optimization)
+    if (chain_->GetCacheSize() <= 0) {
+        // Enable 10MB cache for better I/O performance
+        chain_->SetCacheSize(10000000);
+        // Add all active branches to cache
+        chain_->AddBranchToCache("*", kTRUE);
+    }
 }
 
-std::vector<podio::ObjectID>& DataSource::processObjectID(const std::string& branch_name, size_t index_offset) {
+std::vector<podio::ObjectID>& DataSource::processObjectID(const std::string& branch_name, size_t index_offset, int totalEventsConsumed) {
     
+    //If first event and already merged, skip updating references
+    if (totalEventsConsumed == 0 && config_->already_merged) {
+        return *objectid_branches_[branch_name];
+    }
+
     // Update references with index offset
     for (auto& ref : *objectid_branches_[branch_name]) {
         ref.index += index_offset;
@@ -124,10 +137,15 @@ std::vector<podio::ObjectID>& DataSource::processObjectID(const std::string& bra
 std::vector<edm4hep::MCParticleData>& DataSource::processMCParticles(size_t particle_index_offset,
                                                                    float time_slice_duration,
                                                                    float bunch_crossing_period,
-                                                                   std::mt19937& rng) {
+                                                                   std::mt19937& rng,
+                                                                   int totalEventsConsumed) {
 
     auto& particles = *mcparticle_branch_;
-    
+
+    if (totalEventsConsumed == 0 && config_->already_merged) {
+        return particles;
+    }
+
     float distance = 0.0f;
     
     // Calculate time offset if not already merged
@@ -159,8 +177,14 @@ std::vector<edm4hep::MCParticleData>& DataSource::processMCParticles(size_t part
 
 
 std::vector<edm4hep::SimTrackerHitData>& DataSource::processTrackerHits(const std::string& collection_name,
-                                                                       size_t particle_index_offset) {
+                                                                       size_t particle_index_offset,
+                                                                       int totalEventsConsumed) {
+                                                        
+    if(totalEventsConsumed == 0 && config_->already_merged) {
+        return *tracker_hit_branches_[collection_name];
+    }
 
+    // Apply index offset to particle references in hits
     if (!config_->already_merged) {
         for (auto& hit : *tracker_hit_branches_[collection_name]) {// Apply time offset if not already merged
             hit.time += current_time_offset_;
@@ -172,7 +196,12 @@ std::vector<edm4hep::SimTrackerHitData>& DataSource::processTrackerHits(const st
 
 
 std::vector<edm4hep::SimCalorimeterHitData>& DataSource::processCaloHits(const std::string& collection_name,
-                                                                        size_t contribution_index_offset) {
+                                                                        size_t contribution_index_offset,
+                                                                        int totalEventsConsumed) {
+
+    if(totalEventsConsumed == 0 && config_->already_merged) {
+        return *calo_hit_branches_[collection_name];
+    }
 
     auto& hits = *calo_hit_branches_[collection_name];
 
@@ -185,9 +214,14 @@ std::vector<edm4hep::SimCalorimeterHitData>& DataSource::processCaloHits(const s
 }
 
 std::vector<edm4hep::CaloHitContributionData>& DataSource::processCaloContributions(const std::string& collection_name,
-                                                                                   size_t particle_index_offset) {
+                                                                                   size_t particle_index_offset,
+                                                                                   int totalEventsConsumed) {
 
     auto& contribs = *calo_contrib_branches_[collection_name];
+
+    if(totalEventsConsumed == 0 && config_->already_merged) {
+        return contribs;
+    }
     
     // Apply time offset if not already merged - work directly on branch data
     if (!config_->already_merged) {

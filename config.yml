@@ -1,6 +1,6 @@
 # Example configuration for the standalone podio timeslice merger
 output_file: merged_timeslices.root
-max_events: 20
+max_events: 100
 time_slice_duration: 200.0
 bunch_crossing_period: 10.0
 introduce_offsets: true
