@@ -25,6 +25,7 @@ struct MergedCollections {
     std::vector<edm4hep::EventHeaderData> event_headers;
     std::vector<double> event_header_weights; 
     std::vector<edm4hep::EventHeaderData> sub_event_headers;
+    std::vector<double> sub_event_header_weights;
     
     // Hit data collections
     std::unordered_map<std::string, std::vector<edm4hep::SimTrackerHitData>> tracker_hits;
