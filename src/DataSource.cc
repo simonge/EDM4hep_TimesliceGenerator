@@ -233,6 +233,27 @@ std::vector<edm4hep::CaloHitContributionData>& DataSource::processCaloContributi
     return contribs; // Return reference to the branch data itself
 }
 
+std::vector<edm4hep::EventHeaderData>& DataSource::processEventHeaders(const std::string& collection_name) {
+    // Check if the collection exists in our event header branches
+    if (event_header_branches_.find(collection_name) == event_header_branches_.end()) {
+        // Collection not found, return empty vector
+        static std::vector<edm4hep::EventHeaderData> empty_headers;
+        empty_headers.clear();
+        return empty_headers;
+    }
+    
+    // Get the current event headers
+    auto* headers = event_header_branches_[collection_name];
+    if (!headers) {
+        static std::vector<edm4hep::EventHeaderData> empty_headers;
+        empty_headers.clear();
+        return empty_headers;
+    }
+    
+    // Return reference to the branch data itself - no processing needed for headers
+    return *headers;
+}
+
 void DataSource::setupBranches() {
     std::cout << "=== Setting up branches for source " << source_index_ << " ===" << std::endl;
     
@@ -297,7 +318,13 @@ void DataSource::setupCalorimeterBranches() {
 
 void DataSource::setupEventHeaderBranches() {
     // Setup EventHeader if available
-    std::vector<std::string> header_collections = {"EventHeader"};//, "SubEventHeaders"};
+    std::vector<std::string> header_collections = {"EventHeader"};
+    
+    // Only add SubEventHeaders for non-merged sources (where they aren't already present)
+    if (!config_->already_merged) {
+        header_collections.push_back("SubEventHeaders");
+    }
+    
     for (const auto& coll_name : header_collections) {
         event_header_branches_[coll_name] = new std::vector<edm4hep::EventHeaderData>();
         int result = chain_->SetBranchAddress(coll_name.c_str(), &event_header_branches_[coll_name]);

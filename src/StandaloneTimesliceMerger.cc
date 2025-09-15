@@ -215,6 +215,41 @@ void StandaloneTimesliceMerger::createMergedTimeslice(std::vector<std::unique_pt
                                                                std::make_move_iterator(processed_children.begin()), 
                                                                std::make_move_iterator(processed_children.end()));
             
+            // Process SubEventHeaders for non-merged sources to track which MCParticles came from this source
+            if (!config.already_merged) {
+                // Create a SubEventHeader for this source/event combination
+                edm4hep::EventHeaderData sub_header;
+                sub_header.eventNumber = totalEventsConsumed; // Use total event count as unique identifier
+                sub_header.runNumber = data_source->getSourceIndex(); // Use source index to identify the source
+                sub_header.timeStamp = particle_index_offset; // Keep consistent with main header
+
+                // Store range of MCParticles from this source event
+                // The weight field can be used to store the starting index of particles from this event
+                sub_header.weight = data_source->getCurrentTimeOffset(); // Store time offset applied to this event
+
+                merged_collections_.sub_event_headers.push_back(sub_header);
+                merged_collections_.sub_event_header_weights.push_back(sub_header.weight);
+
+                // std::cout << "Added SubEventHeader: event=" << sub_header.eventNumber 
+                //           << ", source=" << sub_header.runNumber 
+                //           << ", particle_offset=" << static_cast<size_t>(sub_header.weight) << std::endl;
+            } else {
+                // For already merged sources, try to process existing SubEventHeaders if available
+                auto& existing_sub_headers = data_source->processEventHeaders("SubEventHeaders");
+                for (auto& sub_header : existing_sub_headers) {
+                    // Adjust the weight (particle index) to account for the current offset
+                    float original_offset = sub_header.weight;
+                    sub_header.weight += static_cast<float>(particle_index_offset);
+                    merged_collections_.sub_event_headers.push_back(sub_header);
+                    merged_collections_.sub_event_header_weights.push_back(sub_header.weight);
+
+                    std::cout << "Processed existing SubEventHeader: event=" << sub_header.eventNumber 
+                              << ", source=" << sub_header.runNumber 
+                              << ", original_offset=" << static_cast<size_t>(original_offset)
+                              << ", new_offset=" << static_cast<size_t>(sub_header.weight) << std::endl;
+                }
+            }
+            
             // Process tracker hits - use move semantics to avoid copying
             for (const auto& name : tracker_collection_names_) {
                 auto& processed_hits = data_source->processTrackerHits(name, particle_index_offset,totalEventsConsumed);
@@ -260,7 +295,7 @@ void StandaloneTimesliceMerger::createMergedTimeslice(std::vector<std::unique_pt
             
             // Process GP (Global Parameter) branches - only from first event of first source
             if (totalEventsConsumed == 0 && !gp_collection_names_.empty()) {
-                std::cout << "Processing GP branches from first event..." << std::endl;
+                // std::cout << "Processing GP branches from first event..." << std::endl;
                 
                 // Process GP key branches - use move semantics to avoid copying
                 for (const auto& name : gp_collection_names_) {
@@ -314,7 +349,12 @@ void StandaloneTimesliceMerger::setupOutputTree(TTree* tree) {
     
     auto eventHeaderWeightsBranch = tree->Branch("_EventHeader_weights", &merged_collections_.event_header_weights);
     eventHeaderWeightsBranch->SetBasketSize(32000);
-    // tree->Branch("SubEventHeaders", &merged_collections_.sub_event_headers); // Uncomment if needed
+    
+    // Enable SubEventHeaders branch to track which MCParticles were associated with each source
+    auto subEventHeaderBranch = tree->Branch("SubEventHeaders", &merged_collections_.sub_event_headers);
+    subEventHeaderBranch->SetBasketSize(32000);
+    auto subEventHeaderWeightsBranch = tree->Branch("_SubEventHeader_weights", &merged_collections_.sub_event_header_weights);
+    subEventHeaderWeightsBranch->SetBasketSize(32000);
 
     auto mcParticlesBranch = tree->Branch("MCParticles", &merged_collections_.mcparticles);
     mcParticlesBranch->SetBasketSize(64000); // Larger basket for main physics data
@@ -379,10 +419,12 @@ void StandaloneTimesliceMerger::setupOutputTree(TTree* tree) {
 
 void StandaloneTimesliceMerger::writeTimesliceToTree(TTree* tree) {
     // Debug: show sizes of merged vectors before writing
-    std::cout << "=== Writing timeslice ===" << std::endl;
-    std::cout << "  MCParticles: " << merged_collections_.mcparticles.size() << std::endl;
-    std::cout << "  MCParticle parents: " << merged_collections_.mcparticle_parents_refs.size() << std::endl;
-    std::cout << "  MCParticle daughters: " << merged_collections_.mcparticle_children_refs.size() << std::endl;
+    // std::cout << "=== Writing timeslice ===" << std::endl;
+    // std::cout << "  Event headers: " << merged_collections_.event_headers.size() << std::endl;
+    // std::cout << "  Sub event headers: " << merged_collections_.sub_event_headers.size() << std::endl;
+    // std::cout << "  MCParticles: " << merged_collections_.mcparticles.size() << std::endl;
+    // std::cout << "  MCParticle parents: " << merged_collections_.mcparticle_parents_refs.size() << std::endl;
+    // std::cout << "  MCParticle daughters: " << merged_collections_.mcparticle_children_refs.size() << std::endl;
 
     // std::cout << "  Tracker collections (" << merged_collections_.tracker_hits.size() << "):" << std::endl;
     // for (const auto& [name, hits] : merged_collections_.tracker_hits) {
@@ -546,19 +588,24 @@ void StandaloneTimesliceMerger::copyPodioMetadata(std::vector<std::unique_ptr<Da
         // List of metadata trees to copy
         std::vector<std::string> metadata_trees = {"podio_metadata", "runs", "meta", "metadata"};
         
-        // Copy each metadata tree if it exists
+        // Copy each metadata tree if it exists, with special handling for podio_metadata
         for (const auto& tree_name : metadata_trees) {
             TTree* metadata_tree = dynamic_cast<TTree*>(source_file->Get(tree_name.c_str()));
             if (metadata_tree) {
                 std::cout << "Found " << tree_name << " tree, copying to output..." << std::endl;
                 
-                // Clone the tree structure and data
-                TTree* output_metadata = metadata_tree->CloneTree(-1, "fast");
-                if (output_metadata) {
-                    output_metadata->Write();
-                    // std::cout << "Successfully copied " << tree_name << " tree" << std::endl;
+                if (tree_name == "podio_metadata") {
+                    // Special handling for podio_metadata to include SubEventHeaders
+                    copyAndUpdatePodioMetadataTree(metadata_tree, output_file.get());
                 } else {
-                    std::cout << "Warning: Failed to clone " << tree_name << " tree" << std::endl;
+                    // Clone the tree structure and data normally for other metadata trees
+                    TTree* output_metadata = metadata_tree->CloneTree(-1, "fast");
+                    if (output_metadata) {
+                        output_metadata->Write();
+                        // std::cout << "Successfully copied " << tree_name << " tree" << std::endl;
+                    } else {
+                        std::cout << "Warning: Failed to clone " << tree_name << " tree" << std::endl;
+                    }
                 }
             } else {
                 std::cout << "Info: No " << tree_name << " tree found in source file" << std::endl;
@@ -581,4 +628,53 @@ std::string StandaloneTimesliceMerger::getCorrespondingCaloCollection(const std:
         base = base.substr(0, base.length() - 13);
     }
     return base;
+}
+
+void StandaloneTimesliceMerger::copyAndUpdatePodioMetadataTree(TTree* source_metadata_tree, TFile* output_file) {
+    if (!source_metadata_tree || !output_file) {
+        std::cout << "Warning: Invalid metadata tree or output file for podio_metadata updating" << std::endl;
+        return;
+    }
+    
+    // First try to clone the tree normally
+    TTree* output_metadata = source_metadata_tree->CloneTree(-1, "fast");
+    if (!output_metadata) {
+        std::cout << "Warning: Failed to clone podio_metadata tree" << std::endl;
+        return;
+    }
+    
+    // Check if the tree has collection names that we need to update
+    // This is a best-effort approach since podio metadata structure can vary
+    TObjArray* branches = output_metadata->GetListOfBranches();
+    bool collection_names_found = false;
+    
+    for (int i = 0; i < branches->GetEntries(); ++i) {
+        TBranch* branch = dynamic_cast<TBranch*>(branches->At(i));
+        if (branch) {
+            std::string branch_name = branch->GetName();
+            // Look for branches that might contain collection names
+            // Common names in podio metadata: "CollectionIDs", "collection_names", etc.
+            if (branch_name.find("ollection") != std::string::npos || 
+                branch_name.find("Collection") != std::string::npos) {
+                std::cout << "Found potential collection names branch: " << branch_name << std::endl;
+                collection_names_found = true;
+                // Note: Modifying the cloned tree's data is complex and depends on the exact
+                // structure of the podio metadata. For now, we note that SubEventHeaders
+                // should be included but don't modify the existing metadata structure.
+                break;
+            }
+        }
+    }
+    
+    if (collection_names_found) {
+        std::cout << "Info: podio_metadata contains collection information. " 
+                  << "SubEventHeaders have been added to the output but metadata tree "
+                  << "structure is preserved as-is for compatibility." << std::endl;
+    } else {
+        std::cout << "Info: No collection names found in podio_metadata, copying as-is." << std::endl;
+    }
+    
+    // Write the (possibly updated) metadata tree
+    output_metadata->Write();
+    std::cout << "Successfully copied podio_metadata tree" << std::endl;
 }

@@ -29,7 +29,8 @@ public:
     size_t getTotalEntries() const { return total_entries_; }
     size_t getCurrentEntryIndex() const { return current_entry_index_; }
     void setCurrentEntryIndex(size_t index) { current_entry_index_ = index; }
-    
+    float getCurrentTimeOffset() const { return current_time_offset_; }
+
     // Event management
     void setEntriesNeeded(size_t entries) { entries_needed_ = entries; }
     size_t getEntriesNeeded() const { return entries_needed_; }
@@ -65,6 +66,9 @@ public:
     std::vector<std::vector<float>>& processGPFloatValues();
     std::vector<std::vector<double>>& processGPDoubleValues();
     std::vector<std::vector<std::string>>& processGPStringValues();
+    
+    // Event header processing methods
+    std::vector<edm4hep::EventHeaderData>& processEventHeaders(const std::string& collection_name);
     
 
     
