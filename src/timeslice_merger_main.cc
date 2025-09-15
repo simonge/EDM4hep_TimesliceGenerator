@@ -8,7 +8,7 @@
 void printUsage(const char* program_name) {
     std::cout << "Usage: " << program_name << " [options] input_file1 [input_file2 ...]\n"
               << "Options:\n"
-              << "  --config FILE                YAML config file (default: config.yml)\n"
+              << "  --config FILE                YAML config file\n"
               << "  -o, --output FILE           Output file name (default: merged_timeslices.root)\n"
               << "  -n, --nevents N             Maximum number of timeslices to generate (default: 100)\n"
               << "  -d, --duration TIME         Timeslice duration in ns (default: 20.0)\n"
