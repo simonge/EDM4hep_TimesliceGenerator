@@ -116,10 +116,6 @@ int main(int argc, char* argv[]) {
         } else {
             std::cout << "⚠️  No GP branches found" << std::endl;
         }
-            std::cout << "✓ Found contribution relationship branches" << std::endl;
-        } else {
-            std::cout << "⚠️  No contribution relationship branches found" << std::endl;
-        }
     }
     
     std::cout << "\n=== Test Complete ===" << std::endl;

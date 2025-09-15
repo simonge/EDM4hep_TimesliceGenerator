@@ -59,6 +59,10 @@ public:
                                                                            size_t particle_index_offset);
     
     std::vector<std::string>& processGPBranch(const std::string& branch_name);
+    std::vector<std::vector<int>>& processGPIntValues();
+    std::vector<std::vector<float>>& processGPFloatValues();
+    std::vector<std::vector<double>>& processGPDoubleValues();
+    std::vector<std::vector<std::string>>& processGPStringValues();
     
 
     
@@ -98,8 +102,12 @@ private:
     std::unordered_map<std::string, std::vector<podio::ObjectID>*> objectid_branches_;
     
     // Branch pointers for reading GP (Global Parameter) branches
-    std::unordered_map<std::string, std::vector<std::string>*> gp_branches_;
-    
+    std::unordered_map<std::string, std::vector<std::string>*> gp_key_branches_;
+    std::vector<std::vector<int>>* gp_int_branch_;
+    std::vector<std::vector<float>>* gp_float_branch_;
+    std::vector<std::vector<double>>* gp_double_branch_;
+    std::vector<std::vector<std::string>>* gp_string_branch_;
+
     // Current event processing state
     float current_time_offset_;
     size_t current_particle_index_offset_;

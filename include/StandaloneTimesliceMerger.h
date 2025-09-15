@@ -38,8 +38,12 @@ struct MergedCollections {
     std::unordered_map<std::string, std::vector<podio::ObjectID>> calo_contrib_particle_refs;
     std::unordered_map<std::string, std::vector<podio::ObjectID>> calo_hit_contributions_refs;
     
-    // GP (Global Parameter) branches
-    std::unordered_map<std::string, std::vector<std::string>> gp_branches;
+    // GP (Global Parameter) branches - separate containers for different types
+    std::unordered_map<std::string, std::vector<std::string>> gp_key_branches;
+    std::vector<std::vector<int>> gp_int_values;
+    std::vector<std::vector<float>> gp_float_values;
+    std::vector<std::vector<double>> gp_double_values;
+    std::vector<std::vector<std::string>> gp_string_values;
     
     // Utility method to clear all collections
     void clear();
