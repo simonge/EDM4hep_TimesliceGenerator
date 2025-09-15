@@ -59,12 +59,13 @@ make install
 
 ### Command Line Options
 
-#### File I/O Options
+#### Configuration and File I/O Options
 | Option | Description | Default |
 |--------|-------------|---------|
+| `--config <file>` | YAML configuration file | (none) |
 | `input_files` | Input ROOT files containing events | (required) |
 | `-o, --output <file>` | Output ROOT file for timeslices | `merged_timeslices.root` |
-| `-n, --nevents <number>` | Maximum number of events to process | `100` |
+| `-n, --nevents <number>` | Maximum number of timeslices to generate | `100` |
 
 #### Timeslice Configuration
 | Option | Description | Default |
@@ -84,45 +85,130 @@ make install
 | Option | Description | Default |
 |--------|-------------|---------|
 | `--beam-attachment` | Enable beam attachment for particles | `false` |
-| `--beam-speed <mm/ns>` | Beam speed for time-of-flight calculations | `299792.458` |
+| `--beam-speed <ns/mm>` | Beam speed for time-of-flight calculations | `299792.458` |
 | `--beam-spread <ns>` | Gaussian beam time spread (std deviation) | `0.0` |
-| `--beam-angle <rad>` | Beam angle (currently unused) | `0.0` |
 
 #### Generator Configuration
 | Option | Description | Default |
 |--------|-------------|---------|
-| `--generator-status-offset <value>` | Offset added to MCParticle generator status | `0` |
+| `--status-offset <value>` | Offset added to MCParticle generator status | `0` |
 
 #### Utility Options
 | Option | Description |
 |--------|-------------|
 | `-h, --help` | Display help message and exit |
-| `-v, --verbose` | Enable verbose output for debugging |
 
-## Configuration Examples
+## Configuration Files
 
-### Basic Event Merging
+The application supports YAML configuration files that can be used independently or in combination with command-line arguments.
+
+### YAML Configuration Structure
+
+```yaml
+# Global merger configuration
+output_file: merged_timeslices.root
+max_events: 100
+time_slice_duration: 200.0
+bunch_crossing_period: 10.0
+introduce_offsets: true
+
+# Source-specific configuration
+sources:
+  - input_files:
+      - input1.root
+      - input2.root
+    name: signal
+    static_number_of_events: false
+    mean_event_frequency: 0.1
+    use_bunch_crossing: true
+    attach_to_beam: false
+    beam_speed: 299792.458
+    beam_spread: 0.0
+    generator_status_offset: 0
+    already_merged: false
+    tree_name: events
+  - input_files:
+      - background.root
+    name: background
+    static_number_of_events: true
+    static_events_per_timeslice: 2
+    use_bunch_crossing: true
+    generator_status_offset: 1000
+    already_merged: false
+```
+
+### YAML Configuration Parameters
+
+#### Global Parameters
+- `output_file`: Output ROOT file name
+- `max_events`: Maximum number of timeslices to generate
+- `time_slice_duration`: Duration of each timeslice in nanoseconds
+- `bunch_crossing_period`: Bunch crossing period for discretization
+- `introduce_offsets`: Whether to introduce random time offsets
+
+#### Source-Specific Parameters
+- `input_files`: List of input ROOT files for this source
+- `name`: Human-readable name for the source (e.g., "signal", "background")
+- `already_merged`: Set to `true` if input files are already timeslice files
+- `static_number_of_events`: Use fixed number of events per timeslice
+- `static_events_per_timeslice`: Number of events per timeslice (if static mode)
+- `mean_event_frequency`: Mean event frequency in events/ns (if not static mode)
+- `use_bunch_crossing`: Enable bunch crossing time discretization
+- `attach_to_beam`: Enable beam attachment physics
+- `beam_speed`: Beam speed in ns/mm
+- `beam_spread`: Gaussian time spread for beam smearing
+- `generator_status_offset`: Offset to add to MCParticle generator status
+- `tree_name`: Name of the input TTree (default: "events")
+
+## Mixed Command Line and Configuration Usage
+
+Command-line arguments override YAML configuration values, allowing flexible usage patterns:
+
+### Pattern 1: Config File with CLI Override
+```bash
+# Use config.yml but override output file and number of events
+./install/bin/timeslice_merger --config config.yml -o different_output.root -n 500
+```
+
+### Pattern 2: Config File with Additional Input Files
+```bash
+# Use config file and add more input files from command line
+./install/bin/timeslice_merger --config config.yml additional_input.root more_files.root
+```
+
+### Pattern 3: Minimal Config with CLI Parameters
+```bash
+# Use config file for complex source setup, override timing parameters
+./install/bin/timeslice_merger --config multi_source.yml -d 1000.0 -p 25.0
+```
+
+
+## Usage Examples
+
+### Basic Command Line Usage
+
+#### Basic Event Merging
 
 Merge events using default settings:
 ```bash
 ./install/bin/timeslice_merger input_events.root
 ```
 
-### Static Event Count
+#### Static Event Count
 
 Create timeslices with exactly 3 events each:
 ```bash
 ./install/bin/timeslice_merger -s -e 3 -n 50 input_events.root
 ```
 
-### Bunch Crossing Mode
+#### Bunch Crossing Mode
 
 Enable bunch crossing with 1000 ns period:
 ```bash
 ./install/bin/timeslice_merger -b -p 1000.0 -d 20000.0 input_events.root
 ```
 
-### Full Beam Physics
+#### Full Beam Physics
 
 Enable beam attachment with realistic parameters:
 ```bash
@@ -134,7 +220,7 @@ Enable beam attachment with realistic parameters:
   input_events.root
 ```
 
-### High Statistics Processing
+#### High Statistics Processing
 
 Process large number of events with custom output:
 ```bash
@@ -144,6 +230,37 @@ Process large number of events with custom output:
   --use-bunch-crossing \
   --bunch-period 2000.0 \
   input1.root input2.root input3.root
+```
+
+### YAML Configuration Usage
+
+#### Using Configuration Files
+
+Use a YAML configuration file for complex setups:
+```bash
+./install/bin/timeslice_merger --config config.yml
+```
+
+#### Mixed Configuration and Command Line
+
+Use configuration file but override specific parameters:
+```bash
+# Override output file and number of timeslices
+./install/bin/timeslice_merger --config config.yml -o custom_output.root -n 500
+
+# Add additional input files to those specified in config
+./install/bin/timeslice_merger --config config.yml extra_input.root
+
+# Override timing parameters
+./install/bin/timeslice_merger --config config.yml -d 5000.0 -p 500.0
+```
+
+#### Working with Pre-merged Timeslices
+
+Process already-merged timeslice files:
+```bash
+# Configuration file with already_merged: true
+./install/bin/timeslice_merger --config config_continue.yml
 ```
 
 ## Configuration Parameters Details
@@ -196,6 +313,36 @@ The merger processes the following EDM4HEP collection types:
 
 ## Technical Implementation
 
+### Architecture Overview
+
+The application has been recently refactored from a Podio Frame-based approach to a more efficient vector-based ROOT processing system:
+
+- **Direct ROOT I/O**: Uses ROOT TChain/TTree directly instead of Podio Frame readers
+- **Vector-Based Processing**: Works with `std::vector<edm4hep::*Data>` types directly
+- **Object-Oriented Design**: Clean separation between data sources and merged collections
+- **Memory Efficient**: Streams data without loading entire files into memory
+
+### Core Components
+
+#### DataSource Class
+Encapsulates input file management and data reading:
+- Handles multiple input files through ROOT TChain
+- Manages branch pointers for different collection types
+- Provides event processing and time offset calculation methods
+
+#### MergedCollections Structure  
+Organizes all merged output data:
+- Event and particle collections (MCParticle, EventHeader)
+- Hit collections (SimTrackerHit, SimCalorimeterHit, CaloHitContribution)
+- Reference collections maintaining object relationships
+- Global parameter (GP) branches for metadata
+
+#### StandaloneTimesliceMerger
+Main orchestration class:
+- Initializes and manages multiple DataSource instances
+- Coordinates timeslice generation and event merging
+- Handles output file creation and metadata preservation
+
 ### Time Offset Generation
 1. **Random Distribution**: Uniform random offsets within timeslice duration
 2. **Bunch Crossing**: Optional discretization to bunch boundaries
@@ -232,8 +379,8 @@ The merger processes the following EDM4HEP collection types:
 
 #### Memory Issues
 - **Large Files**: Automatic detection of memory constraints
-- **Streaming**: Uses Podio streaming for memory-efficient processing
-- **Monitoring**: Optional verbose mode for resource usage tracking
+- **Streaming**: Uses ROOT streaming for memory-efficient processing
+- **Monitoring**: Use system tools like `htop` or `top` for resource monitoring
 
 ## Performance Considerations
 
@@ -261,32 +408,35 @@ The merger processes the following EDM4HEP collection types:
 
 ### Performance Issues
 1. **Slow Processing**: Check disk I/O speeds and file system type
-2. **Memory Usage**: Monitor with verbose mode enabled
+2. **Memory Usage**: Monitor with system tools (htop, top)
 3. **Output Size**: Verify timeslice parameters are reasonable
 
 ## Development and Contributing
 
 ### Code Structure
-- `src/StandaloneTimesliceMerger.cc`: Core merging logic
-- `src/timeslice_merger_main.cc`: Command line interface
-- `include/StandaloneTimesliceMerger.h`: Public API
+- `src/StandaloneTimesliceMerger.cc`: Core merging logic and orchestration
+- `src/DataSource.cc`: Input file management and data reading  
+- `src/timeslice_merger_main.cc`: Command line interface and configuration parsing
+- `include/StandaloneTimesliceMerger.h`: Main API and data structures
+- `include/DataSource.h`: Input data source abstraction
 - `include/StandaloneMergerConfig.h`: Configuration structures
 
 ### Testing
 ```bash
-# Build with test support
-cmake .. -DBUILD_TESTING=ON
-make -j$(nproc)
+# Build the project
+./build.sh
 
-# Run tests
-./src/test_standalone
+# Run basic configuration tests
+./install/bin/test_standalone
+
+# Test with sample data
+./install/bin/timeslice_merger --config configs/config.yml
 ```
 
-### Debugging
-Enable verbose mode for detailed logging:
-```bash
-./install/bin/timeslice_merger -v [other options] input.root
-```
+### Configuration Files
+Example configuration files are provided in the `configs/` directory:
+- `config.yml`: Basic multi-source configuration
+- `config_continue.yml`: Working with pre-merged timeslice files
 
 ## License
 
