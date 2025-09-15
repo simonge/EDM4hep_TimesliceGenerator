@@ -45,6 +45,17 @@ int main(int argc, char* argv[]) {
         std::cout << "⚠️  No 'podio_metadata' tree found" << std::endl;
     }
     
+    // Check for additional metadata trees
+    std::vector<std::string> additional_metadata_trees = {"runs", "meta", "metadata"};
+    for (const auto& tree_name : additional_metadata_trees) {
+        TTree* tree = dynamic_cast<TTree*>(file->Get(tree_name.c_str()));
+        if (tree) {
+            std::cout << "✓ Found '" << tree_name << "' tree with " << tree->GetEntries() << " entries" << std::endl;
+        } else {
+            std::cout << "⚠️  No '" << tree_name << "' tree found" << std::endl;
+        }
+    }
+    
     // List branches in events tree
     std::cout << "\n--- Events Tree Branches ---" << std::endl;
     TObjArray* branches = events_tree->GetListOfBranches();
@@ -53,6 +64,11 @@ int main(int argc, char* argv[]) {
         
         int contrib_branches = 0;
         int collections = 0;
+        int gp_branches = 0;
+        
+        // GP branch patterns to look for
+        std::vector<std::string> gp_patterns = {"GPIntKeys", "GPIntValues", "GPFloatKeys", "GPFloatValues", 
+                                                "GPStringKeys", "GPStringValues", "GPDoubleKeys", "GPDoubleValues"};
         
         for (int i = 0; i < branches->GetEntries(); ++i) {
             TBranch* branch = (TBranch*)branches->At(i);
@@ -60,12 +76,24 @@ int main(int argc, char* argv[]) {
                 std::string branch_name = branch->GetName();
                 std::cout << "  " << branch_name;
                 
-                if (branch_name.find("_contributions") != std::string::npos) {
-                    contrib_branches++;
-                    std::cout << " [CONTRIBUTION BRANCH]";
-                } else if (branch_name.find("_") != 0) {  // Not a reference branch
-                    collections++;
-                    std::cout << " [COLLECTION]";
+                bool is_gp_branch = false;
+                for (const auto& pattern : gp_patterns) {
+                    if (branch_name.find(pattern) == 0) {
+                        gp_branches++;
+                        std::cout << " [GP BRANCH]";
+                        is_gp_branch = true;
+                        break;
+                    }
+                }
+                
+                if (!is_gp_branch) {
+                    if (branch_name.find("_contributions") != std::string::npos) {
+                        contrib_branches++;
+                        std::cout << " [CONTRIBUTION BRANCH]";
+                    } else if (branch_name.find("_") != 0) {  // Not a reference branch
+                        collections++;
+                        std::cout << " [COLLECTION]";
+                    }
                 }
                 
                 std::cout << std::endl;
@@ -75,11 +103,18 @@ int main(int argc, char* argv[]) {
         std::cout << "\nSummary:" << std::endl;
         std::cout << "  Collections: " << collections << std::endl;
         std::cout << "  Contribution branches: " << contrib_branches << std::endl;
+        std::cout << "  GP branches: " << gp_branches << std::endl;
         
         if (contrib_branches > 0) {
             std::cout << "✓ Found contribution relationship branches" << std::endl;
         } else {
             std::cout << "⚠️  No contribution relationship branches found" << std::endl;
+        }
+        
+        if (gp_branches > 0) {
+            std::cout << "✓ Found GP (Global Parameter) branches" << std::endl;
+        } else {
+            std::cout << "⚠️  No GP branches found" << std::endl;
         }
     }
     

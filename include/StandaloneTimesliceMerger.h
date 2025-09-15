@@ -38,6 +38,13 @@ struct MergedCollections {
     std::unordered_map<std::string, std::vector<podio::ObjectID>> calo_contrib_particle_refs;
     std::unordered_map<std::string, std::vector<podio::ObjectID>> calo_hit_contributions_refs;
     
+    // GP (Global Parameter) branches - separate containers for different types
+    std::unordered_map<std::string, std::vector<std::string>> gp_key_branches;
+    std::vector<std::vector<int>> gp_int_values;
+    std::vector<std::vector<float>> gp_float_values;
+    std::vector<std::vector<double>> gp_double_values;
+    std::vector<std::vector<std::string>> gp_string_values;
+    
     // Utility method to clear all collections
     void clear();
 };
@@ -65,6 +72,7 @@ private:
     std::vector<std::string> tracker_collection_names_;
     std::vector<std::string> calo_collection_names_;
     std::vector<std::string> calo_contrib_collection_names_;
+    std::vector<std::string> gp_collection_names_;
 
     // Data sources
     std::vector<std::unique_ptr<DataSource>> data_sources_;
@@ -78,6 +86,7 @@ private:
 
     // Helper methods for collection discovery
     std::vector<std::string> discoverCollectionNames(DataSource& source, const std::string& branch_pattern);
+    std::vector<std::string> discoverGPBranches(DataSource& source);
     void copyPodioMetadata(std::vector<std::unique_ptr<DataSource>>& sources, std::unique_ptr<TFile>& output_file);
     
     // Utility methods for collection name mapping

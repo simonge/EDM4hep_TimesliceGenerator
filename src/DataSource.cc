@@ -14,6 +14,10 @@ DataSource::DataSource(const SourceConfig& config, size_t source_index)
     , tracker_collection_names_(nullptr)
     , calo_collection_names_(nullptr)
     , mcparticle_branch_(nullptr)
+    , gp_int_branch_(nullptr)
+    , gp_float_branch_(nullptr)
+    , gp_double_branch_(nullptr)
+    , gp_string_branch_(nullptr)
 {
 }
 
@@ -22,10 +26,12 @@ DataSource::~DataSource() {
 }
 
 void DataSource::initialize(const std::vector<std::string>& tracker_collections,
-                           const std::vector<std::string>& calo_collections) {
+                           const std::vector<std::string>& calo_collections,
+                           const std::vector<std::string>& gp_collections) {
     // Store references to collection names
     tracker_collection_names_ = &tracker_collections;
     calo_collection_names_ = &calo_collections;
+    gp_collection_names_ = &gp_collections;
     
     if (!config_->input_files.empty()) {
         try {
@@ -107,7 +113,6 @@ void DataSource::loadEvent(size_t event_index) {
 
 std::vector<podio::ObjectID>& DataSource::processObjectID(const std::string& branch_name, size_t index_offset) {
     
-    std::cout << "Processing ObjectID branch: " << branch_name << " with index offset " << index_offset << std::endl;
     // Update references with index offset
     for (auto& ref : *objectid_branches_[branch_name]) {
         ref.index += index_offset;
@@ -167,16 +172,15 @@ std::vector<edm4hep::SimTrackerHitData>& DataSource::processTrackerHits(const st
 
 
 std::vector<edm4hep::SimCalorimeterHitData>& DataSource::processCaloHits(const std::string& collection_name,
-                                                                        size_t particle_index_offset) {
+                                                                        size_t contribution_index_offset) {
 
     auto& hits = *calo_hit_branches_[collection_name];
 
     for (auto& hit : hits) {
-        hit.contributions_begin += particle_index_offset;
-        hit.contributions_end += particle_index_offset;
+        hit.contributions_begin += contribution_index_offset;
+        hit.contributions_end += contribution_index_offset;
     }
     
-    // Calorimeter hits don't need time offset in EDM4HEP, but work directly on branch data
     return hits; // Return reference to the branch data itself
 }
 
@@ -202,6 +206,7 @@ void DataSource::setupBranches() {
     setupTrackerBranches();
     setupCalorimeterBranches();
     setupEventHeaderBranches();
+    setupGPBranches();
     
     std::cout << "=== Branch setup complete ===" << std::endl;
 }
@@ -271,6 +276,52 @@ void DataSource::setupEventHeaderBranches() {
     }
 }
 
+void DataSource::setupGPBranches() {
+    // Initialize GP value branch pointers
+    gp_int_branch_ = new std::vector<std::vector<int>>();
+    gp_float_branch_ = new std::vector<std::vector<float>>();
+    gp_double_branch_ = new std::vector<std::vector<double>>();
+    gp_string_branch_ = new std::vector<std::vector<std::string>>();
+    
+    // Setup the fixed GP value branches
+    int result = chain_->SetBranchAddress("GPIntValues", &gp_int_branch_);    
+    result = chain_->SetBranchAddress("GPFloatValues", &gp_float_branch_);
+    result = chain_->SetBranchAddress("GPDoubleValues", &gp_double_branch_);    
+    result = chain_->SetBranchAddress("GPStringValues", &gp_string_branch_);
+    
+    // Setup GP key branches
+    for (const auto& branch_name : *gp_collection_names_) {
+        gp_key_branches_[branch_name] = new std::vector<std::string>();
+        result = chain_->SetBranchAddress(branch_name.c_str(), &gp_key_branches_[branch_name]);
+    }
+}
+
+std::vector<std::string>& DataSource::processGPBranch(const std::string& branch_name) {
+    // GP key branches don't need any processing, just return the data as-is
+    // They contain global parameter keys that should be copied unchanged
+    return *gp_key_branches_[branch_name];
+}
+
+std::vector<std::vector<int>>& DataSource::processGPIntValues() {
+    // GP int values don't need any processing, just return the data as-is
+    return *gp_int_branch_;
+}
+
+std::vector<std::vector<float>>& DataSource::processGPFloatValues() {
+    // GP float values don't need any processing, just return the data as-is
+    return *gp_float_branch_;
+}
+
+std::vector<std::vector<double>>& DataSource::processGPDoubleValues() {
+    // GP double values don't need any processing, just return the data as-is
+    return *gp_double_branch_;
+}
+
+std::vector<std::vector<std::string>>& DataSource::processGPStringValues() {
+    // GP string values don't need any processing, just return the data as-is
+    return *gp_string_branch_;
+}
+
 void DataSource::cleanup() {
     // Clean up dynamically allocated vectors
     delete mcparticle_branch_;
@@ -290,6 +341,16 @@ void DataSource::cleanup() {
     for (auto& [name, ptr] : objectid_branches_) {
         delete ptr;
     }
+    for (auto& [name, ptr] : gp_key_branches_) {
+        delete ptr;
+    }
+    
+    // Clean up GP value branch pointers
+    delete gp_int_branch_;
+    delete gp_float_branch_;
+    delete gp_double_branch_;
+    delete gp_string_branch_;
+    
 }
 
 
