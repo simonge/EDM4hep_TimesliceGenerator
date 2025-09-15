@@ -22,10 +22,12 @@ DataSource::~DataSource() {
 }
 
 void DataSource::initialize(const std::vector<std::string>& tracker_collections,
-                           const std::vector<std::string>& calo_collections) {
+                           const std::vector<std::string>& calo_collections,
+                           const std::vector<std::string>& gp_collections) {
     // Store references to collection names
     tracker_collection_names_ = &tracker_collections;
     calo_collection_names_ = &calo_collections;
+    gp_collection_names_ = &gp_collections;
     
     if (!config_->input_files.empty()) {
         try {
@@ -202,6 +204,7 @@ void DataSource::setupBranches() {
     setupTrackerBranches();
     setupCalorimeterBranches();
     setupEventHeaderBranches();
+    setupGPBranches();
     
     std::cout << "=== Branch setup complete ===" << std::endl;
 }
@@ -271,6 +274,24 @@ void DataSource::setupEventHeaderBranches() {
     }
 }
 
+void DataSource::setupGPBranches() {
+    for (const auto& branch_name : *gp_collection_names_) {
+        gp_branches_[branch_name] = new std::vector<std::string>();
+        int result = chain_->SetBranchAddress(branch_name.c_str(), &gp_branches_[branch_name]);
+        if (result == 0) {
+            std::cout << "    ✓ Successfully set up GP branch: " << branch_name << std::endl;
+        } else {
+            std::cout << "    ⚠️  Could not set branch address for GP branch " << branch_name << " (result: " << result << ")" << std::endl;
+        }
+    }
+}
+
+std::vector<std::string>& DataSource::processGPBranch(const std::string& branch_name) {
+    // GP branches don't need any processing, just return the data as-is
+    // They contain global parameters that should be copied unchanged
+    return *gp_branches_[branch_name];
+}
+
 void DataSource::cleanup() {
     // Clean up dynamically allocated vectors
     delete mcparticle_branch_;
@@ -288,6 +309,9 @@ void DataSource::cleanup() {
         delete ptr;
     }
     for (auto& [name, ptr] : objectid_branches_) {
+        delete ptr;
+    }
+    for (auto& [name, ptr] : gp_branches_) {
         delete ptr;
     }
 }

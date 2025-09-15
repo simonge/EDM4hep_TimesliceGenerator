@@ -21,7 +21,8 @@ public:
     
     // Initialization
     void initialize(const std::vector<std::string>& tracker_collections,
-                   const std::vector<std::string>& calo_collections);
+                   const std::vector<std::string>& calo_collections,
+                   const std::vector<std::string>& gp_collections);
     
     // Data access
     bool hasMoreEntries() const;
@@ -57,6 +58,8 @@ public:
     std::vector<edm4hep::CaloHitContributionData>& processCaloContributions(const std::string& collection_name,
                                                                            size_t particle_index_offset);
     
+    std::vector<std::string>& processGPBranch(const std::string& branch_name);
+    
 
     
     // Configuration access
@@ -82,6 +85,7 @@ private:
     // Collection names (references to shared data)
     const std::vector<std::string>* tracker_collection_names_;
     const std::vector<std::string>* calo_collection_names_;
+    const std::vector<std::string>* gp_collection_names_;
     
     // Branch pointers for reading data as vectors
     std::vector<edm4hep::MCParticleData>* mcparticle_branch_;
@@ -93,6 +97,8 @@ private:
     // Branch pointers for reading ObjectID references - consolidated into single map
     std::unordered_map<std::string, std::vector<podio::ObjectID>*> objectid_branches_;
     
+    // Branch pointers for reading GP (Global Parameter) branches
+    std::unordered_map<std::string, std::vector<std::string>*> gp_branches_;
     
     // Current event processing state
     float current_time_offset_;
@@ -104,6 +110,7 @@ private:
     void setupTrackerBranches();
     void setupCalorimeterBranches();
     void setupEventHeaderBranches();
+    void setupGPBranches();
     void cleanup();
     
     // Helper methods for physics calculations

@@ -2,7 +2,7 @@
 #include <iostream>
 #include <algorithm>
 #include <cmath>
-#include <map>
+#include <memory>
 #include <TBranch.h>
 #include <TObjArray.h>
 
@@ -35,8 +35,10 @@ void MergedCollections::clear() {
         vec.clear();
     }
     
-    // Note: GP branches are NOT cleared here as they should be reused for all timeslices
-    // The GP branch data is loaded once from the first source event and kept constant
+    // Clear GP branches - they can be repopulated for each event
+    for (auto& [name, vec] : gp_branches) {
+        vec.clear();
+    }
 }
 
 StandaloneTimesliceMerger::StandaloneTimesliceMerger(const MergerConfig& config)
@@ -64,12 +66,6 @@ void StandaloneTimesliceMerger::run() {
 
     // Copy podio_metadata tree from first source file to output file
     copyPodioMetadata(data_sources_, output_file);
-
-    // Copy GP branches from first source file to output tree
-    copyGPBranches(data_sources_, output_tree);
-
-    // Populate GP branch data from first source event (this will be reused for all timeslices)
-    populateGPBranchData(data_sources_);
 
     std::cout << "Processing " << m_config.max_events << " timeslices..." << std::endl;
 
@@ -109,6 +105,7 @@ std::vector<std::unique_ptr<DataSource>> StandaloneTimesliceMerger::initializeDa
         // Discover collection names using the first source
         tracker_collection_names_ = discoverCollectionNames(*data_sources[0], "SimTrackerHit");
         calo_collection_names_ = discoverCollectionNames(*data_sources[0], "SimCalorimeterHit");
+        gp_collection_names_ = discoverGPBranches(*data_sources[0]);
         
         std::cout << "Global collection names discovered:" << std::endl;
         std::cout << "  Tracker: ";
@@ -117,10 +114,13 @@ std::vector<std::unique_ptr<DataSource>> StandaloneTimesliceMerger::initializeDa
         std::cout << "  Calo: ";
         for (const auto& name : calo_collection_names_) std::cout << name << " ";
         std::cout << std::endl;
+        std::cout << "  GP: ";
+        for (const auto& name : gp_collection_names_) std::cout << name << " ";
+        std::cout << std::endl;
         
         // Initialize all data sources with discovered collection names
         for (auto& data_source : data_sources) {
-            data_source->initialize(tracker_collection_names_, calo_collection_names_);
+            data_source->initialize(tracker_collection_names_, calo_collection_names_, gp_collection_names_);
         }
     }
     
@@ -236,6 +236,16 @@ void StandaloneTimesliceMerger::createMergedTimeslice(std::vector<std::unique_pt
                 merged_collections_.calo_contrib_particle_refs[name].insert(merged_collections_.calo_contrib_particle_refs[name].end(),
                                                                            processed_contrib_particle_refs.begin(), processed_contrib_particle_refs.end());
             }
+            
+            // Process GP (Global Parameter) branches - only from first event of first source
+            if (totalEventsConsumed == 0 && !gp_collection_names_.empty()) {
+                std::cout << "Processing GP branches from first event..." << std::endl;
+                for (const auto& name : gp_collection_names_) {
+                    auto& gp_data = data_source->processGPBranch(name);
+                    merged_collections_.gp_branches[name] = gp_data; // Copy all GP data
+                    std::cout << "GP branch " << name << ": " << gp_data.size() << " entries" << std::endl;
+                }
+            }
 
             data_source->setCurrentEntryIndex(data_source->getCurrentEntryIndex() + 1);
             sourceEventsConsumed++;
@@ -284,6 +294,12 @@ void StandaloneTimesliceMerger::setupOutputTree(TTree* tree) {
         std::string ref_name_contrib = "_" + contrib_name + "_particle";
         tree->Branch(ref_name_contrib.c_str(), &merged_collections_.calo_contrib_particle_refs[name]);
     }
+    
+    // GP (Global Parameter) branches
+    for (const auto& name : gp_collection_names_) {
+        tree->Branch(name.c_str(), &merged_collections_.gp_branches[name]);
+    }
+    
     // Print the number of created branches
     std::cout << "Total branches created: " << tree->GetListOfBranches()->GetEntries() << std::endl;
     std::cout << "Created branches for all required collections" << std::endl;
@@ -389,6 +405,52 @@ std::vector<std::string> StandaloneTimesliceMerger::discoverCollectionNames(Data
     return names;
 }
 
+std::vector<std::string> StandaloneTimesliceMerger::discoverGPBranches(DataSource& source) {
+    std::vector<std::string> names;
+    
+    // We need to access the internal TChain from DataSource
+    // For now, we'll create a temporary chain to discover GP branch names
+    if (source.getConfig().input_files.empty()) {
+        std::cout << "Warning: No input files in source for GP discovery" << std::endl;
+        return names;
+    }
+    
+    auto temp_chain = std::make_unique<TChain>(source.getConfig().tree_name.c_str());
+    temp_chain->Add(source.getConfig().input_files[0].c_str());
+    
+    // Get list of branches from the TChain
+    TObjArray* branches = temp_chain->GetListOfBranches();
+    if (!branches) {
+        std::cout << "Warning: No branches found in source for GP discovery" << std::endl;
+        return names;
+    }
+    
+    std::cout << "=== GP Branch Discovery ===" << std::endl;
+    
+    // GP branch patterns to look for
+    std::vector<std::string> gp_patterns = {"GPIntKeys", "GPIntValues", "GPFloatKeys", "GPFloatValues", 
+                                            "GPStringKeys", "GPStringValues", "GPDoubleKeys", "GPDoubleValues"};
+    
+    for (int i = 0; i < branches->GetEntries(); ++i) {
+        TBranch* branch = (TBranch*)branches->At(i);
+        if (!branch) continue;
+        
+        std::string branch_name = branch->GetName();
+        
+        // Check if this branch matches any GP pattern
+        for (const auto& pattern : gp_patterns) {
+            if (branch_name.find(pattern) == 0) {  // Branch name starts with pattern
+                std::cout << "  ✓ FOUND GP BRANCH: " << branch_name << std::endl;
+                names.push_back(branch_name);
+                break;  // Don't check other patterns for this branch
+            }
+        }
+    }
+    
+    std::cout << "Discovered " << names.size() << " GP branches" << std::endl;
+    return names;
+}
+
 void StandaloneTimesliceMerger::copyPodioMetadata(std::vector<std::unique_ptr<DataSource>>& sources, std::unique_ptr<TFile>& output_file) {
     if (sources.empty()) {
         std::cout << "Warning: No input sources available for podio_metadata copying" << std::endl;
@@ -399,9 +461,9 @@ void StandaloneTimesliceMerger::copyPodioMetadata(std::vector<std::unique_ptr<Da
     const auto& first_source = sources[0];
     if (!first_source->getConfig().input_files.empty()) {
         std::string first_file = first_source->getConfig().input_files[0];
-        std::cout << "Attempting to copy podio metadata and branches from: " << first_file << std::endl;
+        std::cout << "Attempting to copy podio_metadata from: " << first_file << std::endl;
         
-        // Open the first source file directly to access metadata
+        // Open the first source file directly to access metadata trees
         auto source_file = std::make_unique<TFile>(first_file.c_str(), "READ");
         if (!source_file || source_file->IsZombie()) {
             std::cout << "Warning: Could not open source file for metadata copying: " << first_file << std::endl;
@@ -413,7 +475,7 @@ void StandaloneTimesliceMerger::copyPodioMetadata(std::vector<std::unique_ptr<Da
         // List of metadata trees to copy
         std::vector<std::string> metadata_trees = {"podio_metadata", "runs", "meta", "metadata"};
         
-        // Copy metadata trees
+        // Copy each metadata tree if it exists
         for (const auto& tree_name : metadata_trees) {
             TTree* metadata_tree = dynamic_cast<TTree*>(source_file->Get(tree_name.c_str()));
             if (metadata_tree) {
@@ -434,212 +496,6 @@ void StandaloneTimesliceMerger::copyPodioMetadata(std::vector<std::unique_ptr<Da
         
         source_file->Close();
     }
-}
-
-void StandaloneTimesliceMerger::copyGPBranches(std::vector<std::unique_ptr<DataSource>>& sources, TTree* output_tree) {
-    if (sources.empty()) {
-        std::cout << "Warning: No input sources available for GP branch copying" << std::endl;
-        return;
-    }
-    
-    // Get the first source file to copy GP branches from
-    const auto& first_source = sources[0];
-    if (first_source->getConfig().input_files.empty()) {
-        std::cout << "Warning: First source has no input files" << std::endl;
-        return;
-    }
-    
-    std::string first_file = first_source->getConfig().input_files[0];
-    std::cout << "Attempting to discover and copy GP branches from: " << first_file << std::endl;
-    
-    // Open the first source file directly to access GP branches
-    auto source_file = std::make_unique<TFile>(first_file.c_str(), "READ");
-    if (!source_file || source_file->IsZombie()) {
-        std::cout << "Warning: Could not open source file for GP branch copying: " << first_file << std::endl;
-        return;
-    }
-    
-    // Get the events tree from source
-    TTree* source_events_tree = dynamic_cast<TTree*>(source_file->Get("events"));
-    if (!source_events_tree) {
-        std::cout << "Info: No events tree found in source file for GP branch copying" << std::endl;
-        source_file->Close();
-        return;
-    }
-    
-    // List of GP branch patterns to look for
-    std::vector<std::string> gp_branch_patterns = {"GPIntKeys", "GPIntValues", "GPFloatKeys", "GPFloatValues", 
-                                                   "GPStringKeys", "GPStringValues", "GPDoubleKeys", "GPDoubleValues"};
-    
-    // Get list of branches from the source events tree
-    TObjArray* branches = source_events_tree->GetListOfBranches();
-    if (!branches) {
-        std::cout << "Warning: Could not get branch list from source events tree" << std::endl;
-        source_file->Close();
-        return;
-    }
-    
-    // Find GP branches and determine their types
-    std::vector<std::string> found_gp_branches;
-    for (int i = 0; i < branches->GetEntries(); ++i) {
-        TBranch* branch = (TBranch*)branches->At(i);
-        if (!branch) continue;
-        
-        std::string branch_name = branch->GetName();
-        
-        // Check if this branch matches any GP pattern
-        for (const auto& pattern : gp_branch_patterns) {
-            if (branch_name.find(pattern) == 0) {  // Branch name starts with pattern
-                std::cout << "Found GP branch: " << branch_name << std::endl;
-                found_gp_branches.push_back(branch_name);
-                
-                // Initialize storage in MergedCollections based on the branch pattern
-                if (pattern.find("IntKeys") != std::string::npos || pattern.find("IntValues") != std::string::npos) {
-                    merged_collections_.gp_int_branches[branch_name] = std::vector<int>();
-                    std::cout << "  -> Initialized as int branch" << std::endl;
-                } else if (pattern.find("FloatKeys") != std::string::npos || pattern.find("FloatValues") != std::string::npos) {
-                    merged_collections_.gp_float_branches[branch_name] = std::vector<float>();
-                    std::cout << "  -> Initialized as float branch" << std::endl;
-                } else if (pattern.find("DoubleKeys") != std::string::npos || pattern.find("DoubleValues") != std::string::npos) {
-                    merged_collections_.gp_double_branches[branch_name] = std::vector<double>();
-                    std::cout << "  -> Initialized as double branch" << std::endl;
-                } else if (pattern.find("StringKeys") != std::string::npos || pattern.find("StringValues") != std::string::npos) {
-                    merged_collections_.gp_string_branches[branch_name] = std::vector<std::string>();
-                    std::cout << "  -> Initialized as string branch" << std::endl;
-                }
-                break;
-            }
-        }
-    }
-    
-    if (found_gp_branches.empty()) {
-        std::cout << "Info: No GP branches found in source events tree" << std::endl;
-        source_file->Close();
-        return;
-    }
-    
-    // Now add the GP branches to the output tree
-    for (const auto& branch_name : found_gp_branches) {
-        if (merged_collections_.gp_int_branches.find(branch_name) != merged_collections_.gp_int_branches.end()) {
-            output_tree->Branch(branch_name.c_str(), &merged_collections_.gp_int_branches[branch_name]);
-            std::cout << "Added int GP branch to output tree: " << branch_name << std::endl;
-        } else if (merged_collections_.gp_float_branches.find(branch_name) != merged_collections_.gp_float_branches.end()) {
-            output_tree->Branch(branch_name.c_str(), &merged_collections_.gp_float_branches[branch_name]);
-            std::cout << "Added float GP branch to output tree: " << branch_name << std::endl;
-        } else if (merged_collections_.gp_double_branches.find(branch_name) != merged_collections_.gp_double_branches.end()) {
-            output_tree->Branch(branch_name.c_str(), &merged_collections_.gp_double_branches[branch_name]);
-            std::cout << "Added double GP branch to output tree: " << branch_name << std::endl;
-        } else if (merged_collections_.gp_string_branches.find(branch_name) != merged_collections_.gp_string_branches.end()) {
-            output_tree->Branch(branch_name.c_str(), &merged_collections_.gp_string_branches[branch_name]);
-            std::cout << "Added string GP branch to output tree: " << branch_name << std::endl;
-        }
-    }
-    
-    std::cout << "GP branch setup complete. Found and configured " << found_gp_branches.size() << " GP branches." << std::endl;
-    
-    source_file->Close();
-}
-
-void StandaloneTimesliceMerger::populateGPBranchData(std::vector<std::unique_ptr<DataSource>>& sources) {
-    if (sources.empty()) {
-        return;
-    }
-    
-    // Check if we have any GP branches to populate
-    bool has_gp_branches = !merged_collections_.gp_int_branches.empty() || 
-                          !merged_collections_.gp_float_branches.empty() || 
-                          !merged_collections_.gp_double_branches.empty() || 
-                          !merged_collections_.gp_string_branches.empty();
-    
-    if (!has_gp_branches) {
-        return; // No GP branches to populate
-    }
-    
-    const auto& first_source = sources[0];
-    if (first_source->getConfig().input_files.empty()) {
-        std::cout << "Warning: First source has no input files for GP data population" << std::endl;
-        return;
-    }
-    
-    std::string first_file = first_source->getConfig().input_files[0];
-    std::cout << "Populating GP branch data from: " << first_file << std::endl;
-    
-    // Open the first source file to read GP branch data
-    auto source_file = std::make_unique<TFile>(first_file.c_str(), "READ");
-    if (!source_file || source_file->IsZombie()) {
-        std::cout << "Warning: Could not open source file for GP data population: " << first_file << std::endl;
-        return;
-    }
-    
-    TTree* source_events_tree = dynamic_cast<TTree*>(source_file->Get("events"));
-    if (!source_events_tree || source_events_tree->GetEntries() == 0) {
-        std::cout << "Warning: No events tree or no entries in source file for GP data" << std::endl;
-        source_file->Close();
-        return;
-    }
-    
-    // Set up branch addresses for reading GP data
-    std::map<std::string, std::vector<int>*> temp_int_branches;
-    std::map<std::string, std::vector<float>*> temp_float_branches;
-    std::map<std::string, std::vector<double>*> temp_double_branches;
-    std::map<std::string, std::vector<std::string>*> temp_string_branches;
-    
-    // Connect to int branches
-    for (auto& [branch_name, target_vec] : merged_collections_.gp_int_branches) {
-        temp_int_branches[branch_name] = new std::vector<int>();
-        source_events_tree->SetBranchAddress(branch_name.c_str(), &temp_int_branches[branch_name]);
-    }
-    
-    // Connect to float branches
-    for (auto& [branch_name, target_vec] : merged_collections_.gp_float_branches) {
-        temp_float_branches[branch_name] = new std::vector<float>();
-        source_events_tree->SetBranchAddress(branch_name.c_str(), &temp_float_branches[branch_name]);
-    }
-    
-    // Connect to double branches
-    for (auto& [branch_name, target_vec] : merged_collections_.gp_double_branches) {
-        temp_double_branches[branch_name] = new std::vector<double>();
-        source_events_tree->SetBranchAddress(branch_name.c_str(), &temp_double_branches[branch_name]);
-    }
-    
-    // Connect to string branches
-    for (auto& [branch_name, target_vec] : merged_collections_.gp_string_branches) {
-        temp_string_branches[branch_name] = new std::vector<std::string>();
-        source_events_tree->SetBranchAddress(branch_name.c_str(), &temp_string_branches[branch_name]);
-    }
-    
-    // Read the first event to get GP branch data
-    source_events_tree->GetEntry(0);
-    
-    // Copy the data from the first event into merged_collections_ (this will be reused for all timeslices)
-    for (auto& [branch_name, source_vec] : temp_int_branches) {
-        merged_collections_.gp_int_branches[branch_name] = *source_vec;
-        std::cout << "Loaded GP int branch '" << branch_name << "' with " << source_vec->size() << " elements" << std::endl;
-    }
-    
-    for (auto& [branch_name, source_vec] : temp_float_branches) {
-        merged_collections_.gp_float_branches[branch_name] = *source_vec;
-        std::cout << "Loaded GP float branch '" << branch_name << "' with " << source_vec->size() << " elements" << std::endl;
-    }
-    
-    for (auto& [branch_name, source_vec] : temp_double_branches) {
-        merged_collections_.gp_double_branches[branch_name] = *source_vec;
-        std::cout << "Loaded GP double branch '" << branch_name << "' with " << source_vec->size() << " elements" << std::endl;
-    }
-    
-    for (auto& [branch_name, source_vec] : temp_string_branches) {
-        merged_collections_.gp_string_branches[branch_name] = *source_vec;
-        std::cout << "Loaded GP string branch '" << branch_name << "' with " << source_vec->size() << " elements" << std::endl;
-    }
-    
-    // Clean up temporary vectors
-    for (auto& [name, vec] : temp_int_branches) delete vec;
-    for (auto& [name, vec] : temp_float_branches) delete vec;
-    for (auto& [name, vec] : temp_double_branches) delete vec;
-    for (auto& [name, vec] : temp_string_branches) delete vec;
-    
-    source_file->Close();
-    std::cout << "GP branch data population complete" << std::endl;
 }
 
 std::string StandaloneTimesliceMerger::getCorrespondingContributionCollection(const std::string& calo_collection_name) const {
