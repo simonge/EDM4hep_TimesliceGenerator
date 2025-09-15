@@ -172,16 +172,15 @@ std::vector<edm4hep::SimTrackerHitData>& DataSource::processTrackerHits(const st
 
 
 std::vector<edm4hep::SimCalorimeterHitData>& DataSource::processCaloHits(const std::string& collection_name,
-                                                                        size_t particle_index_offset) {
+                                                                        size_t contribution_index_offset) {
 
     auto& hits = *calo_hit_branches_[collection_name];
 
     for (auto& hit : hits) {
-        hit.contributions_begin += particle_index_offset;
-        hit.contributions_end += particle_index_offset;
+        hit.contributions_begin += contribution_index_offset;
+        hit.contributions_end += contribution_index_offset;
     }
     
-    // Calorimeter hits don't need time offset in EDM4HEP, but work directly on branch data
     return hits; // Return reference to the branch data itself
 }
 

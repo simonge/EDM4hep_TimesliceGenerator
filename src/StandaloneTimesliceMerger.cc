@@ -215,7 +215,7 @@ void StandaloneTimesliceMerger::createMergedTimeslice(std::vector<std::unique_pt
             for (const auto& name : calo_collection_names_) {
                 size_t existing_contrib_size = merged_collections_.calo_contributions[name].size();
                 
-                auto& processed_hits = data_source->processCaloHits(name, particle_index_offset); // time_offset handled in processMCParticles
+                auto& processed_hits = data_source->processCaloHits(name, existing_contrib_size); // time_offset handled in processMCParticles
                 merged_collections_.calo_hits[name].insert(merged_collections_.calo_hits[name].end(),
                                                           processed_hits.begin(), processed_hits.end());
                 
