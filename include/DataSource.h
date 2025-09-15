@@ -66,6 +66,9 @@ public:
     std::vector<std::vector<double>>& processGPDoubleValues();
     std::vector<std::vector<std::string>>& processGPStringValues();
     
+    // Event header processing methods
+    std::vector<edm4hep::EventHeaderData>& processEventHeaders(const std::string& collection_name);
+    
 
     
     // Configuration access

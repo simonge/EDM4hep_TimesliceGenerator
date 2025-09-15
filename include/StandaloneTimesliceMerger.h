@@ -88,6 +88,7 @@ private:
     std::vector<std::string> discoverCollectionNames(DataSource& source, const std::string& branch_pattern);
     std::vector<std::string> discoverGPBranches(DataSource& source);
     void copyPodioMetadata(std::vector<std::unique_ptr<DataSource>>& sources, std::unique_ptr<TFile>& output_file);
+    void copyAndUpdatePodioMetadataTree(TTree* source_metadata_tree, TFile* output_file);
     
     // Utility methods for collection name mapping
     std::string getCorrespondingContributionCollection(const std::string& calo_collection_name) const;
