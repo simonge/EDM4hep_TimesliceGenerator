@@ -44,20 +44,22 @@ public:
     std::vector<edm4hep::MCParticleData>& processMCParticles(size_t particle_index_offset,
                                                            float time_slice_duration,
                                                            float bunch_crossing_period,
-                                                           std::mt19937& rng);
+                                                           std::mt19937& rng,
+                                                           int totalEventsConsumed);
     
-    std::vector<podio::ObjectID>& processObjectID(const std::string& collection_name, size_t index_offset);
+    std::vector<podio::ObjectID>& processObjectID(const std::string& collection_name, size_t index_offset, int totalEventsConsumed);
     
     std::vector<edm4hep::SimTrackerHitData>& processTrackerHits(const std::string& collection_name,
-                                                              size_t particle_index_offset);
+                                                              size_t particle_index_offset,
+                                                              int totalEventsConsumed);
     
     std::vector<edm4hep::SimCalorimeterHitData>& processCaloHits(const std::string& collection_name,
-                                                                size_t particle_index_offset);
-    
-    
+                                                                size_t particle_index_offset,
+                                                                int totalEventsConsumed);
     std::vector<edm4hep::CaloHitContributionData>& processCaloContributions(const std::string& collection_name,
-                                                                           size_t particle_index_offset);
-    
+                                                                           size_t particle_index_offset,
+                                                                           int totalEventsConsumed);
+
     std::vector<std::string>& processGPBranch(const std::string& branch_name);
     std::vector<std::vector<int>>& processGPIntValues();
     std::vector<std::vector<float>>& processGPFloatValues();
