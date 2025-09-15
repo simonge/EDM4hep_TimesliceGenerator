@@ -122,6 +122,7 @@ sources:
     mean_event_frequency: 0.1
     use_bunch_crossing: true
     attach_to_beam: false
+    beam_angle: 0.0
     beam_speed: 299792.458
     beam_spread: 0.0
     generator_status_offset: 0
@@ -145,6 +146,7 @@ sources:
 - `time_slice_duration`: Duration of each timeslice in nanoseconds
 - `bunch_crossing_period`: Bunch crossing period for discretization
 - `introduce_offsets`: Whether to introduce random time offsets
+- `merge_particles`: Whether to merge particles (advanced feature)
 
 #### Source-Specific Parameters
 - `input_files`: List of input ROOT files for this source
@@ -155,6 +157,7 @@ sources:
 - `mean_event_frequency`: Mean event frequency in events/ns (if not static mode)
 - `use_bunch_crossing`: Enable bunch crossing time discretization
 - `attach_to_beam`: Enable beam attachment physics
+- `beam_angle`: Beam angle in radians for time-of-flight calculations
 - `beam_speed`: Beam speed in ns/mm
 - `beam_spread`: Gaussian time spread for beam smearing
 - `generator_status_offset`: Offset to add to MCParticle generator status
