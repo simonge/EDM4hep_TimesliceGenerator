@@ -293,34 +293,30 @@ void StandaloneTimesliceMerger::createMergedTimeslice(std::vector<std::unique_pt
                                                                            std::make_move_iterator(processed_contrib_particle_refs.end()));
             }
             
-            // Process GP (Global Parameter) branches - only from first event of first source
-            if (totalEventsConsumed == 0 && !gp_collection_names_.empty()) {
-                // std::cout << "Processing GP branches from first event..." << std::endl;
-                
-                // Process GP key branches - use move semantics to avoid copying
-                for (const auto& name : gp_collection_names_) {
-                    auto& gp_keys = data_source->processGPBranch(name);
-                    merged_collections_.gp_key_branches[name] = std::move(gp_keys); // Move GP key data
-                    // std::cout << "GP key branch " << name << ": " << gp_keys.size() << " entries" << std::endl;
-                }
-                
-                // Process GP value branches - use move semantics to avoid copying
-                auto& gp_int_values = data_source->processGPIntValues();
-                merged_collections_.gp_int_values = std::move(gp_int_values);
-                // std::cout << "GP int values: " << gp_int_values.size() << " vectors" << std::endl;
-                
-                auto& gp_float_values = data_source->processGPFloatValues();
-                merged_collections_.gp_float_values = std::move(gp_float_values);
-                // std::cout << "GP float values: " << gp_float_values.size() << " vectors" << std::endl;
-                
-                auto& gp_double_values = data_source->processGPDoubleValues();
-                merged_collections_.gp_double_values = std::move(gp_double_values);
-                // std::cout << "GP double values: " << gp_double_values.size() << " vectors" << std::endl;
-                
-                auto& gp_string_values = data_source->processGPStringValues();
-                merged_collections_.gp_string_values = std::move(gp_string_values);
-                // std::cout << "GP string values: " << gp_string_values.size() << " vectors" << std::endl;
+            // Process GP (Global Parameter) branches from all source events
+            // Process GP key branches - append from each event
+            for (const auto& name : gp_collection_names_) {
+                auto& gp_keys = data_source->processGPBranch(name);
+                merged_collections_.gp_key_branches[name].insert(merged_collections_.gp_key_branches[name].end(),
+                                                                    std::make_move_iterator(gp_keys.begin()), std::make_move_iterator(gp_keys.end()));
             }
+
+            // Process GP value branches - append from each event
+            auto& gp_int_values = data_source->processGPIntValues();
+            merged_collections_.gp_int_values.insert(merged_collections_.gp_int_values.end(),
+                std::make_move_iterator(gp_int_values.begin()), std::make_move_iterator(gp_int_values.end()));
+
+            auto& gp_float_values = data_source->processGPFloatValues();
+            merged_collections_.gp_float_values.insert(merged_collections_.gp_float_values.end(),
+                std::make_move_iterator(gp_float_values.begin()), std::make_move_iterator(gp_float_values.end()));
+
+            auto& gp_double_values = data_source->processGPDoubleValues();
+            merged_collections_.gp_double_values.insert(merged_collections_.gp_double_values.end(),
+                std::make_move_iterator(gp_double_values.begin()), std::make_move_iterator(gp_double_values.end()));
+
+            auto& gp_string_values = data_source->processGPStringValues();
+            merged_collections_.gp_string_values.insert(merged_collections_.gp_string_values.end(),
+                std::make_move_iterator(gp_string_values.begin()), std::make_move_iterator(gp_string_values.end()));
 
             data_source->setCurrentEntryIndex(data_source->getCurrentEntryIndex() + 1);
             sourceEventsConsumed++;
