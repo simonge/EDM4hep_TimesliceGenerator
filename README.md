@@ -1,15 +1,13 @@
-# Podio-based Timeslice Merger
+# EDM4hep event merger
 
-A standalone application for merging multiple physics events into timeslices using the Podio data model. This tool provides precise control over timing adjustments, bunch crossing logic, and beam attachment without requiring the JANA framework.
+An application for merging multiple events output by dd4hep into timeslices. All collections of particles and hits are zipped together while maintaining the references between collections.  
 
-## Features
+This tool provides control over timing adjustments allowing optional shifting of the time from each event source based on:
+- Bunch crossing periods.
+- Attachment of backgrounds to beam bunches.
+- Additional Gaussian smearing.
 
-- **Direct Podio I/O**: Uses Podio ROOTReader and ROOTWriter directly, no external framework dependencies
-- **Configurable Timing**: Full control over timeslice duration, bunch crossing periods, and time offset generation
-- **Beam Physics**: Support for beam attachment with Gaussian smearing and configurable beam parameters
-- **Multiple Input Formats**: Handles both event files and pre-existing timeslice files
-- **Comprehensive Configuration**: Command line interface with extensive parameter options
-- **Error Handling**: Graceful handling of missing collections and invalid parameters
+Sources can either be individual events, or an already merged source allowing step by step overlays. *At the moment these seem to take about the same time but hopefully should be possible to speed up using already merged sources*
 
 ## Prerequisites
 
