@@ -69,9 +69,23 @@ make install
 | Option | Description | Default |
 |--------|-------------|---------|
 | `-d, --duration <ns>` | Timeslice duration in nanoseconds | `20.0` |
-| `-s, --static-events` | Use static number of events per timeslice | `false` |
+| `-s, --static-events` | Use static number of events per timeslice (default source) | `false` |
 | `-e, --events-per-slice <number>` | Static events per timeslice (requires `-s`) | `1` |
-| `-f, --frequency <rate>` | Mean event frequency (events/ns) | `1.0` |
+| `-f, --frequency <rate>` | Mean event frequency (events/ns) for default source | `1.0` |
+
+#### Source-Specific Configuration
+| Option | Description |
+|--------|-------------|
+| `--source:NAME` | Create or select a source named NAME |
+| `--source:NAME:input_files FILE1,FILE2` | Comma-separated input files for the source |
+| `--source:NAME:frequency RATE` | Mean event frequency (events/ns) |
+| `--source:NAME:static_events BOOL` | Use static number of events (true/false) |
+| `--source:NAME:events_per_slice N` | Static events per timeslice |
+| `--source:NAME:bunch_crossing BOOL` | Enable bunch crossing logic (true/false) |
+| `--source:NAME:beam_attachment BOOL` | Enable beam attachment (true/false) |
+| `--source:NAME:beam_speed SPEED` | Beam speed in ns/mm |
+| `--source:NAME:beam_spread SPREAD` | Gaussian beam time spread |
+| `--source:NAME:status_offset OFFSET` | Generator status offset |
 
 #### Bunch Crossing Options
 | Option | Description | Default |
@@ -183,6 +197,18 @@ Command-line arguments override YAML configuration values, allowing flexible usa
 ./install/bin/timeslice_merger --config multi_source.yml -d 1000.0 -p 25.0
 ```
 
+### Pattern 4: Source-Specific CLI Configuration
+```bash
+# Configure sources directly via command line
+./install/bin/timeslice_merger --source:signal:input_files signal1.root,signal2.root --source:signal:frequency 0.5 --source:bg:input_files bg.root --source:bg:static_events true
+```
+
+### Pattern 5: Override Specific Sources from Config
+```bash
+# Use config file but override specific source configuration
+./install/bin/timeslice_merger --config config.yml --source:signal:input_files new_signal.root --source:signal:frequency 0.8
+```
+
 
 ## Usage Examples
 
@@ -231,6 +257,45 @@ Process large number of events with custom output:
   --use-bunch-crossing \
   --bunch-period 2000.0 \
   input1.root input2.root input3.root
+```
+
+### Source-Specific CLI Usage
+
+#### Creating Multiple Sources via CLI
+
+Configure multiple sources with different properties:
+```bash
+# Create signal and background sources with specific settings
+./install/bin/timeslice_merger \
+  --source:signal:input_files signal1.root,signal2.root \
+  --source:signal:frequency 0.5 \
+  --source:signal:static_events false \
+  --source:background:input_files bg1.root,bg2.root \
+  --source:background:static_events true \
+  --source:background:events_per_slice 2 \
+  --source:background:status_offset 1000
+```
+
+#### Simple Two-Source Setup
+
+Quick setup with signal and background:
+```bash
+./install/bin/timeslice_merger \
+  --source:signal:input_files signal.root \
+  --source:bg:input_files background.root \
+  --source:bg:static_events true
+```
+
+#### Advanced Beam Physics Configuration
+
+Configure source with beam physics:
+```bash
+./install/bin/timeslice_merger \
+  --source:beam_events:input_files beam_data.root \
+  --source:beam_events:beam_attachment true \
+  --source:beam_events:beam_speed 299792.458 \
+  --source:beam_events:beam_spread 0.5 \
+  --source:beam_events:frequency 0.1
 ```
 
 ### YAML Configuration Usage
