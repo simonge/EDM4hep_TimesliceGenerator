@@ -293,34 +293,30 @@ void StandaloneTimesliceMerger::createMergedTimeslice(std::vector<std::unique_pt
                                                                            std::make_move_iterator(processed_contrib_particle_refs.end()));
             }
             
-            // Process GP (Global Parameter) branches - only from first event of first source
-            if (totalEventsConsumed == 0 && !gp_collection_names_.empty()) {
-                // std::cout << "Processing GP branches from first event..." << std::endl;
-                
-                // Process GP key branches - use move semantics to avoid copying
-                for (const auto& name : gp_collection_names_) {
-                    auto& gp_keys = data_source->processGPBranch(name);
-                    merged_collections_.gp_key_branches[name] = std::move(gp_keys); // Move GP key data
-                    // std::cout << "GP key branch " << name << ": " << gp_keys.size() << " entries" << std::endl;
-                }
-                
-                // Process GP value branches - use move semantics to avoid copying
-                auto& gp_int_values = data_source->processGPIntValues();
-                merged_collections_.gp_int_values = std::move(gp_int_values);
-                // std::cout << "GP int values: " << gp_int_values.size() << " vectors" << std::endl;
-                
-                auto& gp_float_values = data_source->processGPFloatValues();
-                merged_collections_.gp_float_values = std::move(gp_float_values);
-                // std::cout << "GP float values: " << gp_float_values.size() << " vectors" << std::endl;
-                
-                auto& gp_double_values = data_source->processGPDoubleValues();
-                merged_collections_.gp_double_values = std::move(gp_double_values);
-                // std::cout << "GP double values: " << gp_double_values.size() << " vectors" << std::endl;
-                
-                auto& gp_string_values = data_source->processGPStringValues();
-                merged_collections_.gp_string_values = std::move(gp_string_values);
-                // std::cout << "GP string values: " << gp_string_values.size() << " vectors" << std::endl;
+            // Process GP (Global Parameter) branches from all source events
+            // Process GP key branches - append from each event
+            for (const auto& name : gp_collection_names_) {
+                auto& gp_keys = data_source->processGPBranch(name);
+                merged_collections_.gp_key_branches[name].insert(merged_collections_.gp_key_branches[name].end(),
+                                                                    std::make_move_iterator(gp_keys.begin()), std::make_move_iterator(gp_keys.end()));
             }
+
+            // Process GP value branches - append from each event
+            auto& gp_int_values = data_source->processGPIntValues();
+            merged_collections_.gp_int_values.insert(merged_collections_.gp_int_values.end(),
+                std::make_move_iterator(gp_int_values.begin()), std::make_move_iterator(gp_int_values.end()));
+
+            auto& gp_float_values = data_source->processGPFloatValues();
+            merged_collections_.gp_float_values.insert(merged_collections_.gp_float_values.end(),
+                std::make_move_iterator(gp_float_values.begin()), std::make_move_iterator(gp_float_values.end()));
+
+            auto& gp_double_values = data_source->processGPDoubleValues();
+            merged_collections_.gp_double_values.insert(merged_collections_.gp_double_values.end(),
+                std::make_move_iterator(gp_double_values.begin()), std::make_move_iterator(gp_double_values.end()));
+
+            auto& gp_string_values = data_source->processGPStringValues();
+            merged_collections_.gp_string_values.insert(merged_collections_.gp_string_values.end(),
+                std::make_move_iterator(gp_string_values.begin()), std::make_move_iterator(gp_string_values.end()));
 
             data_source->setCurrentEntryIndex(data_source->getCurrentEntryIndex() + 1);
             sourceEventsConsumed++;
@@ -345,72 +341,42 @@ void StandaloneTimesliceMerger::createMergedTimeslice(std::vector<std::unique_pt
 void StandaloneTimesliceMerger::setupOutputTree(TTree* tree) {
     // Directly create all required branches, no sorting or BranchInfo struct
     auto eventHeaderBranch = tree->Branch("EventHeader", &merged_collections_.event_headers);
-    eventHeaderBranch->SetBasketSize(32000); // Optimize basket size for I/O
-    
     auto eventHeaderWeightsBranch = tree->Branch("_EventHeader_weights", &merged_collections_.event_header_weights);
-    eventHeaderWeightsBranch->SetBasketSize(32000);
-    
     // Enable SubEventHeaders branch to track which MCParticles were associated with each source
     auto subEventHeaderBranch = tree->Branch("SubEventHeaders", &merged_collections_.sub_event_headers);
-    subEventHeaderBranch->SetBasketSize(32000);
     auto subEventHeaderWeightsBranch = tree->Branch("_SubEventHeader_weights", &merged_collections_.sub_event_header_weights);
-    subEventHeaderWeightsBranch->SetBasketSize(32000);
-
     auto mcParticlesBranch = tree->Branch("MCParticles", &merged_collections_.mcparticles);
-    mcParticlesBranch->SetBasketSize(64000); // Larger basket for main physics data
-    
     auto mcDaughtersBranch = tree->Branch("_MCParticles_daughters", &merged_collections_.mcparticle_children_refs);
-    mcDaughtersBranch->SetBasketSize(32000);
-    
     auto mcParentsBranch = tree->Branch("_MCParticles_parents", &merged_collections_.mcparticle_parents_refs);
-    mcParentsBranch->SetBasketSize(32000);
 
     // Tracker collections and their references
     for (const auto& name : tracker_collection_names_) {
-        auto trackerBranch = tree->Branch(name.c_str(), &merged_collections_.tracker_hits[name]);
-        trackerBranch->SetBasketSize(64000); // Large basket for hit data
-        
+        auto trackerBranch = tree->Branch(name.c_str(), &merged_collections_.tracker_hits[name]);        
         std::string ref_name = "_" + name + "_particle";
         auto trackerRefBranch = tree->Branch(ref_name.c_str(), &merged_collections_.tracker_hit_particle_refs[name]);
-        trackerRefBranch->SetBasketSize(32000);
     }
 
     // Calorimeter collections and their references
     for (const auto& name : calo_collection_names_) {
-        auto caloBranch = tree->Branch(name.c_str(), &merged_collections_.calo_hits[name]);
-        caloBranch->SetBasketSize(64000); // Large basket for hit data
-        
+        auto caloBranch = tree->Branch(name.c_str(), &merged_collections_.calo_hits[name]);        
         std::string ref_name = "_" + name + "_contributions";
-        auto caloRefBranch = tree->Branch(ref_name.c_str(), &merged_collections_.calo_hit_contributions_refs[name]);
-        caloRefBranch->SetBasketSize(32000);
-        
+        auto caloRefBranch = tree->Branch(ref_name.c_str(), &merged_collections_.calo_hit_contributions_refs[name]);        
         std::string contrib_name = name + "Contributions";
-        auto contribBranch = tree->Branch(contrib_name.c_str(), &merged_collections_.calo_contributions[name]);
-        contribBranch->SetBasketSize(64000); // Large basket for contribution data
-        
+        auto contribBranch = tree->Branch(contrib_name.c_str(), &merged_collections_.calo_contributions[name]);        
         std::string ref_name_contrib = "_" + contrib_name + "_particle";
         auto contribRefBranch = tree->Branch(ref_name_contrib.c_str(), &merged_collections_.calo_contrib_particle_refs[name]);
-        contribRefBranch->SetBasketSize(32000);
     }
     
     // GP (Global Parameter) branches - keys and values
     for (const auto& name : gp_collection_names_) {
         auto gpBranch = tree->Branch(name.c_str(), &merged_collections_.gp_key_branches[name]);
-        gpBranch->SetBasketSize(16000); // Smaller basket for GP data
     }
     
     // GP value branches (fixed names) - smaller baskets as they're written once per timeslice
-    auto gpIntBranch = tree->Branch("GPIntValues", &merged_collections_.gp_int_values);
-    gpIntBranch->SetBasketSize(16000);
-    
-    auto gpFloatBranch = tree->Branch("GPFloatValues", &merged_collections_.gp_float_values);
-    gpFloatBranch->SetBasketSize(16000);
-    
-    auto gpDoubleBranch = tree->Branch("GPDoubleValues", &merged_collections_.gp_double_values);
-    gpDoubleBranch->SetBasketSize(16000);
-    
+    auto gpIntBranch = tree->Branch("GPIntValues", &merged_collections_.gp_int_values);    
+    auto gpFloatBranch = tree->Branch("GPFloatValues", &merged_collections_.gp_float_values);    
+    auto gpDoubleBranch = tree->Branch("GPDoubleValues", &merged_collections_.gp_double_values);    
     auto gpStringBranch = tree->Branch("GPStringValues", &merged_collections_.gp_string_values);
-    gpStringBranch->SetBasketSize(16000);
     
     // Print the number of created branches
     std::cout << "Total branches created: " << tree->GetListOfBranches()->GetEntries() << std::endl;
