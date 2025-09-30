@@ -107,16 +107,9 @@ float DataSource::generateTimeOffset(float distance, float time_slice_duration, 
 }
 
 void DataSource::loadEvent(size_t event_index) {
-    // Load the event data from the TChain with potential cache optimization
+    // Load the event data from the TChain
     chain_->GetEntry(event_index);
     
-    // Enable TTreeCache if not already enabled (ROOT optimization)
-    if (chain_->GetCacheSize() <= 0) {
-        // Enable 10MB cache for better I/O performance
-        chain_->SetCacheSize(10000000);
-        // Add all active branches to cache
-        chain_->AddBranchToCache("*", kTRUE);
-    }
 }
 
 std::vector<podio::ObjectID>& DataSource::processObjectID(const std::string& branch_name, size_t index_offset, int totalEventsConsumed) {
