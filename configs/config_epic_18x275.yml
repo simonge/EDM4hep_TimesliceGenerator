@@ -44,7 +44,7 @@ sources:
     mean_event_frequency: 0.00031694 # in GHz
     use_bunch_crossing: true
     attach_to_beam: true
-    beam_angle: -pi # in rad
+    beam_angle: -3.141592653589793 # in rad
     beam_speed: 0.299792458 # in m/ns
     beam_spread: 0.003 # in ns
     generator_status_offset: 3000
@@ -55,7 +55,7 @@ sources:
     mean_event_frequency: 0.00000086 # in GHz
     use_bunch_crossing: true
     attach_to_beam: true
-    beam_angle: -pi # in rad
+    beam_angle: -3.141592653589793 # in rad
     beam_speed: 0.299792458 # in m/ns
     beam_spread: 0.003 # in ns
     generator_status_offset: 5000
@@ -66,7 +66,7 @@ sources:
     mean_event_frequency: 0.00000055 # in GHz
     use_bunch_crossing: true
     attach_to_beam: true
-    beam_angle: -pi # in rad
+    beam_angle: -3.141592653589793 # in rad
     beam_speed: 0.299792458 # in m/ns
     beam_spread: 0.003 # in ns
     generator_status_offset: 4000
@@ -77,7 +77,7 @@ sources:
     mean_event_frequency: 3.324 # in GHz
     use_bunch_crossing: true
     attach_to_beam: true
-    beam_angle: -pi # in rad
+    beam_angle: -3.141592653589793 # in rad
     beam_speed: 0.299792458 # in m/ns
     beam_spread: 0.003 # in ns
     generator_status_offset: 2000

@@ -71,12 +71,7 @@ void StandaloneTimesliceMerger::run() {
     output_file->SetCompressionLevel(1); // Fast compression (1-9, where 1=fast, 9=best compression)
     
     TTree* output_tree = new TTree("events", "Merged timeslices");
-    
-    // Optimize TTree settings for performance
-    output_tree->SetMaxTreeSize(10000000000LL); // 10GB max tree size to reduce file splits
-    output_tree->SetCacheSize(50000000); // 50MB cache for better I/O performance
-    output_tree->SetAutoFlush(-50000000); // Auto-flush every 50MB for better I/O patterns
-    
+        
     data_sources_ = initializeDataSources();
     setupOutputTree(output_tree);
 
@@ -158,7 +153,8 @@ bool StandaloneTimesliceMerger::updateInputNEvents(std::vector<std::unique_ptr<D
             float mean_freq = config.mean_event_frequency;
             std::poisson_distribution<> poisson_dist(m_config.time_slice_duration * mean_freq);
             size_t n = poisson_dist(gen);
-            data_source->setEntriesNeeded((n == 0) ? 1 : n);
+            // data_source->setEntriesNeeded((n == 0) ? 1 : n);
+            data_source->setEntriesNeeded(n);
         }
         
         // Check enough events are available in this source

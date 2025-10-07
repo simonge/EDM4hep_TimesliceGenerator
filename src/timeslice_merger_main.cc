@@ -24,7 +24,7 @@ void printUsage(const char* program_name) {
               << "  -s, --static-events         Use static number of events per timeslice\n"
               << "  -e, --events-per-slice N    Static events per timeslice (default: 1)\n"
               << "  --beam-attachment           Enable beam attachment with Gaussian smearing\n"
-              << "  --beam-speed SPEED          Beam speed in ns/mm (default: 299792.458)\n"
+              << "  --beam-speed SPEED          Beam speed in m/ns (default: 0.299792458)\n"
               << "  --beam-spread SPREAD        Beam spread for Gaussian smearing (default: 0.0)\n"
               << "  --status-offset OFFSET      Generator status offset (default: 0)\n"
               << "\nSource-Specific Options:\n"
@@ -47,6 +47,8 @@ void printUsage(const char* program_name) {
               << "                              Beam spread for Gaussian smearing\n"
               << "  --source:NAME:status_offset OFFSET\n"
               << "                              Generator status offset\n"
+              << "  --source:NAME:repeat_on_eof BOOL\n"
+              << "                              Repeat source when EOF reached (true/false)\n"
               << "\nExamples:\n"
               << "  # Create signal source with specific files and frequency\n"
               << "  " << program_name << " --source:signal:input_files signal1.root,signal2.root --source:signal:frequency 0.5\n"
@@ -141,6 +143,8 @@ bool handleSourceOption(std::vector<SourceConfig>& sources, const std::string& o
         source->tree_name = value;
     } else if (property == "beam_angle") {
         source->beam_angle = std::stof(value);
+    } else if (property == "repeat_on_eof") {
+        source->repeat_on_eof = parseBool(value);
     } else {
         std::cerr << "Warning: Unknown source property: " << property << std::endl;
         return false;
@@ -148,6 +152,10 @@ bool handleSourceOption(std::vector<SourceConfig>& sources, const std::string& o
     
     return true;
 }
+
+// -------------------------------------------------------------------------------------------------------
+// Main function
+// -------------------------------------------------------------------------------------------------------
 
 int main(int argc, char* argv[]) {
     MergerConfig config;
@@ -286,6 +294,7 @@ int main(int argc, char* argv[]) {
                 if (source_yaml["beam_speed"]) source.beam_speed = source_yaml["beam_speed"].as<float>();
                 if (source_yaml["beam_spread"]) source.beam_spread = source_yaml["beam_spread"].as<float>();
                 if (source_yaml["generator_status_offset"]) source.generator_status_offset = source_yaml["generator_status_offset"].as<int32_t>();
+                if (source_yaml["repeat_on_eof"]) source.repeat_on_eof = source_yaml["repeat_on_eof"].as<bool>();
                 config.sources.push_back(source);
             }
         }
@@ -333,6 +342,9 @@ int main(int argc, char* argv[]) {
                 }
                 if (cli_source.beam_angle != 0.0f) {
                     existing_source.beam_angle = cli_source.beam_angle;
+                }
+                if (cli_source.repeat_on_eof) {
+                    existing_source.repeat_on_eof = cli_source.repeat_on_eof;
                 }
                 found = true;
                 break;
@@ -388,6 +400,7 @@ int main(int argc, char* argv[]) {
         std::cout << "  Beam speed: " << source.beam_speed << " ns/mm" << std::endl;
         std::cout << "  Beam spread: " << source.beam_spread << std::endl;
         std::cout << "  Generator status offset: " << source.generator_status_offset << std::endl;
+        std::cout << "  Repeat on EOF: " << (source.repeat_on_eof ? "true" : "false") << std::endl;
     }
     std::cout << "Output file: " << config.output_file << std::endl;
     std::cout << "Max events: " << config.max_events << std::endl;
