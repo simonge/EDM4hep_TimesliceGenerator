@@ -16,26 +16,58 @@
  * Helper class to apply index offsets to EDM4hep data structures.
  * This eliminates the need to hardcode field names for each collection type.
  * 
- * The helper provides a centralized location for managing which fields in each
- * EDM4hep data type require index offsets. This makes it easier to:
- * - Add support for new collection types
- * - Maintain consistency across the codebase
- * - Reduce code duplication
- * - Automatically infer offset requirements from branch structure
+ * The helper uses a generic approach with pointer-to-member to apply offsets
+ * without hardcoded field name checks. It provides:
+ * - Runtime discovery of OneToMany relations from file structure
+ * - Generic offset application using member pointer maps
+ * - Single function to handle all collection types
+ * - No compile-time knowledge of field names required
  * 
  * Usage example:
- *   // Get metadata about which fields need offsets
- *   auto metadata = IndexOffsetHelper::getMCParticleOffsetMetadata();
- *   // Apply offsets using the helper
- *   IndexOffsetHelper::applyMCParticleOffsets(particles, offset);
- * 
- * To add support for a new collection type:
- *   1. Add a static apply function (e.g., applyNewCollectionOffsets)
- *   2. Add a metadata function (e.g., getNewCollectionOffsetMetadata)
- *   3. Update getAllOffsetMetadata() to include the new metadata
+ *   // Discover relations from file
+ *   auto relations = extractAllOneToManyRelations(file_path);
+ *   
+ *   // Apply offsets generically
+ *   applyOffsetsGeneric(particles, offset, relations["MCParticles"]);
  */
 class IndexOffsetHelper {
 public:
+    /**
+     * Generic field accessor using pointer-to-member for begin/end pairs.
+     * Allows accessing struct members without hardcoded field names.
+     */
+    template<typename T>
+    struct FieldAccessor {
+        unsigned int T::*begin_member;
+        unsigned int T::*end_member;
+        std::string field_name;
+        
+        FieldAccessor(unsigned int T::*begin, unsigned int T::*end, const std::string& name)
+            : begin_member(begin), end_member(end), field_name(name) {}
+    };
+    
+    /**
+     * Registry of field accessors for MCParticleData.
+     * Maps field names to member pointers.
+     */
+    static const std::vector<FieldAccessor<edm4hep::MCParticleData>>& getMCParticleFieldAccessors() {
+        static std::vector<FieldAccessor<edm4hep::MCParticleData>> accessors = {
+            {&edm4hep::MCParticleData::parents_begin, &edm4hep::MCParticleData::parents_end, "parents"},
+            {&edm4hep::MCParticleData::daughters_begin, &edm4hep::MCParticleData::daughters_end, "daughters"}
+        };
+        return accessors;
+    }
+    
+    /**
+     * Registry of field accessors for SimCalorimeterHitData.
+     * Maps field names to member pointers.
+     */
+    static const std::vector<FieldAccessor<edm4hep::SimCalorimeterHitData>>& getCaloHitFieldAccessors() {
+        static std::vector<FieldAccessor<edm4hep::SimCalorimeterHitData>> accessors = {
+            {&edm4hep::SimCalorimeterHitData::contributions_begin, &edm4hep::SimCalorimeterHitData::contributions_end, "contributions"}
+        };
+        return accessors;
+    }
     /**
      * Metadata about which fields need offsets for a given collection type.
      * Each entry is a field name prefix (e.g., "parents" for parents_begin/parents_end).
@@ -49,8 +81,40 @@ public:
     };
     
     /**
-     * Apply index offsets to MCParticle data using dynamically discovered field names.
-     * This version uses the discovered OneToMany relations instead of hardcoded field names.
+     * Generic offset application using field accessors.
+     * This function works with any data type that has registered field accessors.
+     * No hardcoded field name checks required.
+     * 
+     * @param data Vector of data objects
+     * @param offset The offset to add to index fields
+     * @param field_names Vector of field names that need offsets (from runtime discovery)
+     * @param accessors Registry of field accessors for this data type
+     */
+    template<typename T>
+    static void applyOffsetsGeneric(std::vector<T>& data,
+                                    size_t offset,
+                                    const std::vector<std::string>& field_names,
+                                    const std::vector<FieldAccessor<T>>& accessors) {
+        // For each data object
+        for (auto& item : data) {
+            // For each discovered field name
+            for (const auto& field_name : field_names) {
+                // Find the matching accessor by field name
+                for (const auto& accessor : accessors) {
+                    if (accessor.field_name == field_name) {
+                        // Apply offset using pointer-to-member
+                        item.*(accessor.begin_member) += offset;
+                        item.*(accessor.end_member) += offset;
+                        break;
+                    }
+                }
+            }
+        }
+    }
+    
+    /**
+     * Apply index offsets to MCParticle data using discovered field names.
+     * This version uses the generic offset application with field accessors.
      * 
      * @param particles Vector of MCParticle data objects
      * @param offset The offset to add to index fields
@@ -59,17 +123,7 @@ public:
     static void applyMCParticleOffsets(std::vector<edm4hep::MCParticleData>& particles, 
                                        size_t offset,
                                        const std::vector<std::string>& field_names) {
-        for (auto& particle : particles) {
-            for (const auto& field_name : field_names) {
-                if (field_name == "parents") {
-                    particle.parents_begin += offset;
-                    particle.parents_end += offset;
-                } else if (field_name == "daughters") {
-                    particle.daughters_begin += offset;
-                    particle.daughters_end += offset;
-                }
-            }
-        }
+        applyOffsetsGeneric(particles, offset, field_names, getMCParticleFieldAccessors());
     }
     
     /**
@@ -90,8 +144,8 @@ public:
     }
     
     /**
-     * Apply index offsets to SimCalorimeterHit data using dynamically discovered field names.
-     * This version uses the discovered OneToMany relations instead of hardcoded field names.
+     * Apply index offsets to SimCalorimeterHit data using discovered field names.
+     * This version uses the generic offset application with field accessors.
      * 
      * @param hits Vector of SimCalorimeterHit data objects
      * @param offset The offset to add to index fields
@@ -100,14 +154,7 @@ public:
     static void applyCaloHitOffsets(std::vector<edm4hep::SimCalorimeterHitData>& hits, 
                                     size_t offset,
                                     const std::vector<std::string>& field_names) {
-        for (auto& hit : hits) {
-            for (const auto& field_name : field_names) {
-                if (field_name == "contributions") {
-                    hit.contributions_begin += offset;
-                    hit.contributions_end += offset;
-                }
-            }
-        }
+        applyOffsetsGeneric(hits, offset, field_names, getCaloHitFieldAccessors());
     }
     
     /**
