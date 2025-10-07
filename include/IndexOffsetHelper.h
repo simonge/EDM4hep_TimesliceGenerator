@@ -7,6 +7,10 @@
 #include <map>
 #include <functional>
 #include <algorithm>
+#include <TFile.h>
+#include <TTree.h>
+#include <TObjArray.h>
+#include <TBranch.h>
 
 /**
  * Helper class to apply index offsets to EDM4hep data structures.
@@ -45,6 +49,30 @@ public:
     };
     
     /**
+     * Apply index offsets to MCParticle data using dynamically discovered field names.
+     * This version uses the discovered OneToMany relations instead of hardcoded field names.
+     * 
+     * @param particles Vector of MCParticle data objects
+     * @param offset The offset to add to index fields
+     * @param field_names Vector of field name prefixes that need offsets
+     */
+    static void applyMCParticleOffsets(std::vector<edm4hep::MCParticleData>& particles, 
+                                       size_t offset,
+                                       const std::vector<std::string>& field_names) {
+        for (auto& particle : particles) {
+            for (const auto& field_name : field_names) {
+                if (field_name == "parents") {
+                    particle.parents_begin += offset;
+                    particle.parents_end += offset;
+                } else if (field_name == "daughters") {
+                    particle.daughters_begin += offset;
+                    particle.daughters_end += offset;
+                }
+            }
+        }
+    }
+    
+    /**
      * Apply index offsets to MCParticle data.
      * Applies offsets to: parents_begin, parents_end, daughters_begin, daughters_end
      * 
@@ -56,11 +84,29 @@ public:
      * @param offset The offset to add to index fields
      */
     static void applyMCParticleOffsets(std::vector<edm4hep::MCParticleData>& particles, size_t offset) {
-        for (auto& particle : particles) {
-            particle.parents_begin += offset;
-            particle.parents_end += offset;
-            particle.daughters_begin += offset;
-            particle.daughters_end += offset;
+        // Use the version with explicit field names for backward compatibility
+        std::vector<std::string> default_fields = {"parents", "daughters"};
+        applyMCParticleOffsets(particles, offset, default_fields);
+    }
+    
+    /**
+     * Apply index offsets to SimCalorimeterHit data using dynamically discovered field names.
+     * This version uses the discovered OneToMany relations instead of hardcoded field names.
+     * 
+     * @param hits Vector of SimCalorimeterHit data objects
+     * @param offset The offset to add to index fields
+     * @param field_names Vector of field name prefixes that need offsets
+     */
+    static void applyCaloHitOffsets(std::vector<edm4hep::SimCalorimeterHitData>& hits, 
+                                    size_t offset,
+                                    const std::vector<std::string>& field_names) {
+        for (auto& hit : hits) {
+            for (const auto& field_name : field_names) {
+                if (field_name == "contributions") {
+                    hit.contributions_begin += offset;
+                    hit.contributions_end += offset;
+                }
+            }
         }
     }
     
@@ -76,10 +122,9 @@ public:
      * @param offset The offset to add to index fields
      */
     static void applyCaloHitOffsets(std::vector<edm4hep::SimCalorimeterHitData>& hits, size_t offset) {
-        for (auto& hit : hits) {
-            hit.contributions_begin += offset;
-            hit.contributions_end += offset;
-        }
+        // Use the version with explicit field names for backward compatibility
+        std::vector<std::string> default_fields = {"contributions"};
+        applyCaloHitOffsets(hits, offset, default_fields);
     }
     
     /**
@@ -177,5 +222,144 @@ public:
         metadata.offset_field_prefixes = inferOffsetFieldsFromBranches(collection_name, objectid_branch_names);
         metadata.description = "Inferred from branch structure";
         return metadata;
+    }
+    
+    /**
+     * Extract OneToMany relation field names from a ROOT file by analyzing the branch structure.
+     * This is a runtime approach that discovers which fields need offsets without compile-time knowledge.
+     * 
+     * The method looks at the ObjectID branches in the file to determine which fields
+     * represent OneToMany relations (e.g., parents, daughters, contributions).
+     * 
+     * @param file_path Path to the ROOT file
+     * @param collection_name Name of the collection to analyze (e.g., "MCParticles")
+     * @return Vector of field name prefixes that need offsets (e.g., ["parents", "daughters"])
+     */
+    static std::vector<std::string> extractOneToManyFieldsFromFile(
+        const std::string& file_path,
+        const std::string& collection_name)
+    {
+        std::vector<std::string> field_names;
+        
+        try {
+            TFile* file = TFile::Open(file_path.c_str(), "READ");
+            if (!file || file->IsZombie()) {
+                return field_names;
+            }
+            
+            // Get the events tree to analyze branches
+            TTree* events_tree = dynamic_cast<TTree*>(file->Get("events"));
+            if (!events_tree) {
+                file->Close();
+                delete file;
+                return field_names;
+            }
+            
+            // Get all branches
+            TObjArray* branches = events_tree->GetListOfBranches();
+            if (!branches) {
+                file->Close();
+                delete file;
+                return field_names;
+            }
+            
+            // Look for ObjectID branches that belong to this collection
+            // Pattern: _<CollectionName>_<fieldname>
+            std::string prefix = "_" + collection_name + "_";
+            
+            for (int i = 0; i < branches->GetEntries(); ++i) {
+                TBranch* branch = dynamic_cast<TBranch*>(branches->At(i));
+                if (!branch) continue;
+                
+                std::string branch_name = branch->GetName();
+                
+                // Check if this is an ObjectID branch for our collection
+                if (branch_name.find(prefix) == 0) {
+                    // Check if it's a vector of ObjectID (indicating OneToMany relation)
+                    std::string class_name = branch->GetClassName();
+                    if (class_name.find("vector") != std::string::npos && 
+                        class_name.find("ObjectID") != std::string::npos) {
+                        // Extract the field name
+                        std::string field_name = branch_name.substr(prefix.length());
+                        field_names.push_back(field_name);
+                    }
+                }
+            }
+            
+            file->Close();
+            delete file;
+            
+        } catch (...) {
+            // Silently fail - return empty vector
+        }
+        
+        return field_names;
+    }
+    
+    /**
+     * Create a map of all collections in a file and their OneToMany relation fields.
+     * This discovers all offset requirements from the file structure at runtime.
+     * 
+     * @param file_path Path to the ROOT file
+     * @return Map from collection name to list of OneToMany field names
+     */
+    static std::map<std::string, std::vector<std::string>> extractAllOneToManyRelations(
+        const std::string& file_path)
+    {
+        std::map<std::string, std::vector<std::string>> relations;
+        
+        try {
+            TFile* file = TFile::Open(file_path.c_str(), "READ");
+            if (!file || file->IsZombie()) {
+                return relations;
+            }
+            
+            TTree* events_tree = dynamic_cast<TTree*>(file->Get("events"));
+            if (!events_tree) {
+                file->Close();
+                delete file;
+                return relations;
+            }
+            
+            TObjArray* branches = events_tree->GetListOfBranches();
+            if (!branches) {
+                file->Close();
+                delete file;
+                return relations;
+            }
+            
+            // Find all ObjectID branches and group them by collection
+            for (int i = 0; i < branches->GetEntries(); ++i) {
+                TBranch* branch = dynamic_cast<TBranch*>(branches->At(i));
+                if (!branch) continue;
+                
+                std::string branch_name = branch->GetName();
+                
+                // Check if this is an ObjectID branch (pattern: _<CollectionName>_<fieldname>)
+                if (branch_name.size() > 0 && branch_name[0] == '_') {
+                    std::string class_name = branch->GetClassName();
+                    if (class_name.find("vector") != std::string::npos && 
+                        class_name.find("ObjectID") != std::string::npos) {
+                        
+                        // Extract collection name and field name
+                        size_t second_underscore = branch_name.find('_', 1);
+                        if (second_underscore != std::string::npos) {
+                            std::string collection_name = branch_name.substr(1, second_underscore - 1);
+                            std::string field_name = branch_name.substr(second_underscore + 1);
+                            
+                            relations[collection_name].push_back(field_name);
+                        }
+                    }
+                }
+            }
+            
+            file->Close();
+            delete file;
+            
+        } catch (...) {
+            // Silently fail - return what we have
+        }
+        
+        return relations;
     }
 };

@@ -167,8 +167,15 @@ std::vector<edm4hep::MCParticleData>& DataSource::processMCParticles(size_t part
         }
     }
     
-    // Update index ranges for parent-child relationships using the helper
-    IndexOffsetHelper::applyMCParticleOffsets(particles, particle_index_offset);
+    // Update index ranges for parent-child relationships using discovered field names
+    auto it = one_to_many_relations_.find("MCParticles");
+    if (it != one_to_many_relations_.end() && !it->second.empty()) {
+        // Use runtime-discovered field names
+        IndexOffsetHelper::applyMCParticleOffsets(particles, particle_index_offset, it->second);
+    } else {
+        // Fallback to default behavior if no relations discovered
+        IndexOffsetHelper::applyMCParticleOffsets(particles, particle_index_offset);
+    }
     
     return particles; // Return reference to the branch data itself
 }
@@ -203,8 +210,15 @@ std::vector<edm4hep::SimCalorimeterHitData>& DataSource::processCaloHits(const s
 
     auto& hits = *calo_hit_branches_[collection_name];
 
-    // Apply index offsets to contributions using the helper
-    IndexOffsetHelper::applyCaloHitOffsets(hits, contribution_index_offset);
+    // Apply index offsets to contributions using discovered field names
+    auto it = one_to_many_relations_.find(collection_name);
+    if (it != one_to_many_relations_.end() && !it->second.empty()) {
+        // Use runtime-discovered field names
+        IndexOffsetHelper::applyCaloHitOffsets(hits, contribution_index_offset, it->second);
+    } else {
+        // Fallback to default behavior if no relations discovered
+        IndexOffsetHelper::applyCaloHitOffsets(hits, contribution_index_offset);
+    }
     
     return hits; // Return reference to the branch data itself
 }
@@ -253,6 +267,9 @@ std::vector<edm4hep::EventHeaderData>& DataSource::processEventHeaders(const std
 void DataSource::setupBranches() {
     std::cout << "=== Setting up branches for source " << source_index_ << " ===" << std::endl;
     
+    // Discover OneToMany relations from the file structure
+    discoverOneToManyRelations();
+    
     setupMCParticleBranches();
     setupTrackerBranches();
     setupCalorimeterBranches();
@@ -260,6 +277,33 @@ void DataSource::setupBranches() {
     setupGPBranches();
     
     std::cout << "=== Branch setup complete ===" << std::endl;
+}
+
+void DataSource::discoverOneToManyRelations() {
+    std::cout << "Discovering OneToMany relations from file structure..." << std::endl;
+    
+    // Use the first input file to discover the structure
+    if (config_->input_files.empty()) {
+        std::cout << "Warning: No input files to discover relations from" << std::endl;
+        return;
+    }
+    
+    // Extract relations from the first file
+    one_to_many_relations_ = IndexOffsetHelper::extractAllOneToManyRelations(config_->input_files[0]);
+    
+    // Print discovered relations
+    for (const auto& [collection, fields] : one_to_many_relations_) {
+        std::cout << "  Collection '" << collection << "' has OneToMany fields: ";
+        for (size_t i = 0; i < fields.size(); ++i) {
+            std::cout << fields[i];
+            if (i < fields.size() - 1) std::cout << ", ";
+        }
+        std::cout << std::endl;
+    }
+    
+    if (one_to_many_relations_.empty()) {
+        std::cout << "  No OneToMany relations discovered" << std::endl;
+    }
 }
 
 void DataSource::setupMCParticleBranches() {

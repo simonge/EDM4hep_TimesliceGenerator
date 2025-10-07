@@ -115,6 +115,10 @@ private:
     std::vector<std::vector<double>>* gp_double_branch_;
     std::vector<std::vector<std::string>>* gp_string_branch_;
 
+    // Runtime-discovered OneToMany relation metadata
+    // Maps collection name to list of field names that need index offsets
+    std::map<std::string, std::vector<std::string>> one_to_many_relations_;
+
     // Current event processing state
     float current_time_offset_;
     size_t current_particle_index_offset_;
@@ -126,6 +130,7 @@ private:
     void setupCalorimeterBranches();
     void setupEventHeaderBranches();
     void setupGPBranches();
+    void discoverOneToManyRelations();
     void cleanup();
     
     // Helper methods for physics calculations
