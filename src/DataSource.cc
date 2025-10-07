@@ -68,11 +68,17 @@ void DataSource::initialize(const std::vector<std::string>& tracker_collections,
 }
 
 bool DataSource::hasMoreEntries() const {
+    if(config_->repeat_on_eof && total_entries_ > 0) {
+        return true;
+    }
     return (current_entry_index_ + entries_needed_) <= total_entries_;
 }
 
 bool DataSource::loadNextEvent() {
     if (current_entry_index_ >= total_entries_) {
+        if(config_->repeat_on_eof) {
+            current_entry_index_ = 0;
+        }
         return false;
     }
     
