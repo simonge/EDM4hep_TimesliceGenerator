@@ -19,6 +19,7 @@ sources:
     mean_event_frequency: 0.0005 # in GHz
     use_bunch_crossing: true
     generator_status_offset: 0
+    repeat_on_eof: true
   - name: bethe_heitler
     input_files:
       - input3.root    
@@ -26,6 +27,7 @@ sources:
     mean_event_frequency: 1.8 # in GHz # Check value
     use_bunch_crossing: true
     generator_status_offset: 7000
+    repeat_on_eof: true
   - name: hadron_beamgas
     input_files:
       - input3.root
@@ -37,6 +39,7 @@ sources:
     beam_speed: 0.299792458 # in m/ns
     beam_spread: 0.030 # in ns
     generator_status_offset: 6000
+    repeat_on_eof: true
   - name: electron_beamgas_bremsstrahlung
     input_files:
       - input3.root
@@ -48,6 +51,7 @@ sources:
     beam_speed: 0.299792458 # in m/ns
     beam_spread: 0.003 # in ns
     generator_status_offset: 3000
+    repeat_on_eof: true
   - name: electron_beamgas_coulomb
     input_files:
       - input3.root
@@ -59,6 +63,7 @@ sources:
     beam_speed: 0.299792458 # in m/ns
     beam_spread: 0.003 # in ns
     generator_status_offset: 5000
+    repeat_on_eof: true
   - name: electron_beamgas_touschek
     input_files:
       - input3.root
@@ -70,6 +75,7 @@ sources:
     beam_speed: 0.299792458 # in m/ns
     beam_spread: 0.003 # in ns
     generator_status_offset: 4000
+    repeat_on_eof: true
   - name: electron_synchrotron
     input_files:
       - input3.root
@@ -81,3 +87,4 @@ sources:
     beam_speed: 0.299792458 # in m/ns
     beam_spread: 0.003 # in ns
     generator_status_offset: 2000
+    repeat_on_eof: true
