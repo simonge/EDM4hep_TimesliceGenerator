@@ -1,6 +1,7 @@
 #pragma once
 
 #include "StandaloneMergerConfig.h"
+#include "IndexOffsetHelper.h"
 #include <edm4hep/MCParticleData.h>
 #include <edm4hep/SimTrackerHitData.h>
 #include <edm4hep/SimCalorimeterHitData.h>

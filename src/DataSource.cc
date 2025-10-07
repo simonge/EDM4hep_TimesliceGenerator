@@ -1,4 +1,5 @@
 #include "DataSource.h"
+#include "IndexOffsetHelper.h"
 #include <iostream>
 #include <algorithm>
 #include <cmath>
@@ -164,12 +165,10 @@ std::vector<edm4hep::MCParticleData>& DataSource::processMCParticles(size_t part
             // Update generator status offset
             particle.generatorStatus += config_->generator_status_offset;
         }
-        // Update index ranges for parent-child relationships
-        particle.parents_begin   += particle_index_offset;
-        particle.parents_end     += particle_index_offset;
-        particle.daughters_begin += particle_index_offset;
-        particle.daughters_end   += particle_index_offset;        
     }
+    
+    // Update index ranges for parent-child relationships using the helper
+    IndexOffsetHelper::applyMCParticleOffsets(particles, particle_index_offset);
     
     return particles; // Return reference to the branch data itself
 }
@@ -204,10 +203,8 @@ std::vector<edm4hep::SimCalorimeterHitData>& DataSource::processCaloHits(const s
 
     auto& hits = *calo_hit_branches_[collection_name];
 
-    for (auto& hit : hits) {
-        hit.contributions_begin += contribution_index_offset;
-        hit.contributions_end += contribution_index_offset;
-    }
+    // Apply index offsets to contributions using the helper
+    IndexOffsetHelper::applyCaloHitOffsets(hits, contribution_index_offset);
     
     return hits; // Return reference to the branch data itself
 }
