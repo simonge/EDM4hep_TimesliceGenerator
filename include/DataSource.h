@@ -42,10 +42,9 @@ public:
     // New typed data merging methods
     void loadEvent(size_t event_index);
     
+    void UpdateTimeOffset(float time_slice_duration, float bunch_crossing_period, std::mt19937& rng);
+
     std::vector<edm4hep::MCParticleData>& processMCParticles(size_t particle_index_offset,
-                                                           float time_slice_duration,
-                                                           float bunch_crossing_period,
-                                                           std::mt19937& rng,
                                                            int totalEventsConsumed);
     
     std::vector<podio::ObjectID>& processObjectID(const std::string& collection_name, size_t index_offset, int totalEventsConsumed);

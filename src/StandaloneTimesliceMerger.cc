@@ -188,12 +188,14 @@ void StandaloneTimesliceMerger::createMergedTimeslice(std::vector<std::unique_pt
             
             // Load the event data from this source
             data_source->loadEvent(data_source->getCurrentEntryIndex());
+
+            // Generate time offset for this event
+            data_source->UpdateTimeOffset(m_config.time_slice_duration,
+                                          m_config.bunch_crossing_period,
+                                          gen);
             
             // Process MCParticles - use move semantics to avoid copying
-            auto& processed_particles = data_source->processMCParticles(particle_index_offset,
-                                                                       m_config.time_slice_duration,
-                                                                       m_config.bunch_crossing_period,
-                                                                       gen,totalEventsConsumed);
+            auto& processed_particles = data_source->processMCParticles(particle_index_offset,totalEventsConsumed);
             merged_collections_.mcparticles.insert(merged_collections_.mcparticles.end(), 
                                                   std::make_move_iterator(processed_particles.begin()), 
                                                   std::make_move_iterator(processed_particles.end()));
