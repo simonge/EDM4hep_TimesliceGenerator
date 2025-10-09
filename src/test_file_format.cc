@@ -2,7 +2,6 @@
 #include <memory>
 #include <TFile.h>
 #include <TTree.h>
-#include "BranchTypeRegistry.h"
 
 // Simple test to check if we can load a generated file with ROOT/TTree
 // This is a basic format verification without podio dependencies
@@ -67,14 +66,25 @@ int main(int argc, char* argv[]) {
         int collections = 0;
         int gp_branches = 0;
         
+        // GP branch patterns to look for
+        std::vector<std::string> gp_patterns = {"GPIntKeys", "GPFloatKeys", "GPStringKeys", "GPDoubleKeys", 
+                                                "GPIntValues", "GPFloatValues", "GPStringValues", "GPDoubleValues"};
+        
         for (int i = 0; i < branches->GetEntries(); ++i) {
             TBranch* branch = (TBranch*)branches->At(i);
             if (branch) {
                 std::string branch_name = branch->GetName();
                 std::cout << "  " << branch_name;
                 
-                // Use registry to check if this is a GP branch
-                bool is_gp_branch = BranchTypeRegistry::isGPBranch(branch_name);
+                // Check if this is a GP branch
+                bool is_gp_branch = false;
+                for (const auto& pattern : gp_patterns) {
+                    if (branch_name.find(pattern) == 0) {
+                        is_gp_branch = true;
+                        break;
+                    }
+                }
+                
                 if (is_gp_branch) {
                     gp_branches++;
                     std::cout << " [GP BRANCH]";
