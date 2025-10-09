@@ -113,10 +113,92 @@ float DataSource::generateTimeOffset(float distance, float time_slice_duration, 
     return time_offset;
 }
 
-void DataSource::loadEvent(size_t event_index) {
+EventData* DataSource::loadEvent(size_t event_index, float time_slice_duration, 
+                                   float bunch_crossing_period, std::mt19937& rng) {
     // Load the event data from the TChain
     chain_->GetEntry(event_index);
     
+    // Create new EventData
+    current_event_data_ = std::make_unique<EventData>();
+    
+    // Calculate time offset using MCParticles if available
+    float distance = 0.0f;
+    if (!config_->already_merged && config_->attach_to_beam && mcparticle_branch_ && !mcparticle_branch_->empty()) {
+        distance = calculateBeamDistance(*mcparticle_branch_);
+    }
+    current_event_data_->time_offset = generateTimeOffset(distance, time_slice_duration, bunch_crossing_period, rng);
+    
+    // Add MCParticles to the map
+    current_event_data_->collections["MCParticles"] = *mcparticle_branch_;
+    current_event_data_->collection_sizes["MCParticles"] = mcparticle_branch_->size();
+    
+    // Add MCParticle reference collections
+    current_event_data_->collections["_MCParticles_parents"] = *objectid_branches_["_MCParticles_parents"];
+    current_event_data_->collection_sizes["_MCParticles_parents"] = objectid_branches_["_MCParticles_parents"]->size();
+    
+    current_event_data_->collections["_MCParticles_daughters"] = *objectid_branches_["_MCParticles_daughters"];
+    current_event_data_->collection_sizes["_MCParticles_daughters"] = objectid_branches_["_MCParticles_daughters"]->size();
+    
+    // Add tracker hits and their references
+    for (const auto& name : *tracker_collection_names_) {
+        current_event_data_->collections[name] = *tracker_hit_branches_[name];
+        current_event_data_->collection_sizes[name] = tracker_hit_branches_[name]->size();
+        
+        std::string ref_name = "_" + name + "_particle";
+        current_event_data_->collections[ref_name] = *objectid_branches_[ref_name];
+        current_event_data_->collection_sizes[ref_name] = objectid_branches_[ref_name]->size();
+    }
+    
+    // Add calorimeter hits, contributions and their references
+    for (const auto& name : *calo_collection_names_) {
+        current_event_data_->collections[name] = *calo_hit_branches_[name];
+        current_event_data_->collection_sizes[name] = calo_hit_branches_[name]->size();
+        
+        std::string contrib_ref_name = "_" + name + "_contributions";
+        current_event_data_->collections[contrib_ref_name] = *objectid_branches_[contrib_ref_name];
+        current_event_data_->collection_sizes[contrib_ref_name] = objectid_branches_[contrib_ref_name]->size();
+        
+        std::string contrib_name = name + "Contributions";
+        current_event_data_->collections[contrib_name] = *calo_contrib_branches_[contrib_name];
+        current_event_data_->collection_sizes[contrib_name] = calo_contrib_branches_[contrib_name]->size();
+        
+        std::string contrib_particle_ref_name = "_" + contrib_name + "_particle";
+        current_event_data_->collections[contrib_particle_ref_name] = *objectid_branches_[contrib_particle_ref_name];
+        current_event_data_->collection_sizes[contrib_particle_ref_name] = objectid_branches_[contrib_particle_ref_name]->size();
+    }
+    
+    // Add EventHeader if available
+    if (event_header_branches_.count("EventHeader")) {
+        current_event_data_->collections["EventHeader"] = *event_header_branches_["EventHeader"];
+        current_event_data_->collection_sizes["EventHeader"] = event_header_branches_["EventHeader"]->size();
+    }
+    
+    // Add SubEventHeaders if available
+    if (event_header_branches_.count("SubEventHeaders")) {
+        current_event_data_->collections["SubEventHeaders"] = *event_header_branches_["SubEventHeaders"];
+        current_event_data_->collection_sizes["SubEventHeaders"] = event_header_branches_["SubEventHeaders"]->size();
+    }
+    
+    // Add GP branches
+    for (const auto& name : *gp_collection_names_) {
+        current_event_data_->collections[name] = *gp_key_branches_[name];
+        current_event_data_->collection_sizes[name] = gp_key_branches_[name]->size();
+    }
+    
+    // Add GP value branches
+    current_event_data_->collections["GPIntValues"] = *gp_int_branch_;
+    current_event_data_->collection_sizes["GPIntValues"] = gp_int_branch_->size();
+    
+    current_event_data_->collections["GPFloatValues"] = *gp_float_branch_;
+    current_event_data_->collection_sizes["GPFloatValues"] = gp_float_branch_->size();
+    
+    current_event_data_->collections["GPDoubleValues"] = *gp_double_branch_;
+    current_event_data_->collection_sizes["GPDoubleValues"] = gp_double_branch_->size();
+    
+    current_event_data_->collections["GPStringValues"] = *gp_string_branch_;
+    current_event_data_->collection_sizes["GPStringValues"] = gp_string_branch_->size();
+    
+    return current_event_data_.get();
 }
 
 
