@@ -41,6 +41,7 @@ public:
     static bool isObjectIDRef(const std::string& branch_name);
     static bool isParticleRef(const std::string& branch_name);
     static bool isContributionRef(const std::string& branch_name);
+    static bool isContributionParticleRef(const std::string& branch_name);
     
     /**
      * Get all registered type patterns for a category

@@ -275,7 +275,7 @@ void StandaloneTimesliceMerger::createMergedTimeslice(std::vector<std::unique_pt
                         // Particle reference branches
                         auto* refs = std::any_cast<std::vector<podio::ObjectID>>(&collection_data);
                         if (refs) {
-                            if (collection_name.find("Contributions_particle") != std::string::npos) {
+                            if (BranchTypeRegistry::isContributionParticleRef(collection_name)) {
                                 std::string base_name = collection_name.substr(1);
                                 base_name = base_name.substr(0, base_name.find("Contributions_particle"));
                                 merged_collections_.calo_contrib_particle_refs[base_name].insert(

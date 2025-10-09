@@ -99,6 +99,10 @@ bool BranchTypeRegistry::isContributionRef(const std::string& branch_name) {
     return branch_name.find("_") == 0 && branch_name.find("_contributions") != std::string::npos;
 }
 
+bool BranchTypeRegistry::isContributionParticleRef(const std::string& branch_name) {
+    return branch_name.find("Contributions_particle") != std::string::npos;
+}
+
 std::vector<std::string> BranchTypeRegistry::getTypePatternsForCategory(BranchCategory category) {
     std::vector<std::string> patterns;
     for (const auto& mapping : getTypeMappings()) {
