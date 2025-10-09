@@ -9,6 +9,11 @@
  * Registry for branch type patterns and their categories.
  * Eliminates hardcoded type checks by using a lookup system.
  * New data types can be added by simply registering them here.
+ * 
+ * IMPORTANT: Type categorization should be based on the actual branch data type,
+ * not the branch name. Branch names are only used for:
+ * 1. Storing collections in maps (as keys)
+ * 2. Extracting base names for relationship references (e.g., _particle, _contributions)
  */
 class BranchTypeRegistry {
 public:
@@ -25,17 +30,22 @@ public:
     };
     
     /**
-     * Get the category for a branch type string
+     * Get the category for a branch type string (PRIMARY METHOD)
+     * Use this to determine the category of a collection based on its actual data type.
      */
     static BranchCategory getCategoryForType(const std::string& type_string);
     
     /**
-     * Get the category for a branch based on its name pattern
+     * Get the category for a branch based on its name pattern (RARELY NEEDED)
+     * This should rarely be used - prefer getCategoryForType instead.
+     * Only needed in cases where the type information is not available.
      */
     static BranchCategory getCategoryForName(const std::string& branch_name);
     
     /**
      * Check if a branch name matches a specific pattern category
+     * These are used ONLY to distinguish between different ObjectID reference types
+     * when we already know the type is OBJECTID_REF (from getCategoryForType).
      */
     static bool isGPBranch(const std::string& branch_name);
     static bool isObjectIDRef(const std::string& branch_name);

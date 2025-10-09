@@ -233,9 +233,9 @@ void StandaloneTimesliceMerger::createMergedTimeslice(std::vector<std::unique_pt
                     descriptor->merge_function(collection_data, merged_collections_, collection_name);
                 }
                 else {
-                    // Use type and name pattern matching for dynamic collections
+                    // Use type-based categorization for dynamic collections
+                    // Branch names are only used for map keys and extracting base names for relationships
                     auto type_category = BranchTypeRegistry::getCategoryForType(collection_type);
-                    auto name_category = BranchTypeRegistry::getCategoryForName(collection_name);
                     
                     if (type_category == BranchTypeRegistry::BranchCategory::TRACKER_HIT) {
                         // Dynamic tracker collection
@@ -271,39 +271,40 @@ void StandaloneTimesliceMerger::createMergedTimeslice(std::vector<std::unique_pt
                                 std::make_move_iterator(contribs->end()));
                         }
                     }
-                    else if (BranchTypeRegistry::isParticleRef(collection_name)) {
-                        // Particle reference branches
+                    else if (type_category == BranchTypeRegistry::BranchCategory::OBJECTID_REF) {
+                        // All ObjectID reference branches - use name only to determine which map to store in
                         auto* refs = std::any_cast<std::vector<podio::ObjectID>>(&collection_data);
                         if (refs) {
-                            if (BranchTypeRegistry::isContributionParticleRef(collection_name)) {
-                                std::string base_name = collection_name.substr(1);
-                                base_name = base_name.substr(0, base_name.find("Contributions_particle"));
-                                merged_collections_.calo_contrib_particle_refs[base_name].insert(
-                                    merged_collections_.calo_contrib_particle_refs[base_name].end(),
-                                    std::make_move_iterator(refs->begin()),
-                                    std::make_move_iterator(refs->end()));
-                            } else {
-                                std::string base_name = collection_name.substr(1, collection_name.find("_particle") - 1);
-                                merged_collections_.tracker_hit_particle_refs[base_name].insert(
-                                    merged_collections_.tracker_hit_particle_refs[base_name].end(),
+                            // Use branch name pattern to determine the specific type of reference
+                            if (BranchTypeRegistry::isParticleRef(collection_name)) {
+                                // Particle reference branches
+                                if (BranchTypeRegistry::isContributionParticleRef(collection_name)) {
+                                    std::string base_name = collection_name.substr(1);
+                                    base_name = base_name.substr(0, base_name.find("Contributions_particle"));
+                                    merged_collections_.calo_contrib_particle_refs[base_name].insert(
+                                        merged_collections_.calo_contrib_particle_refs[base_name].end(),
+                                        std::make_move_iterator(refs->begin()),
+                                        std::make_move_iterator(refs->end()));
+                                } else {
+                                    std::string base_name = collection_name.substr(1, collection_name.find("_particle") - 1);
+                                    merged_collections_.tracker_hit_particle_refs[base_name].insert(
+                                        merged_collections_.tracker_hit_particle_refs[base_name].end(),
+                                        std::make_move_iterator(refs->begin()),
+                                        std::make_move_iterator(refs->end()));
+                                }
+                            }
+                            else if (BranchTypeRegistry::isContributionRef(collection_name)) {
+                                // Contribution reference branches
+                                std::string base_name = collection_name.substr(1, collection_name.find("_contributions") - 1);
+                                merged_collections_.calo_hit_contributions_refs[base_name].insert(
+                                    merged_collections_.calo_hit_contributions_refs[base_name].end(),
                                     std::make_move_iterator(refs->begin()),
                                     std::make_move_iterator(refs->end()));
                             }
                         }
                     }
-                    else if (BranchTypeRegistry::isContributionRef(collection_name)) {
-                        // Contribution reference branches
-                        auto* refs = std::any_cast<std::vector<podio::ObjectID>>(&collection_data);
-                        if (refs) {
-                            std::string base_name = collection_name.substr(1, collection_name.find("_contributions") - 1);
-                            merged_collections_.calo_hit_contributions_refs[base_name].insert(
-                                merged_collections_.calo_hit_contributions_refs[base_name].end(),
-                                std::make_move_iterator(refs->begin()),
-                                std::make_move_iterator(refs->end()));
-                        }
-                    }
-                    else if (name_category == BranchTypeRegistry::BranchCategory::GP_KEY) {
-                        // GP key branches
+                    else if (type_category == BranchTypeRegistry::BranchCategory::GP_KEY) {
+                        // GP key branches (type is vector<string>)
                         auto* gp_keys = std::any_cast<std::vector<std::string>>(&collection_data);
                         if (gp_keys) {
                             merged_collections_.gp_key_branches[collection_name].insert(
