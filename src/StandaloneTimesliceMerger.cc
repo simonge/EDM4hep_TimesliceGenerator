@@ -212,37 +212,54 @@ void StandaloneTimesliceMerger::createMergedTimeslice(std::vector<std::unique_pt
                 // Determine collection type for processing
                 std::string collection_type = data_source->getCollectionTypeName(collection_name);
                 
-                // Use visitor pattern with type traits for automatic processing
+                // Build offsets map for this collection based on what it needs
+                std::map<std::string, size_t> offsets_map;
+                
+                // All data collections may reference MCParticles
+                offsets_map["MCParticles"] = collection_offsets["MCParticles"];
+                
+                // Calo hits reference contributions
+                if (collection_type == "SimCalorimeterHit") {
+                    offsets_map[collection_name + "Contributions"] = collection_offsets[collection_name + "Contributions"];
+                }
+                
+                // Process the collection using generic function
+                if (should_process) {
+                    processCollectionGeneric(collection_data, collection_type,
+                                           time_offset, config.generator_status_offset,
+                                           offsets_map, config.already_merged);
+                }
+                
+                // Merge the collection into the appropriate destination
+                // This part still needs type-specific handling for destination routing
                 if (collection_name == "MCParticles") {
                     auto* particles = std::any_cast<std::vector<edm4hep::MCParticleData>>(&collection_data);
-                    if (should_process && particles) {
-                        applyOffsets(*particles, time_offset, config.generator_status_offset,
-                                   collection_offsets["MCParticles"], 0, config.already_merged);
-                    }
                     if (particles) {
                         merged_collections_.mcparticles.insert(merged_collections_.mcparticles.end(),
                                                               std::make_move_iterator(particles->begin()),
                                                               std::make_move_iterator(particles->end()));
                     }
                     
-                } else if (collection_name == "_MCParticles_parents" || collection_name == "_MCParticles_daughters") {
+                } else if (collection_name == "_MCParticles_parents") {
                     auto* refs = std::any_cast<std::vector<podio::ObjectID>>(&collection_data);
-                    if (should_process && refs) {
-                        applyOffsets(*refs, 0, 0, collection_offsets["MCParticles"], 0, false);
-                    }
                     if (refs) {
-                        auto& dest = (collection_name == "_MCParticles_parents") ?
-                                    merged_collections_.mcparticle_parents_refs :
-                                    merged_collections_.mcparticle_children_refs;
-                        dest.insert(dest.end(), std::make_move_iterator(refs->begin()),
-                                   std::make_move_iterator(refs->end()));
+                        merged_collections_.mcparticle_parents_refs.insert(
+                            merged_collections_.mcparticle_parents_refs.end(),
+                            std::make_move_iterator(refs->begin()),
+                            std::make_move_iterator(refs->end()));
+                    }
+                    
+                } else if (collection_name == "_MCParticles_daughters") {
+                    auto* refs = std::any_cast<std::vector<podio::ObjectID>>(&collection_data);
+                    if (refs) {
+                        merged_collections_.mcparticle_children_refs.insert(
+                            merged_collections_.mcparticle_children_refs.end(),
+                            std::make_move_iterator(refs->begin()),
+                            std::make_move_iterator(refs->end()));
                     }
                     
                 } else if (collection_type == "SimTrackerHit") {
                     auto* hits = std::any_cast<std::vector<edm4hep::SimTrackerHitData>>(&collection_data);
-                    if (should_process && hits) {
-                        applyOffsets(*hits, time_offset, 0, 0, 0, config.already_merged);
-                    }
                     if (hits) {
                         merged_collections_.tracker_hits[collection_name].insert(
                             merged_collections_.tracker_hits[collection_name].end(),
@@ -252,9 +269,6 @@ void StandaloneTimesliceMerger::createMergedTimeslice(std::vector<std::unique_pt
                     
                 } else if (collection_name.find("_") == 0 && collection_name.find("_particle") != std::string::npos) {
                     auto* refs = std::any_cast<std::vector<podio::ObjectID>>(&collection_data);
-                    if (should_process && refs) {
-                        applyOffsets(*refs, 0, 0, collection_offsets["MCParticles"], 0, false);
-                    }
                     if (refs) {
                         if (collection_name.find("Contributions_particle") != std::string::npos) {
                             std::string base_name = collection_name.substr(1);
@@ -274,10 +288,6 @@ void StandaloneTimesliceMerger::createMergedTimeslice(std::vector<std::unique_pt
                     
                 } else if (collection_type == "SimCalorimeterHit") {
                     auto* hits = std::any_cast<std::vector<edm4hep::SimCalorimeterHitData>>(&collection_data);
-                    size_t contrib_offset = collection_offsets[collection_name + "Contributions"];
-                    if (should_process && hits) {
-                        applyOffsets(*hits, 0, 0, 0, contrib_offset, config.already_merged);
-                    }
                     if (hits) {
                         merged_collections_.calo_hits[collection_name].insert(
                             merged_collections_.calo_hits[collection_name].end(),
@@ -287,11 +297,8 @@ void StandaloneTimesliceMerger::createMergedTimeslice(std::vector<std::unique_pt
                     
                 } else if (collection_name.find("_") == 0 && collection_name.find("_contributions") != std::string::npos) {
                     auto* refs = std::any_cast<std::vector<podio::ObjectID>>(&collection_data);
-                    std::string base_name = collection_name.substr(1, collection_name.find("_contributions") - 1);
-                    if (should_process && refs) {
-                        applyOffsets(*refs, 0, 0, collection_offsets[base_name + "Contributions"], 0, false);
-                    }
                     if (refs) {
+                        std::string base_name = collection_name.substr(1, collection_name.find("_contributions") - 1);
                         merged_collections_.calo_hit_contributions_refs[base_name].insert(
                             merged_collections_.calo_hit_contributions_refs[base_name].end(),
                             std::make_move_iterator(refs->begin()),
@@ -300,9 +307,6 @@ void StandaloneTimesliceMerger::createMergedTimeslice(std::vector<std::unique_pt
                     
                 } else if (collection_type == "CaloHitContribution") {
                     auto* contribs = std::any_cast<std::vector<edm4hep::CaloHitContributionData>>(&collection_data);
-                    if (should_process && contribs) {
-                        applyOffsets(*contribs, time_offset, 0, 0, 0, config.already_merged);
-                    }
                     if (contribs) {
                         std::string base_name = collection_name;
                         if (base_name.length() > 13 && base_name.substr(base_name.length() - 13) == "Contributions") {

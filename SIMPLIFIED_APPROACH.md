@@ -2,73 +2,90 @@
 
 ## Overview
 
-This refactoring replaces the previous complex registry system with a simpler C++20-based approach using concepts and compile-time type detection.
+This refactoring uses C++20 concepts to automatically detect which fields need updating in collection types, treating all branches uniformly without special cases.
 
-## Key Changes
+## Key Principles
 
-### Before
-- Complex `CollectionMergeHandler` registry system (~615 lines)
-- Manual handler registration for each collection type
-- Lambda-based processing with multiple layers of indirection
-- Total: ~920 lines of new code
+### Uniform Branch Treatment
+All branches are treated equally based on their type characteristics:
+- If a type has `daughters_begin`, it gets updated with the MCParticles offset
+- If a type has `contributions_begin`, it gets updated with the contributions offset
+- No special-casing for `_MCParticles_parents` vs `_MCParticles_daughters` - they're just ObjectID collections
 
-### After
-- Simple `CollectionTypeTraits.h` with C++20 concepts (~129 lines)
-- Automatic type detection using `if constexpr`
-- Single `applyOffsets()` template function handles all types
-- Total: ~276 lines (net reduction of ~644 lines)
-
-## How It Works
-
-### C++20 Concepts
-Concepts automatically detect which fields a type has:
+### Automatic Field Detection
+C++20 concepts detect at compile time which fields a type has:
 
 ```cpp
 template<typename T>
-concept HasTime = requires(T t) {
-    { t.time } -> std::convertible_to<float>;
-};
-
-template<typename T>
-concept HasGeneratorStatus = requires(T t) {
-    { t.generatorStatus } -> std::convertible_to<int>;
+concept HasDaughters = requires(T t) {
+    { t.daughters_begin } -> std::convertible_to<unsigned int>;
+    { t.daughters_end } -> std::convertible_to<unsigned int>;
 };
 ```
 
-### Compile-Time Processing
-The `applyOffsets()` function uses `if constexpr` to automatically apply only the relevant offsets:
+### Single Processing Path
+All collections go through the same processing function:
+
+```cpp
+processCollectionGeneric(collection_data, collection_type,
+                        time_offset, gen_status_offset,
+                        offsets_map, already_merged);
+```
+
+The function automatically applies appropriate offsets based on:
+1. **Compile-time type detection** (`if constexpr`)
+2. **Runtime offsets map** passed by caller
+
+## Implementation
+
+### Type-Based Processing
+The `applyOffsets()` function uses `if constexpr` to check each possible field:
 
 ```cpp
 template<typename T>
-void applyOffsets(std::vector<T>& collection, ...) {
+void applyOffsets(std::vector<T>& collection, ..., 
+                 const std::map<std::string, size_t>& offsets_map, ...) {
     for (auto& item : collection) {
-        // Apply time offset only if type has time member
+        // Only processes fields that exist in T
         if constexpr (HasTime<T>) {
-            if (!already_merged) {
-                item.time += time_offset;
-            }
+            if (!already_merged) item.time += time_offset;
         }
         
-        // Apply generator status only if type has it
-        if constexpr (HasGeneratorStatus<T>) {
-            if (!already_merged) {
-                item.generatorStatus += gen_status_offset;
+        if constexpr (HasDaughters<T>) {
+            auto it = offsets_map.find("MCParticles");
+            if (it != offsets_map.end()) {
+                item.daughters_begin += it->second;
+                item.daughters_end += it->second;
             }
         }
-        // ... etc
+        // ... other fields ...
     }
 }
 ```
 
-### Benefits
+### Offsets Map
+The caller builds an offsets map with the relevant collection sizes:
 
-1. **Simplicity**: No registries, no handlers, no lambdas
-2. **Type Safety**: Compile-time checks ensure correctness
-3. **Less Code**: 644 fewer lines than the registry approach
-4. **Modern C++**: Uses C++20 concepts and `if constexpr`
-5. **Maintainable**: Adding new collection types is straightforward
-6. **Performance**: All branching resolved at compile time
+```cpp
+std::map<std::string, size_t> offsets_map;
+offsets_map["MCParticles"] = merged_collections_.mcparticles.size();
+// Add other offsets as needed for this collection type
+```
 
-## Usage
+## Benefits
 
-The simplified approach is transparent to users. Collections are automatically processed based on their type characteristics detected at compile time.
+1. **Uniform Treatment**: No special cases for parent/daughter branches
+2. **Automatic**: Fields are automatically updated if they exist in the type
+3. **Compile-Time**: All type checking done at compile time with `if constexpr`
+4. **Extensible**: New field types just need a concept definition
+5. **Simple**: Single code path for all collections
+
+## Code Metrics
+
+- `CollectionTypeTraits.h`: 168 lines (increased from 129 for more flexibility)
+- Processing logic: Unified single path through `processCollectionGeneric()`
+- No special handling needed for reference branches - they work automatically
+
+## Future Improvements
+
+The destination routing (which container to merge into) could potentially be further simplified with a similar map-based approach, but that would require restructuring the `MergedCollections` data structure.
