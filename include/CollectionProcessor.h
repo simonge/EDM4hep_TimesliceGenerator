@@ -1,7 +1,7 @@
 #pragma once
 
+#include "CollectionMetadata.h"
 #include "IndexOffsetHelper.h"
-#include "StandaloneMergerConfig.h"
 #include <edm4hep/MCParticleData.h>
 #include <edm4hep/SimTrackerHitData.h>
 #include <edm4hep/SimCalorimeterHitData.h>
@@ -10,130 +10,49 @@
 #include <vector>
 #include <string>
 #include <map>
-#include <random>
 
 /**
- * CollectionProcessor handles all offset applications for collections.
- * It uses the OneToMany relations map to apply offsets generically.
+ * Completely generic collection processor using type-erased metadata.
+ * No type-specific methods - everything driven by CollectionMetadata registry.
  * 
- * This centralizes all processing logic that was previously scattered
- * across DataSource process methods.
+ * All offsets (time, generator status, index) are treated uniformly through
+ * the metadata system.
  */
 class CollectionProcessor {
 public:
     /**
-     * Metadata for processing a collection - what offsets to apply
+     * Initialize the metadata registry with all known collection types.
+     * This is called once at startup.
      */
-    struct ProcessingInfo {
-        bool apply_time_offset = false;
-        bool apply_generator_status_offset = false;
-        bool apply_index_offsets = false;
-        std::vector<std::string> index_offset_fields;  // From OneToMany relations
-    };
+    static void initializeRegistry();
     
     /**
-     * Apply time offset to MCParticles
+     * Process a collection using its metadata.
+     * This is the ONLY processing method - completely generic.
+     * 
+     * @param collection_data Pointer to the collection (type-erased as void*)
+     * @param collection_name Name of the collection (e.g., "MCParticles")
+     * @param offsets Map of field names to offset values
+     *                e.g., {"time": time_offset, "generatorStatus": gen_status_offset,
+     *                       "parents": particle_index_offset, "daughters": particle_index_offset}
+     * @param already_merged Whether the data is already merged (skip some updates)
      */
-    static void applyTimeOffset(std::vector<edm4hep::MCParticleData>& particles, float time_offset) {
-        for (auto& particle : particles) {
-            particle.time += time_offset;
-        }
-    }
+    static void processCollection(
+        void* collection_data,
+        const std::string& collection_name,
+        const std::map<std::string, float>& float_offsets,
+        const std::map<std::string, int>& int_offsets,
+        const std::map<std::string, size_t>& size_t_offsets,
+        bool already_merged);
     
     /**
-     * Apply time offset to tracker hits
+     * Process ObjectID references (generic for all ObjectID vectors)
      */
-    static void applyTimeOffset(std::vector<edm4hep::SimTrackerHitData>& hits, float time_offset) {
-        for (auto& hit : hits) {
-            hit.time += time_offset;
-        }
-    }
-    
-    /**
-     * Apply time offset to calo contributions
-     */
-    static void applyTimeOffset(std::vector<edm4hep::CaloHitContributionData>& contribs, float time_offset) {
-        for (auto& contrib : contribs) {
-            contrib.time += time_offset;
-        }
-    }
-    
-    /**
-     * Apply generator status offset to MCParticles
-     */
-    static void applyGeneratorStatusOffset(std::vector<edm4hep::MCParticleData>& particles, int status_offset) {
-        for (auto& particle : particles) {
-            particle.generatorStatus += status_offset;
-        }
-    }
-    
-    /**
-     * Apply index offset to ObjectID references
-     */
-    static void applyIndexOffset(std::vector<podio::ObjectID>& refs, size_t index_offset) {
+    static void processObjectIDReferences(
+        std::vector<podio::ObjectID>& refs,
+        size_t index_offset) {
         for (auto& ref : refs) {
             ref.index += index_offset;
-        }
-    }
-    
-    /**
-     * Process MCParticles with all applicable offsets
-     */
-    static void processMCParticles(
-        std::vector<edm4hep::MCParticleData>& particles,
-        float time_offset,
-        int generator_status_offset,
-        size_t index_offset,
-        const std::vector<std::string>& index_offset_fields,
-        bool already_merged)
-    {
-        if (!already_merged) {
-            applyTimeOffset(particles, time_offset);
-            applyGeneratorStatusOffset(particles, generator_status_offset);
-        }
-        
-        // Apply index offsets using the generic helper
-        if (!index_offset_fields.empty()) {
-            IndexOffsetHelper::applyMCParticleOffsets(particles, index_offset, index_offset_fields);
-        }
-    }
-    
-    /**
-     * Process tracker hits with time offset
-     */
-    static void processTrackerHits(
-        std::vector<edm4hep::SimTrackerHitData>& hits,
-        float time_offset,
-        bool already_merged)
-    {
-        if (!already_merged) {
-            applyTimeOffset(hits, time_offset);
-        }
-    }
-    
-    /**
-     * Process calo hits with index offsets
-     */
-    static void processCaloHits(
-        std::vector<edm4hep::SimCalorimeterHitData>& hits,
-        size_t index_offset,
-        const std::vector<std::string>& index_offset_fields)
-    {
-        if (!index_offset_fields.empty()) {
-            IndexOffsetHelper::applyCaloHitOffsets(hits, index_offset, index_offset_fields);
-        }
-    }
-    
-    /**
-     * Process calo contributions with time offset
-     */
-    static void processCaloContributions(
-        std::vector<edm4hep::CaloHitContributionData>& contribs,
-        float time_offset,
-        bool already_merged)
-    {
-        if (!already_merged) {
-            applyTimeOffset(contribs, time_offset);
         }
     }
 };
