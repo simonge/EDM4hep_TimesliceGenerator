@@ -206,7 +206,7 @@ void StandaloneTimesliceMerger::createMergedTimeslice(std::vector<std::unique_pt
             }
             
             // Iterate over all collections in the event
-            for (const auto& [collection_name, collection_data] : event_data->collections) {
+            for (auto& [collection_name, collection_data] : event_data->collections) {
                 
                 // Skip processing if first event and already merged
                 bool should_process = !(totalEventsConsumed == 0 && config.already_merged);
