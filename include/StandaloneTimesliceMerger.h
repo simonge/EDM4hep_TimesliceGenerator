@@ -8,7 +8,6 @@
 #include <edm4hep/CaloHitContributionData.h>
 #include <edm4hep/EventHeaderData.h>
 #include <podio/ObjectID.h>
-#include <ROOT/RVec.hxx>
 #include <TFile.h>
 #include <TTree.h>
 #include <TChain.h>
