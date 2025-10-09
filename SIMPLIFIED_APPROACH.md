@@ -2,18 +2,57 @@
 
 ## Overview
 
-This refactoring uses C++20 concepts to automatically detect which fields need updating in collection types, treating all branches uniformly without special cases.
+This refactoring uses C++20 concepts to automatically detect which fields need updating in collection types. All branches are treated uniformly with correct offset handling and a registry system eliminates hardcoded checks.
 
-## Key Principles
+## Key Improvements
 
-### Uniform Branch Treatment
-All branches are treated equally based on their type characteristics:
-- If a type has `daughters_begin`, it gets updated with the MCParticles offset
-- If a type has `contributions_begin`, it gets updated with the contributions offset
-- No special-casing for `_MCParticles_parents` vs `_MCParticles_daughters` - they're just ObjectID collections
+### 1. Correct Offset Handling
 
-### Automatic Field Detection
-C++20 concepts detect at compile time which fields a type has:
+Field offsets now correctly map to their corresponding branch sizes:
+- `daughters_begin` → size of `_MCParticles_daughters` branch (not MCParticles collection)
+- `parents_begin` → size of `_MCParticles_parents` branch
+- `contributions_begin` → size of contributions branch
+
+**Before (incorrect)**:
+```cpp
+offsets_map["MCParticles"] = merged_collections_.mcparticles.size();
+// daughters_begin incorrectly offset by MCParticles size
+```
+
+**After (correct)**:
+```cpp
+field_offsets["daughters"] = merged_collections_.mcparticle_children_refs.size();
+field_offsets["parents"] = merged_collections_.mcparticle_parents_refs.size();
+// daughters_begin correctly offset by daughters branch size
+```
+
+### 2. Collection Registry System
+
+Eliminates hardcoded checks like `if (collection_name == "GPIntValues")`:
+
+```cpp
+// Register collections with their types and merge functions
+CollectionRegistry::registerDescriptor("GPIntValues", {
+    .type_name = "GPIntValues",
+    .merge_function = [](std::any& data, MergedCollections& m, const std::string&) {
+        auto* coll = std::any_cast<std::vector<std::vector<int>>>(&data);
+        if (coll) m.gp_int_values.insert(...);
+    },
+    .get_size_function = [](const MergedCollections& m, const std::string&) {
+        return m.gp_int_values.size();
+    }
+});
+
+// Usage - no hardcoded checks needed
+const auto* descriptor = CollectionRegistry::getDescriptor(collection_name);
+if (descriptor) {
+    descriptor->merge_function(collection_data, merged_collections_, collection_name);
+}
+```
+
+### 3. Automatic Field Detection
+
+C++20 concepts detect fields at compile time:
 
 ```cpp
 template<typename T>
@@ -21,71 +60,57 @@ concept HasDaughters = requires(T t) {
     { t.daughters_begin } -> std::convertible_to<unsigned int>;
     { t.daughters_end } -> std::convertible_to<unsigned int>;
 };
-```
 
-### Single Processing Path
-All collections go through the same processing function:
-
-```cpp
-processCollectionGeneric(collection_data, collection_type,
-                        time_offset, gen_status_offset,
-                        offsets_map, already_merged);
-```
-
-The function automatically applies appropriate offsets based on:
-1. **Compile-time type detection** (`if constexpr`)
-2. **Runtime offsets map** passed by caller
-
-## Implementation
-
-### Type-Based Processing
-The `applyOffsets()` function uses `if constexpr` to check each possible field:
-
-```cpp
 template<typename T>
-void applyOffsets(std::vector<T>& collection, ..., 
-                 const std::map<std::string, size_t>& offsets_map, ...) {
+void applyOffsets(..., const std::map<std::string, size_t>& field_offsets, ...) {
     for (auto& item : collection) {
-        // Only processes fields that exist in T
-        if constexpr (HasTime<T>) {
-            if (!already_merged) item.time += time_offset;
-        }
-        
         if constexpr (HasDaughters<T>) {
-            auto it = offsets_map.find("MCParticles");
-            if (it != offsets_map.end()) {
+            // Automatically looks up "daughters" in field_offsets map
+            auto it = field_offsets.find("daughters");
+            if (it != field_offsets.end()) {
                 item.daughters_begin += it->second;
                 item.daughters_end += it->second;
             }
         }
-        // ... other fields ...
     }
 }
 ```
 
-### Offsets Map
-The caller builds an offsets map with the relevant collection sizes:
+## Architecture
 
+### Field Offset Map
 ```cpp
-std::map<std::string, size_t> offsets_map;
-offsets_map["MCParticles"] = merged_collections_.mcparticles.size();
-// Add other offsets as needed for this collection type
+std::map<std::string, size_t> field_offsets;
+field_offsets["parents"] = merged_collections_.mcparticle_parents_refs.size();
+field_offsets["daughters"] = merged_collections_.mcparticle_children_refs.size();
+field_offsets["contributions"] = merged_collections_.calo_contributions[name].size();
+field_offsets["target"] = merged_collections_.mcparticles.size();  // For ObjectID refs
 ```
+
+### Collection Registry
+- Maps collection names to types and merge functions
+- Handles: MCParticles, _MCParticles_parents, _MCParticles_daughters, GPIntValues, GPFloatValues, GPDoubleValues, GPStringValues
+- Dynamic collections (tracker hits, calo hits) handled separately
+
+### Type Traits (C++20 Concepts)
+- `HasTime` - detects time field
+- `HasGeneratorStatus` - detects generatorStatus field  
+- `HasParents` - detects parents_begin/end fields
+- `HasDaughters` - detects daughters_begin/end fields
+- `HasContributions` - detects contributions_begin/end fields
 
 ## Benefits
 
-1. **Uniform Treatment**: No special cases for parent/daughter branches
-2. **Automatic**: Fields are automatically updated if they exist in the type
-3. **Compile-Time**: All type checking done at compile time with `if constexpr`
-4. **Extensible**: New field types just need a concept definition
-5. **Simple**: Single code path for all collections
+1. **Correct Semantics**: Field offsets match their actual reference targets
+2. **No Hardcoded Checks**: Registry system handles known collections
+3. **Automatic**: C++20 concepts detect fields at compile time
+4. **Extensible**: New collections added by registering descriptors
+5. **Type Safe**: Compile-time type checking with concepts
+6. **Simple**: Clear mapping between fields and their offsets
 
-## Code Metrics
+## Code Structure
 
-- `CollectionTypeTraits.h`: 168 lines (increased from 129 for more flexibility)
-- Processing logic: Unified single path through `processCollectionGeneric()`
-- No special handling needed for reference branches - they work automatically
-
-## Future Improvements
-
-The destination routing (which container to merge into) could potentially be further simplified with a similar map-based approach, but that would require restructuring the `MergedCollections` data structure.
+- `CollectionTypeTraits.h` (180 lines) - C++20 concepts and offset application
+- `CollectionRegistry.h/cc` - Registry system for collection handling
+- `StandaloneTimesliceMerger.cc` - Simplified processing with field_offsets map
+- All collection-specific logic centralized in registry

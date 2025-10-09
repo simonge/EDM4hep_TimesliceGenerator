@@ -1,5 +1,6 @@
 #include "StandaloneTimesliceMerger.h"
 #include "CollectionTypeTraits.h"
+#include "CollectionRegistry.h"
 #include <iostream>
 #include <algorithm>
 #include <cmath>
@@ -52,6 +53,8 @@ void MergedCollections::clear() {
 
 StandaloneTimesliceMerger::StandaloneTimesliceMerger(const MergerConfig& config)
     : m_config(config), gen(rd()), events_generated(0) {
+    // Initialize the collection registry
+    CollectionRegistry::initialize(merged_collections_);
 }
 
 void StandaloneTimesliceMerger::run() {
@@ -195,12 +198,15 @@ void StandaloneTimesliceMerger::createMergedTimeslice(std::vector<std::unique_pt
             float time_offset = event_data->time_offset;
             
             // Track collection lengths before merging for index offset calculations
-            std::unordered_map<std::string, size_t> collection_offsets;
-            collection_offsets["MCParticles"] = merged_collections_.mcparticles.size();
+            // Map field names (e.g., "parents", "daughters") to their branch sizes
+            std::map<std::string, size_t> field_offsets;
+            field_offsets["parents"] = merged_collections_.mcparticle_parents_refs.size();
+            field_offsets["daughters"] = merged_collections_.mcparticle_children_refs.size();
+            field_offsets["target"] = merged_collections_.mcparticles.size();  // For ObjectID refs
             
             // Track calo contribution offsets
             for (const auto& name : calo_collection_names_) {
-                collection_offsets[name + "Contributions"] = merged_collections_.calo_contributions[name].size();
+                field_offsets["contributions"] = merged_collections_.calo_contributions[name].size();
             }
             
             // Iterate over all collections in the event
@@ -212,53 +218,20 @@ void StandaloneTimesliceMerger::createMergedTimeslice(std::vector<std::unique_pt
                 // Determine collection type for processing
                 std::string collection_type = data_source->getCollectionTypeName(collection_name);
                 
-                // Build offsets map for this collection based on what it needs
-                std::map<std::string, size_t> offsets_map;
-                
-                // All data collections may reference MCParticles
-                offsets_map["MCParticles"] = collection_offsets["MCParticles"];
-                
-                // Calo hits reference contributions
-                if (collection_type == "SimCalorimeterHit") {
-                    offsets_map[collection_name + "Contributions"] = collection_offsets[collection_name + "Contributions"];
-                }
-                
-                // Process the collection using generic function
+                // Process the collection using generic function with field offsets
                 if (should_process) {
                     processCollectionGeneric(collection_data, collection_type,
                                            time_offset, config.generator_status_offset,
-                                           offsets_map, config.already_merged);
+                                           field_offsets, config.already_merged);
                 }
                 
-                // Merge the collection into the appropriate destination
-                // This part still needs type-specific handling for destination routing
-                if (collection_name == "MCParticles") {
-                    auto* particles = std::any_cast<std::vector<edm4hep::MCParticleData>>(&collection_data);
-                    if (particles) {
-                        merged_collections_.mcparticles.insert(merged_collections_.mcparticles.end(),
-                                                              std::make_move_iterator(particles->begin()),
-                                                              std::make_move_iterator(particles->end()));
-                    }
-                    
-                } else if (collection_name == "_MCParticles_parents") {
-                    auto* refs = std::any_cast<std::vector<podio::ObjectID>>(&collection_data);
-                    if (refs) {
-                        merged_collections_.mcparticle_parents_refs.insert(
-                            merged_collections_.mcparticle_parents_refs.end(),
-                            std::make_move_iterator(refs->begin()),
-                            std::make_move_iterator(refs->end()));
-                    }
-                    
-                } else if (collection_name == "_MCParticles_daughters") {
-                    auto* refs = std::any_cast<std::vector<podio::ObjectID>>(&collection_data);
-                    if (refs) {
-                        merged_collections_.mcparticle_children_refs.insert(
-                            merged_collections_.mcparticle_children_refs.end(),
-                            std::make_move_iterator(refs->begin()),
-                            std::make_move_iterator(refs->end()));
-                    }
-                    
-                } else if (collection_type == "SimTrackerHit") {
+                // Merge the collection into the appropriate destination using registry
+                const auto* descriptor = CollectionRegistry::getDescriptor(collection_name);
+                if (descriptor) {
+                    descriptor->merge_function(collection_data, merged_collections_, collection_name);
+                }
+                else if (collection_type == "SimTrackerHit") {
+                    // Dynamic tracker collection
                     auto* hits = std::any_cast<std::vector<edm4hep::SimTrackerHitData>>(&collection_data);
                     if (hits) {
                         merged_collections_.tracker_hits[collection_name].insert(
@@ -266,8 +239,9 @@ void StandaloneTimesliceMerger::createMergedTimeslice(std::vector<std::unique_pt
                             std::make_move_iterator(hits->begin()),
                             std::make_move_iterator(hits->end()));
                     }
-                    
-                } else if (collection_name.find("_") == 0 && collection_name.find("_particle") != std::string::npos) {
+                }
+                else if (collection_name.find("_") == 0 && collection_name.find("_particle") != std::string::npos) {
+                    // Particle reference branches
                     auto* refs = std::any_cast<std::vector<podio::ObjectID>>(&collection_data);
                     if (refs) {
                         if (collection_name.find("Contributions_particle") != std::string::npos) {
@@ -285,8 +259,9 @@ void StandaloneTimesliceMerger::createMergedTimeslice(std::vector<std::unique_pt
                                 std::make_move_iterator(refs->end()));
                         }
                     }
-                    
-                } else if (collection_type == "SimCalorimeterHit") {
+                }
+                else if (collection_type == "SimCalorimeterHit") {
+                    // Dynamic calo collection
                     auto* hits = std::any_cast<std::vector<edm4hep::SimCalorimeterHitData>>(&collection_data);
                     if (hits) {
                         merged_collections_.calo_hits[collection_name].insert(
@@ -294,8 +269,9 @@ void StandaloneTimesliceMerger::createMergedTimeslice(std::vector<std::unique_pt
                             std::make_move_iterator(hits->begin()),
                             std::make_move_iterator(hits->end()));
                     }
-                    
-                } else if (collection_name.find("_") == 0 && collection_name.find("_contributions") != std::string::npos) {
+                }
+                else if (collection_name.find("_") == 0 && collection_name.find("_contributions") != std::string::npos) {
+                    // Contribution reference branches
                     auto* refs = std::any_cast<std::vector<podio::ObjectID>>(&collection_data);
                     if (refs) {
                         std::string base_name = collection_name.substr(1, collection_name.find("_contributions") - 1);
@@ -304,8 +280,9 @@ void StandaloneTimesliceMerger::createMergedTimeslice(std::vector<std::unique_pt
                             std::make_move_iterator(refs->begin()),
                             std::make_move_iterator(refs->end()));
                     }
-                    
-                } else if (collection_type == "CaloHitContribution") {
+                }
+                else if (collection_type == "CaloHitContribution") {
+                    // Contribution collections
                     auto* contribs = std::any_cast<std::vector<edm4hep::CaloHitContributionData>>(&collection_data);
                     if (contribs) {
                         std::string base_name = collection_name;
@@ -317,51 +294,16 @@ void StandaloneTimesliceMerger::createMergedTimeslice(std::vector<std::unique_pt
                             std::make_move_iterator(contribs->begin()),
                             std::make_move_iterator(contribs->end()));
                     }
-                    
-                } else if (collection_name.find("GPIntKeys") == 0 || collection_name.find("GPFloatKeys") == 0 ||
+                }
+                else if (collection_name.find("GPIntKeys") == 0 || collection_name.find("GPFloatKeys") == 0 ||
                           collection_name.find("GPDoubleKeys") == 0 || collection_name.find("GPStringKeys") == 0) {
+                    // GP key branches
                     auto* gp_keys = std::any_cast<std::vector<std::string>>(&collection_data);
                     if (gp_keys) {
                         merged_collections_.gp_key_branches[collection_name].insert(
                             merged_collections_.gp_key_branches[collection_name].end(),
                             std::make_move_iterator(gp_keys->begin()),
                             std::make_move_iterator(gp_keys->end()));
-                    }
-                    
-                } else if (collection_name == "GPIntValues") {
-                    auto* gp_values = std::any_cast<std::vector<std::vector<int>>>(&collection_data);
-                    if (gp_values) {
-                        merged_collections_.gp_int_values.insert(
-                            merged_collections_.gp_int_values.end(),
-                            std::make_move_iterator(gp_values->begin()),
-                            std::make_move_iterator(gp_values->end()));
-                    }
-                    
-                } else if (collection_name == "GPFloatValues") {
-                    auto* gp_values = std::any_cast<std::vector<std::vector<float>>>(&collection_data);
-                    if (gp_values) {
-                        merged_collections_.gp_float_values.insert(
-                            merged_collections_.gp_float_values.end(),
-                            std::make_move_iterator(gp_values->begin()),
-                            std::make_move_iterator(gp_values->end()));
-                    }
-                    
-                } else if (collection_name == "GPDoubleValues") {
-                    auto* gp_values = std::any_cast<std::vector<std::vector<double>>>(&collection_data);
-                    if (gp_values) {
-                        merged_collections_.gp_double_values.insert(
-                            merged_collections_.gp_double_values.end(),
-                            std::make_move_iterator(gp_values->begin()),
-                            std::make_move_iterator(gp_values->end()));
-                    }
-                    
-                } else if (collection_name == "GPStringValues") {
-                    auto* gp_values = std::any_cast<std::vector<std::vector<std::string>>>(&collection_data);
-                    if (gp_values) {
-                        merged_collections_.gp_string_values.insert(
-                            merged_collections_.gp_string_values.end(),
-                            std::make_move_iterator(gp_values->begin()),
-                            std::make_move_iterator(gp_values->end()));
                     }
                 }
             }

@@ -27,6 +27,7 @@ include_directories(${ROOT_INCLUDE_DIRS})
 add_executable(timeslice_merger
     src/DataSource.cc
     src/StandaloneTimesliceMerger.cc
+    src/CollectionRegistry.cc
     src/CollectionProcessor.cc
     src/timeslice_merger_main.cc
 )

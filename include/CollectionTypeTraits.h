@@ -4,18 +4,20 @@
 #include <edm4hep/SimTrackerHitData.h>
 #include <edm4hep/SimCalorimeterHitData.h>
 #include <edm4hep/CaloHitContributionData.h>
+#include <edm4hep/EventHeaderData.h>
 #include <podio/ObjectID.h>
 #include <type_traits>
 #include <concepts>
 #include <string>
 #include <map>
 #include <any>
+#include <variant>
+#include <functional>
 
 /**
- * Simple C++20 type traits for collection processing.
- * Uses concepts and compile-time detection to automatically
- * handle different collection types without manual registration.
- * All branches are treated equally based on their type characteristics.
+ * C++20 concepts-based collection processing with automatic field detection.
+ * Uses compile-time type introspection to determine which fields need updating.
+ * All branches treated uniformly - no hardcoded special cases.
  */
 
 // Concept to check if a type has a 'time' member
@@ -53,8 +55,8 @@ concept HasContributions = requires(T t) {
 
 /**
  * Apply offsets to a collection based on its type traits.
- * Uses if constexpr for compile-time branching.
- * Offsets map stores collection names and their corresponding offsets.
+ * The offsets_map contains branch names and their current sizes.
+ * Field names map to branch names (e.g., "parents" -> "_MCParticles_parents").
  */
 template<typename T>
 void applyOffsets(std::vector<T>& collection,
@@ -79,9 +81,9 @@ void applyOffsets(std::vector<T>& collection,
         }
         
         // Apply parent index offsets if type has parents
+        // The offset comes from the _parents branch, not the main collection
         if constexpr (HasParents<T>) {
-            // Look for MCParticles offset in the map
-            auto it = offsets_map.find("MCParticles");
+            auto it = offsets_map.find("parents");
             if (it != offsets_map.end()) {
                 item.parents_begin += it->second;
                 item.parents_end += it->second;
@@ -89,9 +91,9 @@ void applyOffsets(std::vector<T>& collection,
         }
         
         // Apply daughter index offsets if type has daughters
+        // The offset comes from the _daughters branch, not the main collection
         if constexpr (HasDaughters<T>) {
-            // Look for MCParticles offset in the map
-            auto it = offsets_map.find("MCParticles");
+            auto it = offsets_map.find("daughters");
             if (it != offsets_map.end()) {
                 item.daughters_begin += it->second;
                 item.daughters_end += it->second;
@@ -100,36 +102,48 @@ void applyOffsets(std::vector<T>& collection,
         
         // Apply contribution index offsets if type has contributions
         if constexpr (HasContributions<T>) {
-            // Look for contribution collection offset in the map
-            // The key should be passed by the caller based on the collection name
-            for (const auto& [key, offset] : offsets_map) {
-                if (key.find("Contributions") != std::string::npos) {
-                    item.contributions_begin += offset;
-                    item.contributions_end += offset;
-                    break;
-                }
+            auto it = offsets_map.find("contributions");
+            if (it != offsets_map.end()) {
+                item.contributions_begin += it->second;
+                item.contributions_end += it->second;
             }
         }
     }
 }
 
 /**
- * Specialization for ObjectID references - apply index offset based on map
+ * Specialization for ObjectID references - apply index offset
  */
 inline void applyOffsets(std::vector<podio::ObjectID>& refs,
                         float /*time_offset*/,
                         int /*gen_status_offset*/,
                         const std::map<std::string, size_t>& offsets_map,
                         bool /*already_merged*/) {
-    // For ObjectID vectors, use the first offset found
-    // The caller should provide the appropriate offset in the map
-    if (!offsets_map.empty()) {
-        size_t offset = offsets_map.begin()->second;
+    // For ObjectID vectors, look for a "target" entry in the map
+    auto it = offsets_map.find("target");
+    if (it != offsets_map.end()) {
         for (auto& ref : refs) {
-            ref.index += offset;
+            ref.index += it->second;
         }
     }
 }
+
+/**
+ * Type alias for all possible collection types
+ */
+using CollectionVariant = std::variant<
+    std::vector<edm4hep::MCParticleData>*,
+    std::vector<edm4hep::SimTrackerHitData>*,
+    std::vector<edm4hep::SimCalorimeterHitData>*,
+    std::vector<edm4hep::CaloHitContributionData>*,
+    std::vector<edm4hep::EventHeaderData>*,
+    std::vector<podio::ObjectID>*,
+    std::vector<std::string>*,
+    std::vector<std::vector<int>>*,
+    std::vector<std::vector<float>>*,
+    std::vector<std::vector<double>>*,
+    std::vector<std::vector<std::string>>*
+>;
 
 /**
  * Generic processing function that works with std::any.
@@ -162,4 +176,5 @@ inline void processCollectionGeneric(std::any& collection_data,
         auto* coll = std::any_cast<std::vector<podio::ObjectID>>(&collection_data);
         if (coll) applyOffsets(*coll, time_offset, gen_status_offset, offsets_map, already_merged);
     }
+    // EventHeaders and GP collections don't need offset processing
 }
