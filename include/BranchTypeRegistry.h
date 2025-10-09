@@ -4,6 +4,10 @@
 #include <map>
 #include <functional>
 #include <vector>
+#include <any>
+
+// Forward declarations
+struct MergedCollections;
 
 /**
  * Registry for branch type patterns and their categories.
@@ -62,6 +66,18 @@ public:
      * Get all registered name patterns for GP branches
      */
     static std::vector<std::string> getGPNamePatterns();
+    
+    /**
+     * Generic handler type for processing collections
+     * Takes: (collection_data as std::any&, merged_collections, collection_name)
+     */
+    using CollectionHandler = std::function<void(std::any&, MergedCollections&, const std::string&)>;
+    
+    /**
+     * Get the handler function for a specific category
+     * Returns nullptr if no handler is registered for the category
+     */
+    static CollectionHandler getHandlerForCategory(BranchCategory category);
     
 private:
     struct TypeMapping {
