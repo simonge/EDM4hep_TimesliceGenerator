@@ -1,6 +1,7 @@
 #include "StandaloneTimesliceMerger.h"
 #include "CollectionTypeTraits.h"
 #include "CollectionRegistry.h"
+#include "BranchTypeRegistry.h"
 #include <iostream>
 #include <algorithm>
 #include <cmath>
@@ -228,82 +229,88 @@ void StandaloneTimesliceMerger::createMergedTimeslice(std::vector<std::unique_pt
                 // Merge the collection into the appropriate destination using registry
                 const auto* descriptor = CollectionRegistry::getDescriptor(collection_name);
                 if (descriptor) {
+                    // Use registered descriptor
                     descriptor->merge_function(collection_data, merged_collections_, collection_name);
                 }
-                else if (collection_type == "SimTrackerHit") {
-                    // Dynamic tracker collection
-                    auto* hits = std::any_cast<std::vector<edm4hep::SimTrackerHitData>>(&collection_data);
-                    if (hits) {
-                        merged_collections_.tracker_hits[collection_name].insert(
-                            merged_collections_.tracker_hits[collection_name].end(),
-                            std::make_move_iterator(hits->begin()),
-                            std::make_move_iterator(hits->end()));
+                else {
+                    // Use type and name pattern matching for dynamic collections
+                    auto type_category = BranchTypeRegistry::getCategoryForType(collection_type);
+                    auto name_category = BranchTypeRegistry::getCategoryForName(collection_name);
+                    
+                    if (type_category == BranchTypeRegistry::BranchCategory::TRACKER_HIT) {
+                        // Dynamic tracker collection
+                        auto* hits = std::any_cast<std::vector<edm4hep::SimTrackerHitData>>(&collection_data);
+                        if (hits) {
+                            merged_collections_.tracker_hits[collection_name].insert(
+                                merged_collections_.tracker_hits[collection_name].end(),
+                                std::make_move_iterator(hits->begin()),
+                                std::make_move_iterator(hits->end()));
+                        }
                     }
-                }
-                else if (collection_name.find("_") == 0 && collection_name.find("_particle") != std::string::npos) {
-                    // Particle reference branches
-                    auto* refs = std::any_cast<std::vector<podio::ObjectID>>(&collection_data);
-                    if (refs) {
-                        if (collection_name.find("Contributions_particle") != std::string::npos) {
-                            std::string base_name = collection_name.substr(1);
-                            base_name = base_name.substr(0, base_name.find("Contributions_particle"));
-                            merged_collections_.calo_contrib_particle_refs[base_name].insert(
-                                merged_collections_.calo_contrib_particle_refs[base_name].end(),
-                                std::make_move_iterator(refs->begin()),
-                                std::make_move_iterator(refs->end()));
-                        } else {
-                            std::string base_name = collection_name.substr(1, collection_name.find("_particle") - 1);
-                            merged_collections_.tracker_hit_particle_refs[base_name].insert(
-                                merged_collections_.tracker_hit_particle_refs[base_name].end(),
+                    else if (type_category == BranchTypeRegistry::BranchCategory::CALORIMETER_HIT) {
+                        // Dynamic calo collection
+                        auto* hits = std::any_cast<std::vector<edm4hep::SimCalorimeterHitData>>(&collection_data);
+                        if (hits) {
+                            merged_collections_.calo_hits[collection_name].insert(
+                                merged_collections_.calo_hits[collection_name].end(),
+                                std::make_move_iterator(hits->begin()),
+                                std::make_move_iterator(hits->end()));
+                        }
+                    }
+                    else if (type_category == BranchTypeRegistry::BranchCategory::CONTRIBUTION) {
+                        // Contribution collections
+                        auto* contribs = std::any_cast<std::vector<edm4hep::CaloHitContributionData>>(&collection_data);
+                        if (contribs) {
+                            std::string base_name = collection_name;
+                            if (base_name.length() > 13 && base_name.substr(base_name.length() - 13) == "Contributions") {
+                                base_name = base_name.substr(0, base_name.length() - 13);
+                            }
+                            merged_collections_.calo_contributions[base_name].insert(
+                                merged_collections_.calo_contributions[base_name].end(),
+                                std::make_move_iterator(contribs->begin()),
+                                std::make_move_iterator(contribs->end()));
+                        }
+                    }
+                    else if (BranchTypeRegistry::isParticleRef(collection_name)) {
+                        // Particle reference branches
+                        auto* refs = std::any_cast<std::vector<podio::ObjectID>>(&collection_data);
+                        if (refs) {
+                            if (collection_name.find("Contributions_particle") != std::string::npos) {
+                                std::string base_name = collection_name.substr(1);
+                                base_name = base_name.substr(0, base_name.find("Contributions_particle"));
+                                merged_collections_.calo_contrib_particle_refs[base_name].insert(
+                                    merged_collections_.calo_contrib_particle_refs[base_name].end(),
+                                    std::make_move_iterator(refs->begin()),
+                                    std::make_move_iterator(refs->end()));
+                            } else {
+                                std::string base_name = collection_name.substr(1, collection_name.find("_particle") - 1);
+                                merged_collections_.tracker_hit_particle_refs[base_name].insert(
+                                    merged_collections_.tracker_hit_particle_refs[base_name].end(),
+                                    std::make_move_iterator(refs->begin()),
+                                    std::make_move_iterator(refs->end()));
+                            }
+                        }
+                    }
+                    else if (BranchTypeRegistry::isContributionRef(collection_name)) {
+                        // Contribution reference branches
+                        auto* refs = std::any_cast<std::vector<podio::ObjectID>>(&collection_data);
+                        if (refs) {
+                            std::string base_name = collection_name.substr(1, collection_name.find("_contributions") - 1);
+                            merged_collections_.calo_hit_contributions_refs[base_name].insert(
+                                merged_collections_.calo_hit_contributions_refs[base_name].end(),
                                 std::make_move_iterator(refs->begin()),
                                 std::make_move_iterator(refs->end()));
                         }
                     }
-                }
-                else if (collection_type == "SimCalorimeterHit") {
-                    // Dynamic calo collection
-                    auto* hits = std::any_cast<std::vector<edm4hep::SimCalorimeterHitData>>(&collection_data);
-                    if (hits) {
-                        merged_collections_.calo_hits[collection_name].insert(
-                            merged_collections_.calo_hits[collection_name].end(),
-                            std::make_move_iterator(hits->begin()),
-                            std::make_move_iterator(hits->end()));
-                    }
-                }
-                else if (collection_name.find("_") == 0 && collection_name.find("_contributions") != std::string::npos) {
-                    // Contribution reference branches
-                    auto* refs = std::any_cast<std::vector<podio::ObjectID>>(&collection_data);
-                    if (refs) {
-                        std::string base_name = collection_name.substr(1, collection_name.find("_contributions") - 1);
-                        merged_collections_.calo_hit_contributions_refs[base_name].insert(
-                            merged_collections_.calo_hit_contributions_refs[base_name].end(),
-                            std::make_move_iterator(refs->begin()),
-                            std::make_move_iterator(refs->end()));
-                    }
-                }
-                else if (collection_type == "CaloHitContribution") {
-                    // Contribution collections
-                    auto* contribs = std::any_cast<std::vector<edm4hep::CaloHitContributionData>>(&collection_data);
-                    if (contribs) {
-                        std::string base_name = collection_name;
-                        if (base_name.length() > 13 && base_name.substr(base_name.length() - 13) == "Contributions") {
-                            base_name = base_name.substr(0, base_name.length() - 13);
+                    else if (name_category == BranchTypeRegistry::BranchCategory::GP_KEY) {
+                        // GP key branches
+                        auto* gp_keys = std::any_cast<std::vector<std::string>>(&collection_data);
+                        if (gp_keys) {
+                            merged_collections_.gp_key_branches[collection_name].insert(
+                                merged_collections_.gp_key_branches[collection_name].end(),
+                                std::make_move_iterator(gp_keys->begin()),
+                                std::make_move_iterator(gp_keys->end()));
                         }
-                        merged_collections_.calo_contributions[base_name].insert(
-                            merged_collections_.calo_contributions[base_name].end(),
-                            std::make_move_iterator(contribs->begin()),
-                            std::make_move_iterator(contribs->end()));
-                    }
-                }
-                else if (collection_name.find("GPIntKeys") == 0 || collection_name.find("GPFloatKeys") == 0 ||
-                          collection_name.find("GPDoubleKeys") == 0 || collection_name.find("GPStringKeys") == 0) {
-                    // GP key branches
-                    auto* gp_keys = std::any_cast<std::vector<std::string>>(&collection_data);
-                    if (gp_keys) {
-                        merged_collections_.gp_key_branches[collection_name].insert(
-                            merged_collections_.gp_key_branches[collection_name].end(),
-                            std::make_move_iterator(gp_keys->begin()),
-                            std::make_move_iterator(gp_keys->end()));
                     }
                 }
             }
@@ -484,13 +491,12 @@ std::vector<std::string> StandaloneTimesliceMerger::discoverCollectionNames(Data
         // if branch type doesnt match pattern continue
         if (branch_type.find(branch_pattern) == std::string::npos) continue;
         
-        // Look for collections based on data type
-        if (branch_type == "vector<edm4hep::SimTrackerHitData>") {
+        // Use registry to check if this is a valid collection type
+        auto category = BranchTypeRegistry::getCategoryForType(branch_type);
+        if (category == BranchTypeRegistry::BranchCategory::TRACKER_HIT ||
+            category == BranchTypeRegistry::BranchCategory::CALORIMETER_HIT) {
             names.push_back(branch_name);
-            // std::cout << "  ✓ MATCHED TRACKER: " << branch_name << " (type: " << branch_type << ")" << std::endl;
-        } else if (branch_type == "vector<edm4hep::SimCalorimeterHitData>") {
-            names.push_back(branch_name);
-            // std::cout << "  ✓ MATCHED CALO: " << branch_name << " (type: " << branch_type << ")" << std::endl;            
+            // std::cout << "  ✓ MATCHED: " << branch_name << " (type: " << branch_type << ")" << std::endl;
         }
     }
     
@@ -526,8 +532,8 @@ std::vector<std::string> StandaloneTimesliceMerger::discoverGPBranches(DataSourc
     
     std::cout << "=== GP Branch Discovery ===" << std::endl;
     
-    // GP branch patterns to look for
-    std::vector<std::string> gp_patterns = {"GPIntKeys", "GPFloatKeys", "GPStringKeys", "GPDoubleKeys"};
+    // Use registry to get GP patterns
+    const auto& gp_patterns = BranchTypeRegistry::getGPNamePatterns();
 
     for (int i = 0; i < branches->GetEntries(); ++i) {
         TBranch* branch = (TBranch*)branches->At(i);
@@ -535,13 +541,10 @@ std::vector<std::string> StandaloneTimesliceMerger::discoverGPBranches(DataSourc
         
         std::string branch_name = branch->GetName();
         
-        // Check if this branch matches any GP pattern
-        for (const auto& pattern : gp_patterns) {
-            if (branch_name.find(pattern) == 0) {  // Branch name starts with pattern
-                // std::cout << "  ✓ FOUND GP BRANCH: " << branch_name << std::endl;
-                names.push_back(branch_name);
-                break;  // Don't check other patterns for this branch
-            }
+        // Use registry to check if this is a GP branch
+        if (BranchTypeRegistry::isGPBranch(branch_name)) {
+            // std::cout << "  ✓ FOUND GP BRANCH: " << branch_name << std::endl;
+            names.push_back(branch_name);
         }
     }
     
