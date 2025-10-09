@@ -1,7 +1,6 @@
 #pragma once
 
 #include "StandaloneMergerConfig.h"
-#include "IndexOffsetHelper.h"
 #include <edm4hep/MCParticleData.h>
 #include <edm4hep/SimTrackerHitData.h>
 #include <edm4hep/SimCalorimeterHitData.h>
@@ -93,9 +92,6 @@ public:
     EventData* loadEvent(size_t event_index, float time_slice_duration, 
                          float bunch_crossing_period, std::mt19937& rng);
     
-    // Access to discovered OneToMany relations
-    const std::map<std::string, std::vector<std::string>>& getOneToManyRelations() const { return one_to_many_relations_; }
-    
     // Get collection type name for a given collection (for generic processing)
     std::string getCollectionTypeName(const std::string& collection_name) const {
         if (collection_name == "MCParticles") return "MCParticles";
@@ -160,10 +156,6 @@ private:
     std::vector<std::vector<double>>* gp_double_branch_;
     std::vector<std::vector<std::string>>* gp_string_branch_;
 
-    // Runtime-discovered OneToMany relation metadata
-    // Maps collection name to list of field names that need index offsets
-    std::map<std::string, std::vector<std::string>> one_to_many_relations_;
-    
     // Current loaded event data
     std::unique_ptr<EventData> current_event_data_;
 
@@ -174,7 +166,6 @@ private:
     void setupCalorimeterBranches();
     void setupEventHeaderBranches();
     void setupGPBranches();
-    void discoverOneToManyRelations();
     void cleanup();
     
     // Helper methods for time offset calculations

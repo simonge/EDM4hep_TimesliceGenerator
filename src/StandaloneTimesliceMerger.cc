@@ -179,7 +179,6 @@ void StandaloneTimesliceMerger::createMergedTimeslice(std::vector<std::unique_pt
     // Loop over sources and read needed events
     for(auto& data_source : sources) {
         const auto& config = data_source->getConfig();
-        const auto& one_to_many_relations = data_source->getOneToManyRelations();
         int sourceEventsConsumed = 0;
 
         for (size_t i = 0; i < data_source->getEntriesNeeded(); ++i) {
