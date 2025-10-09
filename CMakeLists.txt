@@ -28,6 +28,7 @@ add_executable(timeslice_merger
     src/DataSource.cc
     src/StandaloneTimesliceMerger.cc
     src/CollectionProcessor.cc
+    src/CollectionMergeHandler.cc
     src/timeslice_merger_main.cc
 )
 
