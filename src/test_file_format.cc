@@ -67,8 +67,8 @@ int main(int argc, char* argv[]) {
         int gp_branches = 0;
         
         // GP branch patterns to look for
-        std::vector<std::string> gp_patterns = {"GPIntKeys", "GPIntValues", "GPFloatKeys", "GPFloatValues", 
-                                                "GPStringKeys", "GPStringValues", "GPDoubleKeys", "GPDoubleValues"};
+        std::vector<std::string> gp_patterns = {"GPIntKeys", "GPFloatKeys", "GPStringKeys", "GPDoubleKeys", 
+                                                "GPIntValues", "GPFloatValues", "GPStringValues", "GPDoubleValues"};
         
         for (int i = 0; i < branches->GetEntries(); ++i) {
             TBranch* branch = (TBranch*)branches->At(i);
@@ -76,14 +76,18 @@ int main(int argc, char* argv[]) {
                 std::string branch_name = branch->GetName();
                 std::cout << "  " << branch_name;
                 
+                // Check if this is a GP branch
                 bool is_gp_branch = false;
                 for (const auto& pattern : gp_patterns) {
                     if (branch_name.find(pattern) == 0) {
-                        gp_branches++;
-                        std::cout << " [GP BRANCH]";
                         is_gp_branch = true;
                         break;
                     }
+                }
+                
+                if (is_gp_branch) {
+                    gp_branches++;
+                    std::cout << " [GP BRANCH]";
                 }
                 
                 if (!is_gp_branch) {

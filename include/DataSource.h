@@ -13,6 +13,59 @@
 #include <vector>
 #include <string>
 #include <random>
+#include <any>
+
+/**
+ * EventData represents a single loaded event as a map of collection names to data.
+ * This allows generic iteration over all collections without type-specific accessors.
+ */
+struct EventData {
+    // Map of collection name to collection data (type-erased as std::any)
+    std::unordered_map<std::string, std::any> collections;
+    
+    // Map tracking the size of each collection before merging
+    std::unordered_map<std::string, size_t> collection_sizes;
+    
+    // Time offset calculated for this event
+    float time_offset = 0.0f;
+    
+    // Helper to get typed collection data
+    template<typename T>
+    T* getCollection(const std::string& name) {
+        auto it = collections.find(name);
+        if (it != collections.end()) {
+            return std::any_cast<T>(&it->second);
+        }
+        return nullptr;
+    }
+    
+    // Helper to check if collection exists
+    bool hasCollection(const std::string& name) const {
+        return collections.find(name) != collections.end();
+    }
+    
+    // Helper to determine collection type based on name pattern
+    std::string getCollectionType(const std::string& name) const {
+        if (name == "MCParticles") return "MCParticles";
+        if (name.find("_") == 0) return "ObjectID";  // Reference collections start with _
+        if (name.find("Contributions") != std::string::npos && name.find("_") == std::string::npos) return "CaloHitContribution";
+        if (name.find("EventHeader") != std::string::npos) return "EventHeader";
+        if (name.find("GPIntValues") != std::string::npos || 
+            name.find("GPFloatValues") != std::string::npos ||
+            name.find("GPDoubleValues") != std::string::npos ||
+            name.find("GPStringValues") != std::string::npos) return "GPValues";
+        if (name.find("GPIntKeys") == 0 || 
+            name.find("GPFloatKeys") == 0 || 
+            name.find("GPDoubleKeys") == 0 || 
+            name.find("GPStringKeys") == 0) return "GPKeys";
+        
+        // Try to determine based on collection content type
+        // SimTrackerHit collections don't have standard suffixes
+        // SimCalorimeterHit collections don't have standard suffixes
+        // These will be discovered dynamically based on the actual data type
+        return "Unknown";
+    }
+};
 
 class DataSource {
 public:
@@ -29,47 +82,36 @@ public:
     size_t getTotalEntries() const { return total_entries_; }
     size_t getCurrentEntryIndex() const { return current_entry_index_; }
     void setCurrentEntryIndex(size_t index) { current_entry_index_ = index; }
-    float getCurrentTimeOffset() const { return current_time_offset_; }
 
     // Event management
     void setEntriesNeeded(size_t entries) { entries_needed_ = entries; }
     size_t getEntriesNeeded() const { return entries_needed_; }
     bool loadNextEvent();
     
-    // Time offset generation
-    float generateTimeOffset(float distance, float time_slice_duration, float bunch_crossing_period, std::mt19937& rng) const;
+    // Event loading - returns EventData map with all collections
+    EventData* loadEvent(size_t event_index, float time_slice_duration, 
+                         float bunch_crossing_period, std::mt19937& rng);
     
-    // New typed data merging methods
-    void loadEvent(size_t event_index);
-    
-    std::vector<edm4hep::MCParticleData>& processMCParticles(size_t particle_index_offset,
-                                                           float time_slice_duration,
-                                                           float bunch_crossing_period,
-                                                           std::mt19937& rng,
-                                                           int totalEventsConsumed);
-    
-    std::vector<podio::ObjectID>& processObjectID(const std::string& collection_name, size_t index_offset, int totalEventsConsumed);
-    
-    std::vector<edm4hep::SimTrackerHitData>& processTrackerHits(const std::string& collection_name,
-                                                              size_t particle_index_offset,
-                                                              int totalEventsConsumed);
-    
-    std::vector<edm4hep::SimCalorimeterHitData>& processCaloHits(const std::string& collection_name,
-                                                                size_t particle_index_offset,
-                                                                int totalEventsConsumed);
-    std::vector<edm4hep::CaloHitContributionData>& processCaloContributions(const std::string& collection_name,
-                                                                           size_t particle_index_offset,
-                                                                           int totalEventsConsumed);
-
-    std::vector<std::string>& processGPBranch(const std::string& branch_name);
-    std::vector<std::vector<int>>& processGPIntValues();
-    std::vector<std::vector<float>>& processGPFloatValues();
-    std::vector<std::vector<double>>& processGPDoubleValues();
-    std::vector<std::vector<std::string>>& processGPStringValues();
-    
-    // Event header processing methods
-    std::vector<edm4hep::EventHeaderData>& processEventHeaders(const std::string& collection_name);
-    
+    // Get collection type name for a given collection (for generic processing)
+    std::string getCollectionTypeName(const std::string& collection_name) const {
+        if (collection_name == "MCParticles") return "MCParticles";
+        if (collection_name.find("Contributions") != std::string::npos && collection_name.find("_") == std::string::npos) {
+            return "CaloHitContribution";
+        }
+        // Check if it's a tracker collection
+        if (tracker_collection_names_) {
+            for (const auto& name : *tracker_collection_names_) {
+                if (name == collection_name) return "SimTrackerHit";
+            }
+        }
+        // Check if it's a calo collection
+        if (calo_collection_names_) {
+            for (const auto& name : *calo_collection_names_) {
+                if (name == collection_name) return "SimCalorimeterHit";
+            }
+        }
+        return "Unknown";
+    }
 
     
     // Configuration access
@@ -114,10 +156,9 @@ private:
     std::vector<std::vector<double>>* gp_double_branch_;
     std::vector<std::vector<std::string>>* gp_string_branch_;
 
-    // Current event processing state
-    float current_time_offset_;
-    size_t current_particle_index_offset_;
-    
+    // Current loaded event data
+    std::unique_ptr<EventData> current_event_data_;
+
     // Private helper methods
     void setupBranches();
     void setupMCParticleBranches();
@@ -127,7 +168,8 @@ private:
     void setupGPBranches();
     void cleanup();
     
-    // Helper methods for physics calculations
+    // Helper methods for time offset calculations
+    float generateTimeOffset(float distance, float time_slice_duration, float bunch_crossing_period, std::mt19937& rng) const;
     float calculateBeamDistance(const std::vector<edm4hep::MCParticleData>& particles) const;
     
     // Helper methods for collection name mapping
