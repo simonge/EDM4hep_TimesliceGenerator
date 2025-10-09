@@ -1,4 +1,5 @@
 #include "StandaloneTimesliceMerger.h"
+#include "CollectionProcessor.h"
 #include <iostream>
 #include <algorithm>
 #include <cmath>
@@ -180,58 +181,84 @@ void StandaloneTimesliceMerger::createMergedTimeslice(std::vector<std::unique_pt
     // Loop over sources and read needed events
     for(auto& data_source : sources) {
         const auto& config = data_source->getConfig();
+        const auto& one_to_many_relations = data_source->getOneToManyRelations();
         int sourceEventsConsumed = 0;
 
         for (size_t i = 0; i < data_source->getEntriesNeeded(); ++i) {
-            // Calculate particle index offset for this event
+            // Calculate index offsets for this event
             size_t particle_index_offset = merged_collections_.mcparticles.size();
             
             // Load the event data from this source
             data_source->loadEvent(data_source->getCurrentEntryIndex());
             
-            // Process MCParticles - use move semantics to avoid copying
-            auto& processed_particles = data_source->processMCParticles(particle_index_offset,
-                                                                       m_config.time_slice_duration,
-                                                                       m_config.bunch_crossing_period,
-                                                                       gen,totalEventsConsumed);
-            merged_collections_.mcparticles.insert(merged_collections_.mcparticles.end(), 
-                                                  std::make_move_iterator(processed_particles.begin()), 
-                                                  std::make_move_iterator(processed_particles.end()));
+            // Calculate time offset for this event
+            float time_offset = 0.0f;
+            if (!config.already_merged) {
+                auto& particles = data_source->getMCParticles();
+                float distance = 0.0f;
+                if (config.attach_to_beam && !particles.empty()) {
+                    distance = data_source->calculateBeamDistance(particles);
+                }
+                time_offset = data_source->generateTimeOffset(distance, m_config.time_slice_duration, 
+                                                              m_config.bunch_crossing_period, gen);
+            }
             
-            // Process MCParticle references - use move semantics
+            // Get raw MCParticles data and process it
+            auto& particles = data_source->getMCParticles();
+            
+            // Skip processing if first event and already merged
+            if (!(totalEventsConsumed == 0 && config.already_merged)) {
+                // Get index offset fields from OneToMany relations
+                auto it = one_to_many_relations.find("MCParticles");
+                std::vector<std::string> index_fields;
+                if (it != one_to_many_relations.end()) {
+                    index_fields = it->second;
+                }
+                
+                // Process MCParticles with all offsets
+                CollectionProcessor::processMCParticles(
+                    particles, time_offset, config.generator_status_offset,
+                    particle_index_offset, index_fields, config.already_merged);
+            }
+            
+            // Move processed particles to merged collection
+            merged_collections_.mcparticles.insert(merged_collections_.mcparticles.end(), 
+                                                  std::make_move_iterator(particles.begin()), 
+                                                  std::make_move_iterator(particles.end()));
+            
+            // Process MCParticle references
             std::string parent_ref_branch_name = "_MCParticles_parents";
-            auto& processed_parents = data_source->processObjectID(parent_ref_branch_name, particle_index_offset,totalEventsConsumed);
+            auto& parent_refs = data_source->getObjectIDCollection(parent_ref_branch_name);
+            if (!(totalEventsConsumed == 0 && config.already_merged)) {
+                CollectionProcessor::applyIndexOffset(parent_refs, particle_index_offset);
+            }
             merged_collections_.mcparticle_parents_refs.insert(merged_collections_.mcparticle_parents_refs.end(),
-                                                              std::make_move_iterator(processed_parents.begin()), 
-                                                              std::make_move_iterator(processed_parents.end()));
+                                                              std::make_move_iterator(parent_refs.begin()), 
+                                                              std::make_move_iterator(parent_refs.end()));
 
             std::string children_ref_branch_name = "_MCParticles_daughters";
-            auto& processed_children = data_source->processObjectID(children_ref_branch_name, particle_index_offset,totalEventsConsumed);
+            auto& children_refs = data_source->getObjectIDCollection(children_ref_branch_name);
+            if (!(totalEventsConsumed == 0 && config.already_merged)) {
+                CollectionProcessor::applyIndexOffset(children_refs, particle_index_offset);
+            }
             merged_collections_.mcparticle_children_refs.insert(merged_collections_.mcparticle_children_refs.end(),
-                                                               std::make_move_iterator(processed_children.begin()), 
-                                                               std::make_move_iterator(processed_children.end()));
+                                                               std::make_move_iterator(children_refs.begin()), 
+                                                               std::make_move_iterator(children_refs.end()));
             
-            // Process SubEventHeaders for non-merged sources to track which MCParticles came from this source
+            // Process SubEventHeaders for non-merged sources
             if (!config.already_merged) {
                 // Create a SubEventHeader for this source/event combination
                 edm4hep::EventHeaderData sub_header;
-                sub_header.eventNumber = totalEventsConsumed; // Use total event count as unique identifier
-                sub_header.runNumber = data_source->getSourceIndex(); // Use source index to identify the source
-                sub_header.timeStamp = particle_index_offset; // Keep consistent with main header
-
-                // Store range of MCParticles from this source event
-                // The weight field can be used to store the starting index of particles from this event
-                sub_header.weight = data_source->getCurrentTimeOffset(); // Store time offset applied to this event
+                sub_header.eventNumber = totalEventsConsumed;
+                sub_header.runNumber = data_source->getSourceIndex();
+                sub_header.timeStamp = particle_index_offset;
+                sub_header.weight = time_offset;  // Store time offset applied to this event
 
                 merged_collections_.sub_event_headers.push_back(sub_header);
                 merged_collections_.sub_event_header_weights.push_back(sub_header.weight);
-
-                // std::cout << "Added SubEventHeader: event=" << sub_header.eventNumber 
-                //           << ", source=" << sub_header.runNumber 
-                //           << ", particle_offset=" << static_cast<size_t>(sub_header.weight) << std::endl;
             } else {
                 // For already merged sources, try to process existing SubEventHeaders if available
-                auto& existing_sub_headers = data_source->processEventHeaders("SubEventHeaders");
+                auto& existing_sub_headers = data_source->getEventHeaders("SubEventHeaders");
                 for (auto& sub_header : existing_sub_headers) {
                     // Adjust the weight (particle index) to account for the current offset
                     float original_offset = sub_header.weight;
@@ -246,71 +273,101 @@ void StandaloneTimesliceMerger::createMergedTimeslice(std::vector<std::unique_pt
                 }
             }
             
-            // Process tracker hits - use move semantics to avoid copying
+            // Process tracker hits
             for (const auto& name : tracker_collection_names_) {
-                auto& processed_hits = data_source->processTrackerHits(name, particle_index_offset,totalEventsConsumed);
+                auto& hits = data_source->getTrackerHits(name);
+                
+                if (!(totalEventsConsumed == 0 && config.already_merged)) {
+                    CollectionProcessor::processTrackerHits(hits, time_offset, config.already_merged);
+                }
+                
                 merged_collections_.tracker_hits[name].insert(merged_collections_.tracker_hits[name].end(),
-                                                             std::make_move_iterator(processed_hits.begin()), 
-                                                             std::make_move_iterator(processed_hits.end()));
+                                                             std::make_move_iterator(hits.begin()), 
+                                                             std::make_move_iterator(hits.end()));
 
                 std::string ref_branch_name = "_" + name + "_particle";
-                auto& processed_refs = data_source->processObjectID(ref_branch_name, particle_index_offset,totalEventsConsumed);
+                auto& refs = data_source->getObjectIDCollection(ref_branch_name);
+                if (!(totalEventsConsumed == 0 && config.already_merged)) {
+                    CollectionProcessor::applyIndexOffset(refs, particle_index_offset);
+                }
                 merged_collections_.tracker_hit_particle_refs[name].insert(merged_collections_.tracker_hit_particle_refs[name].end(),
-                                                                          std::make_move_iterator(processed_refs.begin()), 
-                                                                          std::make_move_iterator(processed_refs.end()));
+                                                                          std::make_move_iterator(refs.begin()), 
+                                                                          std::make_move_iterator(refs.end()));
             }
             
-            // Process calorimeter hits - use move semantics to avoid copying
+            // Process calorimeter hits
             for (const auto& name : calo_collection_names_) {
                 size_t existing_contrib_size = merged_collections_.calo_contributions[name].size();
-
-                auto& processed_hits = data_source->processCaloHits(name, existing_contrib_size,totalEventsConsumed);
+                
+                auto& hits = data_source->getCaloHits(name);
+                
+                if (!(totalEventsConsumed == 0 && config.already_merged)) {
+                    // Get index offset fields from OneToMany relations
+                    auto it = one_to_many_relations.find(name);
+                    std::vector<std::string> index_fields;
+                    if (it != one_to_many_relations.end()) {
+                        index_fields = it->second;
+                    }
+                    
+                    CollectionProcessor::processCaloHits(hits, existing_contrib_size, index_fields);
+                }
+                
                 merged_collections_.calo_hits[name].insert(merged_collections_.calo_hits[name].end(),
-                                                          std::make_move_iterator(processed_hits.begin()), 
-                                                          std::make_move_iterator(processed_hits.end()));
+                                                          std::make_move_iterator(hits.begin()), 
+                                                          std::make_move_iterator(hits.end()));
                 
                 std::string ref_branch_name = "_" + name + "_contributions";
-                auto& processed_contrib_refs = data_source->processObjectID(ref_branch_name, existing_contrib_size,totalEventsConsumed);
+                auto& contrib_refs = data_source->getObjectIDCollection(ref_branch_name);
+                if (!(totalEventsConsumed == 0 && config.already_merged)) {
+                    CollectionProcessor::applyIndexOffset(contrib_refs, existing_contrib_size);
+                }
                 merged_collections_.calo_hit_contributions_refs[name].insert(merged_collections_.calo_hit_contributions_refs[name].end(),
-                                                                            std::make_move_iterator(processed_contrib_refs.begin()), 
-                                                                            std::make_move_iterator(processed_contrib_refs.end()));
+                                                                            std::make_move_iterator(contrib_refs.begin()), 
+                                                                            std::make_move_iterator(contrib_refs.end()));
                 
                 // Process contributions
                 std::string contrib_branch_name = name + "Contributions";
-                auto& processed_contribs = data_source->processCaloContributions(contrib_branch_name, particle_index_offset,totalEventsConsumed);
+                auto& contribs = data_source->getCaloContributions(contrib_branch_name);
+                
+                if (!(totalEventsConsumed == 0 && config.already_merged)) {
+                    CollectionProcessor::processCaloContributions(contribs, time_offset, config.already_merged);
+                }
+                
                 merged_collections_.calo_contributions[name].insert(merged_collections_.calo_contributions[name].end(),
-                                                                   std::make_move_iterator(processed_contribs.begin()), 
-                                                                   std::make_move_iterator(processed_contribs.end()));
+                                                                   std::make_move_iterator(contribs.begin()), 
+                                                                   std::make_move_iterator(contribs.end()));
                 
                 std::string ref_branch_name_contrib = "_" + contrib_branch_name + "_particle";
-                auto& processed_contrib_particle_refs = data_source->processObjectID(ref_branch_name_contrib, particle_index_offset,totalEventsConsumed);
+                auto& contrib_particle_refs = data_source->getObjectIDCollection(ref_branch_name_contrib);
+                if (!(totalEventsConsumed == 0 && config.already_merged)) {
+                    CollectionProcessor::applyIndexOffset(contrib_particle_refs, particle_index_offset);
+                }
                 merged_collections_.calo_contrib_particle_refs[name].insert(merged_collections_.calo_contrib_particle_refs[name].end(),
-                                                                           std::make_move_iterator(processed_contrib_particle_refs.begin()), 
-                                                                           std::make_move_iterator(processed_contrib_particle_refs.end()));
+                                                                           std::make_move_iterator(contrib_particle_refs.begin()), 
+                                                                           std::make_move_iterator(contrib_particle_refs.end()));
             }
             
-            // Process GP (Global Parameter) branches from all source events
-            // Process GP key branches - append from each event
+            // Process GP (Global Parameter) branches - no processing needed, just copy
             for (const auto& name : gp_collection_names_) {
-                auto& gp_keys = data_source->processGPBranch(name);
+                auto& gp_keys = data_source->getGPBranch(name);
                 merged_collections_.gp_key_branches[name].insert(merged_collections_.gp_key_branches[name].end(),
                                                                     std::make_move_iterator(gp_keys.begin()), std::make_move_iterator(gp_keys.end()));
             }
 
-            // Process GP value branches - append from each event
-            auto& gp_int_values = data_source->processGPIntValues();
+            // Process GP value branches
+            auto& gp_int_values = data_source->getGPIntValues();
             merged_collections_.gp_int_values.insert(merged_collections_.gp_int_values.end(),
                 std::make_move_iterator(gp_int_values.begin()), std::make_move_iterator(gp_int_values.end()));
 
-            auto& gp_float_values = data_source->processGPFloatValues();
+            auto& gp_float_values = data_source->getGPFloatValues();
             merged_collections_.gp_float_values.insert(merged_collections_.gp_float_values.end(),
                 std::make_move_iterator(gp_float_values.begin()), std::make_move_iterator(gp_float_values.end()));
 
-            auto& gp_double_values = data_source->processGPDoubleValues();
+            auto& gp_double_values = data_source->getGPDoubleValues();
             merged_collections_.gp_double_values.insert(merged_collections_.gp_double_values.end(),
                 std::make_move_iterator(gp_double_values.begin()), std::make_move_iterator(gp_double_values.end()));
 
-            auto& gp_string_values = data_source->processGPStringValues();
+            auto& gp_string_values = data_source->getGPStringValues();
             merged_collections_.gp_string_values.insert(merged_collections_.gp_string_values.end(),
                 std::make_move_iterator(gp_string_values.begin()), std::make_move_iterator(gp_string_values.end()));
 
