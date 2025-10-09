@@ -29,6 +29,7 @@ add_executable(timeslice_merger
     src/StandaloneTimesliceMerger.cc
     src/CollectionRegistry.cc
     src/CollectionProcessor.cc
+    src/BranchTypeRegistry.cc
     src/timeslice_merger_main.cc
 )
 
@@ -44,6 +45,7 @@ target_link_libraries(timeslice_merger
 # Create test executable for file format verification
 add_executable(test_file_format
     src/test_file_format.cc
+    src/BranchTypeRegistry.cc
 )
 
 # Link against ROOT only for basic format test
