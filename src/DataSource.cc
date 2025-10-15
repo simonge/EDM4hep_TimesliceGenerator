@@ -1,4 +1,5 @@
 #include "DataSource.h"
+#include "EDM4hepBranchNames.h"
 #include <iostream>
 #include <algorithm>
 #include <cmath>
@@ -131,19 +132,22 @@ EventData* DataSource::loadEvent(size_t event_index, float time_slice_duration,
     current_event_data_->collections["MCParticles"] = *mcparticle_branch_;
     current_event_data_->collection_sizes["MCParticles"] = mcparticle_branch_->size();
     
-    // Add MCParticle reference collections
-    current_event_data_->collections["_MCParticles_parents"] = *objectid_branches_["_MCParticles_parents"];
-    current_event_data_->collection_sizes["_MCParticles_parents"] = objectid_branches_["_MCParticles_parents"]->size();
+    // Add MCParticle reference collections using macro-based functions
+    std::string parents_branch = getMCParticleParentsBranchName();
+    current_event_data_->collections[parents_branch] = *objectid_branches_[parents_branch];
+    current_event_data_->collection_sizes[parents_branch] = objectid_branches_[parents_branch]->size();
     
-    current_event_data_->collections["_MCParticles_daughters"] = *objectid_branches_["_MCParticles_daughters"];
-    current_event_data_->collection_sizes["_MCParticles_daughters"] = objectid_branches_["_MCParticles_daughters"]->size();
+    std::string daughters_branch = getMCParticleDaughtersBranchName();
+    current_event_data_->collections[daughters_branch] = *objectid_branches_[daughters_branch];
+    current_event_data_->collection_sizes[daughters_branch] = objectid_branches_[daughters_branch]->size();
     
     // Add tracker hits and their references
     for (const auto& name : *tracker_collection_names_) {
         current_event_data_->collections[name] = *tracker_hit_branches_[name];
         current_event_data_->collection_sizes[name] = tracker_hit_branches_[name]->size();
         
-        std::string ref_name = "_" + name + "_particle";
+        // Use macro-based function for particle reference branch name
+        std::string ref_name = getTrackerHitParticleBranchName(name);
         current_event_data_->collections[ref_name] = *objectid_branches_[ref_name];
         current_event_data_->collection_sizes[ref_name] = objectid_branches_[ref_name]->size();
     }
@@ -153,7 +157,8 @@ EventData* DataSource::loadEvent(size_t event_index, float time_slice_duration,
         current_event_data_->collections[name] = *calo_hit_branches_[name];
         current_event_data_->collection_sizes[name] = calo_hit_branches_[name]->size();
         
-        std::string contrib_ref_name = "_" + name + "_contributions";
+        // Use macro-based function for contributions reference branch name
+        std::string contrib_ref_name = getCaloHitContributionsBranchName(name);
         current_event_data_->collections[contrib_ref_name] = *objectid_branches_[contrib_ref_name];
         current_event_data_->collection_sizes[contrib_ref_name] = objectid_branches_[contrib_ref_name]->size();
         
@@ -161,7 +166,8 @@ EventData* DataSource::loadEvent(size_t event_index, float time_slice_duration,
         current_event_data_->collections[contrib_name] = *calo_contrib_branches_[contrib_name];
         current_event_data_->collection_sizes[contrib_name] = calo_contrib_branches_[contrib_name]->size();
         
-        std::string contrib_particle_ref_name = "_" + contrib_name + "_particle";
+        // Use macro-based function for contribution particle reference branch name
+        std::string contrib_particle_ref_name = getContributionParticleBranchName(contrib_name);
         current_event_data_->collections[contrib_particle_ref_name] = *objectid_branches_[contrib_particle_ref_name];
         current_event_data_->collection_sizes[contrib_particle_ref_name] = objectid_branches_[contrib_particle_ref_name]->size();
     }
@@ -219,8 +225,9 @@ void DataSource::setupMCParticleBranches() {
     int result = chain_->SetBranchAddress("MCParticles", &mcparticle_branch_);
 
     // Setup MCParticle parent-child relationship branches using consolidated map
-    std::string parents_branch_name = "_MCParticles_parents";
-    std::string children_branch_name = "_MCParticles_daughters";
+    // Use macros to ensure branch names match EDM4hep member names
+    std::string parents_branch_name = getMCParticleParentsBranchName();
+    std::string children_branch_name = getMCParticleDaughtersBranchName();
     
     objectid_branches_[parents_branch_name] = new std::vector<podio::ObjectID>();
     objectid_branches_[children_branch_name] = new std::vector<podio::ObjectID>();
@@ -235,7 +242,8 @@ void DataSource::setupTrackerBranches() {
         int result = chain_->SetBranchAddress(coll_name.c_str(), &tracker_hit_branches_[coll_name]);
         
         // Also setup the particle reference branch using consolidated map
-        std::string ref_branch_name = "_" + coll_name + "_particle";  
+        // Use macro-based function to ensure branch name matches EDM4hep member name
+        std::string ref_branch_name = getTrackerHitParticleBranchName(coll_name);
         objectid_branches_[ref_branch_name] = new std::vector<podio::ObjectID>();
         result = chain_->SetBranchAddress(ref_branch_name.c_str(), &objectid_branches_[ref_branch_name]);
     }
@@ -248,7 +256,8 @@ void DataSource::setupCalorimeterBranches() {
         int result = chain_->SetBranchAddress(coll_name.c_str(), &calo_hit_branches_[coll_name]);
         
         // Also setup the contributions reference branch using consolidated map
-        std::string contrib_link_branch_name = "_" + coll_name + "_contributions";
+        // Use macro-based function to ensure branch name matches EDM4hep member name
+        std::string contrib_link_branch_name = getCaloHitContributionsBranchName(coll_name);
         objectid_branches_[contrib_link_branch_name] = new std::vector<podio::ObjectID>();
         result = chain_->SetBranchAddress(contrib_link_branch_name.c_str(), &objectid_branches_[contrib_link_branch_name]);
         
@@ -257,7 +266,8 @@ void DataSource::setupCalorimeterBranches() {
         result = chain_->SetBranchAddress(contrib_branch_name.c_str(), &calo_contrib_branches_[contrib_branch_name]);
         
         // Also setup the particle reference branch using consolidated map
-        std::string ref_branch_name = "_" + contrib_branch_name + "_particle";  
+        // Use macro-based function to ensure branch name matches EDM4hep member name
+        std::string ref_branch_name = getContributionParticleBranchName(contrib_branch_name);
         objectid_branches_[ref_branch_name] = new std::vector<podio::ObjectID>();
         result = chain_->SetBranchAddress(ref_branch_name.c_str(), &objectid_branches_[ref_branch_name]);
     }
