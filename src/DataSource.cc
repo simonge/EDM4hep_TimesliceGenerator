@@ -29,7 +29,7 @@ DataSource::~DataSource() {
 void DataSource::initialize(const std::vector<std::string>& tracker_collections,
                            const std::vector<std::string>& calo_collections,
                            const std::vector<std::string>& gp_collections) {
-    // Store references to collection names
+    // Store references to collection names (kept for backward compatibility but will be deprecated)
     tracker_collection_names_ = &tracker_collections;
     calo_collection_names_ = &calo_collections;
     gp_collection_names_ = &gp_collections;
@@ -128,67 +128,84 @@ EventData* DataSource::loadEvent(size_t event_index, float time_slice_duration,
     }
     current_event_data_->time_offset = generateTimeOffset(distance, time_slice_duration, bunch_crossing_period, rng);
     
-    // Add MCParticles to the map
-    current_event_data_->collections["MCParticles"] = *mcparticle_branch_;
-    current_event_data_->collection_sizes["MCParticles"] = mcparticle_branch_->size();
+    // Add MCParticles to the map if available
+    if (mcparticle_branch_) {
+        current_event_data_->collections["MCParticles"] = *mcparticle_branch_;
+        current_event_data_->collection_sizes["MCParticles"] = mcparticle_branch_->size();
+        
+        // Add MCParticle reference collections using podio metadata
+        const auto& registry = podio::DatamodelRegistry::instance();
+        auto mcParticleInfo = registry.getRelationNames("MCParticle");
+        for (const auto& relName : mcParticleInfo.relations) {
+            std::string branch_name = "_MCParticles_" + std::string(relName);
+            if (objectid_branches_.find(branch_name) != objectid_branches_.end()) {
+                current_event_data_->collections[branch_name] = *objectid_branches_[branch_name];
+                current_event_data_->collection_sizes[branch_name] = objectid_branches_[branch_name]->size();
+            }
+        }
+    }
     
-    // Add MCParticle reference collections using podio metadata
+    // Add tracker hits and their references automatically
     const auto& registry = podio::DatamodelRegistry::instance();
-    auto mcParticleInfo = registry.getRelationNames("MCParticle");
-    for (const auto& relName : mcParticleInfo.relations) {
-        std::string branch_name = "_MCParticles_" + std::string(relName);
-        current_event_data_->collections[branch_name] = *objectid_branches_[branch_name];
-        current_event_data_->collection_sizes[branch_name] = objectid_branches_[branch_name]->size();
-    }
-    
-    // Add tracker hits and their references using podio metadata
     auto trackerHitInfo = registry.getRelationNames("SimTrackerHit");
-    for (const auto& name : *tracker_collection_names_) {
-        current_event_data_->collections[name] = *tracker_hit_branches_[name];
-        current_event_data_->collection_sizes[name] = tracker_hit_branches_[name]->size();
-        
-        for (const auto& relName : trackerHitInfo.relations) {
-            std::string ref_name = "_" + name + "_" + std::string(relName);
-            current_event_data_->collections[ref_name] = *objectid_branches_[ref_name];
-            current_event_data_->collection_sizes[ref_name] = objectid_branches_[ref_name]->size();
+    for (const auto& [name, branch_ptr] : tracker_hit_branches_) {
+        if (branch_ptr) {
+            current_event_data_->collections[name] = *branch_ptr;
+            current_event_data_->collection_sizes[name] = branch_ptr->size();
+            
+            // Add relation branches
+            for (const auto& relName : trackerHitInfo.relations) {
+                std::string ref_name = "_" + name + "_" + std::string(relName);
+                if (objectid_branches_.find(ref_name) != objectid_branches_.end()) {
+                    current_event_data_->collections[ref_name] = *objectid_branches_[ref_name];
+                    current_event_data_->collection_sizes[ref_name] = objectid_branches_[ref_name]->size();
+                }
+            }
         }
     }
     
-    // Add calorimeter hits, contributions and their references using podio metadata
+    // Add calorimeter hits and their references automatically
     auto caloHitInfo = registry.getRelationNames("SimCalorimeterHit");
+    for (const auto& [name, branch_ptr] : calo_hit_branches_) {
+        if (branch_ptr) {
+            current_event_data_->collections[name] = *branch_ptr;
+            current_event_data_->collection_sizes[name] = branch_ptr->size();
+            
+            // Add relation branches
+            for (const auto& relName : caloHitInfo.relations) {
+                std::string ref_name = "_" + name + "_" + std::string(relName);
+                if (objectid_branches_.find(ref_name) != objectid_branches_.end()) {
+                    current_event_data_->collections[ref_name] = *objectid_branches_[ref_name];
+                    current_event_data_->collection_sizes[ref_name] = objectid_branches_[ref_name]->size();
+                }
+            }
+        }
+    }
+    
+    // Add calorimeter contributions and their references automatically
     auto contribInfo = registry.getRelationNames("CaloHitContribution");
-    
-    for (const auto& name : *calo_collection_names_) {
-        current_event_data_->collections[name] = *calo_hit_branches_[name];
-        current_event_data_->collection_sizes[name] = calo_hit_branches_[name]->size();
-        
-        for (const auto& relName : caloHitInfo.relations) {
-            std::string contrib_ref_name = "_" + name + "_" + std::string(relName);
-            current_event_data_->collections[contrib_ref_name] = *objectid_branches_[contrib_ref_name];
-            current_event_data_->collection_sizes[contrib_ref_name] = objectid_branches_[contrib_ref_name]->size();
-        }
-        
-        std::string contrib_name = name + "Contributions";
-        current_event_data_->collections[contrib_name] = *calo_contrib_branches_[contrib_name];
-        current_event_data_->collection_sizes[contrib_name] = calo_contrib_branches_[contrib_name]->size();
-        
-        for (const auto& relName : contribInfo.relations) {
-            std::string contrib_particle_ref_name = "_" + contrib_name + "_" + std::string(relName);
-            current_event_data_->collections[contrib_particle_ref_name] = *objectid_branches_[contrib_particle_ref_name];
-            current_event_data_->collection_sizes[contrib_particle_ref_name] = objectid_branches_[contrib_particle_ref_name]->size();
+    for (const auto& [name, branch_ptr] : calo_contrib_branches_) {
+        if (branch_ptr) {
+            current_event_data_->collections[name] = *branch_ptr;
+            current_event_data_->collection_sizes[name] = branch_ptr->size();
+            
+            // Add relation branches
+            for (const auto& relName : contribInfo.relations) {
+                std::string ref_name = "_" + name + "_" + std::string(relName);
+                if (objectid_branches_.find(ref_name) != objectid_branches_.end()) {
+                    current_event_data_->collections[ref_name] = *objectid_branches_[ref_name];
+                    current_event_data_->collection_sizes[ref_name] = objectid_branches_[ref_name]->size();
+                }
+            }
         }
     }
     
-    // Add EventHeader if available
-    if (event_header_branches_.count("EventHeader")) {
-        current_event_data_->collections["EventHeader"] = *event_header_branches_["EventHeader"];
-        current_event_data_->collection_sizes["EventHeader"] = event_header_branches_["EventHeader"]->size();
-    }
-    
-    // Add SubEventHeaders if available
-    if (event_header_branches_.count("SubEventHeaders")) {
-        current_event_data_->collections["SubEventHeaders"] = *event_header_branches_["SubEventHeaders"];
-        current_event_data_->collection_sizes["SubEventHeaders"] = event_header_branches_["SubEventHeaders"]->size();
+    // Add EventHeaders automatically
+    for (const auto& [name, branch_ptr] : event_header_branches_) {
+        if (branch_ptr) {
+            current_event_data_->collections[name] = *branch_ptr;
+            current_event_data_->collection_sizes[name] = branch_ptr->size();
+        }
     }
     
     // Add GP branches
@@ -217,105 +234,130 @@ EventData* DataSource::loadEvent(size_t event_index, float time_slice_duration,
 void DataSource::setupBranches() {
     std::cout << "=== Setting up branches for source " << source_index_ << " ===" << std::endl;
     
-    setupMCParticleBranches();
-    setupTrackerBranches();
-    setupCalorimeterBranches();
-    setupEventHeaderBranches();
+    // Get podio registry for automatic relation discovery
+    const auto& registry = podio::DatamodelRegistry::instance();
+    
+    // Get all branches from the chain
+    TObjArray* branches = chain_->GetListOfBranches();
+    if (!branches) {
+        std::cout << "Warning: No branches found in chain" << std::endl;
+        return;
+    }
+    
+    std::cout << "Total branches in chain: " << branches->GetEntries() << std::endl;
+    
+    // Discover and setup object collection branches automatically
+    for (int i = 0; i < branches->GetEntries(); ++i) {
+        TBranch* branch = (TBranch*)branches->At(i);
+        if (!branch) continue;
+        
+        std::string branch_name = branch->GetName();
+        
+        // Skip branches that start with "_" - these are relation/reference branches
+        if (branch_name.find("_") == 0) continue;
+        
+        // Skip GP value branches (these are handled separately)
+        if (branch_name.find("GPIntValues") != std::string::npos ||
+            branch_name.find("GPFloatValues") != std::string::npos ||
+            branch_name.find("GPDoubleValues") != std::string::npos ||
+            branch_name.find("GPStringValues") != std::string::npos) {
+            continue;
+        }
+        
+        // Get the branch data type
+        TClass* expectedClass = nullptr;
+        EDataType expectedType;
+        std::string branch_type = "";
+        if (branch->GetExpectedType(expectedClass, expectedType) == 0 && expectedClass && expectedClass->GetName()) {
+            branch_type = expectedClass->GetName();
+        }
+        
+        // Setup branches based on their type
+        if (branch_type.find("edm4hep::MCParticleData") != std::string::npos) {
+            setupObjectBranch(branch_name, "MCParticle", mcparticle_branch_);
+        }
+        else if (branch_type.find("edm4hep::SimTrackerHitData") != std::string::npos) {
+            auto& branch_ptr = tracker_hit_branches_[branch_name];
+            setupObjectBranch(branch_name, "SimTrackerHit", branch_ptr);
+        }
+        else if (branch_type.find("edm4hep::SimCalorimeterHitData") != std::string::npos) {
+            auto& branch_ptr = calo_hit_branches_[branch_name];
+            setupObjectBranch(branch_name, "SimCalorimeterHit", branch_ptr);
+        }
+        else if (branch_type.find("edm4hep::CaloHitContributionData") != std::string::npos) {
+            auto& branch_ptr = calo_contrib_branches_[branch_name];
+            setupObjectBranch(branch_name, "CaloHitContribution", branch_ptr);
+        }
+        else if (branch_type.find("edm4hep::EventHeaderData") != std::string::npos) {
+            auto& branch_ptr = event_header_branches_[branch_name];
+            setupObjectBranch(branch_name, "EventHeader", branch_ptr);
+        }
+    }
+    
+    // Setup GP branches separately (different pattern)
     setupGPBranches();
     
     std::cout << "=== Branch setup complete ===" << std::endl;
+    std::cout << "  - Tracker hit collections: " << tracker_hit_branches_.size() << std::endl;
+    std::cout << "  - Calorimeter hit collections: " << calo_hit_branches_.size() << std::endl;
+    std::cout << "  - Calorimeter contribution collections: " << calo_contrib_branches_.size() << std::endl;
+    std::cout << "  - ObjectID reference branches: " << objectid_branches_.size() << std::endl;
+}
+
+// Generic function to setup an object branch and its associated relation branches
+template<typename T>
+void DataSource::setupObjectBranch(const std::string& collection_name, const std::string& type_name, T*& branch_ptr) {
+    // Setup the main object branch
+    branch_ptr = new T();
+    int result = chain_->SetBranchAddress(collection_name.c_str(), &branch_ptr);
+    if (result != 0) {
+        std::cout << "Warning: Could not set branch address for " << collection_name << " (result: " << result << ")" << std::endl;
+        delete branch_ptr;
+        branch_ptr = nullptr;
+        return;
+    }
+    
+    std::cout << "  ✓ Setup " << type_name << " branch: " << collection_name << std::endl;
+    
+    // Get relation names from podio's datamodel registry
+    const auto& registry = podio::DatamodelRegistry::instance();
+    auto relationInfo = registry.getRelationNames(type_name);
+    
+    // Setup relation branches automatically based on podio metadata
+    for (const auto& relName : relationInfo.relations) {
+        std::string rel_branch_name = "_" + collection_name + "_" + std::string(relName);
+        objectid_branches_[rel_branch_name] = new std::vector<podio::ObjectID>();
+        result = chain_->SetBranchAddress(rel_branch_name.c_str(), &objectid_branches_[rel_branch_name]);
+        if (result == 0) {
+            std::cout << "    ✓ Setup relation branch: " << rel_branch_name << std::endl;
+        }
+    }
+    
+    // Setup vector member branches if any
+    for (const auto& vecName : relationInfo.vectorMembers) {
+        // Vector members would be handled here if needed
+        // For now, EDM4hep doesn't use this feature for our use case
+    }
 }
 
 void DataSource::setupMCParticleBranches() {
-    // Setup MCParticles branch
-    mcparticle_branch_ = new std::vector<edm4hep::MCParticleData>();
-    int result = chain_->SetBranchAddress("MCParticles", &mcparticle_branch_);
-
-    // Get relation names from podio's datamodel registry
-    // This provides the actual member names from the EDM4hep YAML definition
-    const auto& registry = podio::DatamodelRegistry::instance();
-    auto mcParticleInfo = registry.getRelationNames("MCParticle");
-    
-    // Setup MCParticle relationship branches dynamically based on podio metadata
-    // This replaces hardcoded strings like "_MCParticles_parents" and "_MCParticles_daughters"
-    for (const auto& relName : mcParticleInfo.relations) {
-        std::string branch_name = "_MCParticles_" + std::string(relName);
-        objectid_branches_[branch_name] = new std::vector<podio::ObjectID>();
-        result = chain_->SetBranchAddress(branch_name.c_str(), &objectid_branches_[branch_name]);
-    }
+    // DEPRECATED: This function is kept for reference but is no longer called
+    // Branch setup is now done automatically in setupBranches()
 }
 
 void DataSource::setupTrackerBranches() {
-    // Get relation names from podio's datamodel registry for SimTrackerHit
-    const auto& registry = podio::DatamodelRegistry::instance();
-    auto trackerHitInfo = registry.getRelationNames("SimTrackerHit");
-    
-    for (const auto& coll_name : *tracker_collection_names_) {
-        tracker_hit_branches_[coll_name] = new std::vector<edm4hep::SimTrackerHitData>();
-        int result = chain_->SetBranchAddress(coll_name.c_str(), &tracker_hit_branches_[coll_name]);
-        
-        // Setup relation branches dynamically using podio metadata
-        // This replaces hardcoded "_particle" suffix
-        for (const auto& relName : trackerHitInfo.relations) {
-            std::string ref_branch_name = "_" + coll_name + "_" + std::string(relName);
-            objectid_branches_[ref_branch_name] = new std::vector<podio::ObjectID>();
-            result = chain_->SetBranchAddress(ref_branch_name.c_str(), &objectid_branches_[ref_branch_name]);
-        }
-    }
+    // DEPRECATED: This function is kept for reference but is no longer called
+    // Branch setup is now done automatically in setupBranches()
 }
 
 void DataSource::setupCalorimeterBranches() {
-    // Get relation names from podio's datamodel registry
-    const auto& registry = podio::DatamodelRegistry::instance();
-    auto caloHitInfo = registry.getRelationNames("SimCalorimeterHit");
-    auto contribInfo = registry.getRelationNames("CaloHitContribution");
-    
-    // Setup calorimeter hit branches
-    for (const auto& coll_name : *calo_collection_names_) {
-        calo_hit_branches_[coll_name] = new std::vector<edm4hep::SimCalorimeterHitData>();
-        int result = chain_->SetBranchAddress(coll_name.c_str(), &calo_hit_branches_[coll_name]);
-        
-        // Setup contributions reference branch dynamically using podio metadata
-        // This replaces hardcoded "_contributions" suffix
-        for (const auto& relName : caloHitInfo.relations) {
-            std::string contrib_link_branch_name = "_" + coll_name + "_" + std::string(relName);
-            objectid_branches_[contrib_link_branch_name] = new std::vector<podio::ObjectID>();
-            result = chain_->SetBranchAddress(contrib_link_branch_name.c_str(), &objectid_branches_[contrib_link_branch_name]);
-        }
-        
-        std::string contrib_branch_name = coll_name + "Contributions";
-        calo_contrib_branches_[contrib_branch_name] = new std::vector<edm4hep::CaloHitContributionData>();
-        result = chain_->SetBranchAddress(contrib_branch_name.c_str(), &calo_contrib_branches_[contrib_branch_name]);
-        
-        // Setup particle reference branch for contributions dynamically using podio metadata
-        // This replaces hardcoded "_particle" suffix for contribution collections
-        for (const auto& relName : contribInfo.relations) {
-            std::string ref_branch_name = "_" + contrib_branch_name + "_" + std::string(relName);
-            objectid_branches_[ref_branch_name] = new std::vector<podio::ObjectID>();
-            result = chain_->SetBranchAddress(ref_branch_name.c_str(), &objectid_branches_[ref_branch_name]);
-        }
-    }
+    // DEPRECATED: This function is kept for reference but is no longer called
+    // Branch setup is now done automatically in setupBranches()
 }
 
 void DataSource::setupEventHeaderBranches() {
-    // Setup EventHeader if available
-    std::vector<std::string> header_collections = {"EventHeader"};
-    
-    // Only add SubEventHeaders for non-merged sources (where they aren't already present)
-    if (!config_->already_merged) {
-        header_collections.push_back("SubEventHeaders");
-    }
-    
-    for (const auto& coll_name : header_collections) {
-        event_header_branches_[coll_name] = new std::vector<edm4hep::EventHeaderData>();
-        int result = chain_->SetBranchAddress(coll_name.c_str(), &event_header_branches_[coll_name]);
-        // Branch not available yet so returns 5
-        // if (result != 0) {
-        //     std::cout << "    ❌ Could not set branch address for " << coll_name << " (result: " << result << ")" << std::endl;
-        // } else {
-        //     std::cout << "    ✓ Successfully set up " << coll_name << std::endl;
-        // }
-    }
+    // DEPRECATED: This function is kept for reference but is no longer called
+    // Branch setup is now done automatically in setupBranches()
 }
 
 void DataSource::setupGPBranches() {

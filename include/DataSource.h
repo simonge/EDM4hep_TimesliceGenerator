@@ -161,6 +161,11 @@ private:
 
     // Private helper methods
     void setupBranches();
+    
+    // Generic function to setup an object branch and its associated relation branches
+    template<typename T>
+    void setupObjectBranch(const std::string& collection_name, const std::string& type_name, T*& branch_ptr);
+    
     void setupMCParticleBranches();
     void setupTrackerBranches();
     void setupCalorimeterBranches();
