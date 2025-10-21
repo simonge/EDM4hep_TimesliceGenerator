@@ -89,11 +89,15 @@ public:
      */
     void* getBranchData(const std::string& branch_name);
     
-    std::vector<std::string>& processGPBranch(const std::string& branch_name);
-    std::vector<std::vector<int>>& processGPIntValues();
-    std::vector<std::vector<float>>& processGPFloatValues();
-    std::vector<std::vector<double>>& processGPDoubleValues();
-    std::vector<std::vector<std::string>>& processGPStringValues();
+    /**
+     * @brief Template helper to get branch data with proper type
+     * For branches that don't need processing (like GP branches)
+     */
+    template<typename T>
+    std::vector<T>& getBranchDataTyped(const std::string& branch_name) {
+        void* ptr = getBranchData(branch_name);
+        return *static_cast<std::vector<T>*>(ptr);
+    }
     
 
     
@@ -145,7 +149,6 @@ private:
     void setupBranches();
     void setupGenericBranches();
     void setupRelationshipBranches();
-    void setupGPBranches();
     void cleanup();
     
     // Helper methods for physics calculations

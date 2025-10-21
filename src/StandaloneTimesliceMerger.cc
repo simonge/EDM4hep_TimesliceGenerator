@@ -336,27 +336,27 @@ void StandaloneTimesliceMerger::createMergedTimeslice(std::vector<std::unique_pt
             }
             
             // Process GP (Global Parameter) branches from all source events
-            // Process GP key branches - append from each event
+            // GP branches don't need processing - just copy the data as-is
             for (const auto& name : gp_collection_names_) {
-                auto& gp_keys = data_source->processGPBranch(name);
+                auto& gp_keys = data_source->getBranchDataTyped<std::string>(name);
                 merged_collections_.gp_key_branches[name].insert(merged_collections_.gp_key_branches[name].end(),
                                                                     std::make_move_iterator(gp_keys.begin()), std::make_move_iterator(gp_keys.end()));
             }
 
-            // Process GP value branches - append from each event
-            auto& gp_int_values = data_source->processGPIntValues();
+            // Process GP value branches - just copy, no processing needed
+            auto& gp_int_values = data_source->getBranchDataTyped<std::vector<int>>("GPIntValues");
             merged_collections_.gp_int_values.insert(merged_collections_.gp_int_values.end(),
                 std::make_move_iterator(gp_int_values.begin()), std::make_move_iterator(gp_int_values.end()));
 
-            auto& gp_float_values = data_source->processGPFloatValues();
+            auto& gp_float_values = data_source->getBranchDataTyped<std::vector<float>>("GPFloatValues");
             merged_collections_.gp_float_values.insert(merged_collections_.gp_float_values.end(),
                 std::make_move_iterator(gp_float_values.begin()), std::make_move_iterator(gp_float_values.end()));
 
-            auto& gp_double_values = data_source->processGPDoubleValues();
+            auto& gp_double_values = data_source->getBranchDataTyped<std::vector<double>>("GPDoubleValues");
             merged_collections_.gp_double_values.insert(merged_collections_.gp_double_values.end(),
                 std::make_move_iterator(gp_double_values.begin()), std::make_move_iterator(gp_double_values.end()));
 
-            auto& gp_string_values = data_source->processGPStringValues();
+            auto& gp_string_values = data_source->getBranchDataTyped<std::vector<std::string>>("GPStringValues");
             merged_collections_.gp_string_values.insert(merged_collections_.gp_string_values.end(),
                 std::make_move_iterator(gp_string_values.begin()), std::make_move_iterator(gp_string_values.end()));
 
