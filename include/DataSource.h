@@ -1,6 +1,7 @@
 #pragma once
 
 #include "StandaloneMergerConfig.h"
+#include "BranchRelationshipMapper.h"
 #include <edm4hep/MCParticleData.h>
 #include <edm4hep/SimTrackerHitData.h>
 #include <edm4hep/SimCalorimeterHitData.h>
@@ -20,9 +21,7 @@ public:
     ~DataSource();
     
     // Initialization
-    void initialize(const std::vector<std::string>& tracker_collections,
-                   const std::vector<std::string>& calo_collections,
-                   const std::vector<std::string>& gp_collections);
+    void initialize(const BranchRelationshipMapper* relationship_mapper);
     
     // Data access
     bool hasMoreEntries() const;
@@ -39,36 +38,66 @@ public:
     // Time offset generation
     float generateTimeOffset(float distance, float time_slice_duration, float bunch_crossing_period, std::mt19937& rng) const;
     
-    // New typed data merging methods
+    // Generic data processing methods
     void loadEvent(size_t event_index);
     
-    std::vector<edm4hep::MCParticleData>& processMCParticles(size_t particle_index_offset,
-                                                           float time_slice_duration,
-                                                           float bunch_crossing_period,
-                                                           std::mt19937& rng,
-                                                           int totalEventsConsumed);
+    /**
+     * @brief Generic method to process any collection type
+     * 
+     * Uses metadata from BranchRelationshipMapper to determine what processing is needed:
+     * - Updates time fields if collection has them
+     * - Updates index range fields (begin/end) if collection has them
+     * 
+     * @param collection_name Name of the collection to process
+     * @param index_offset Offset to add to index values
+     * @param time_offset Time offset to add (if collection has time field)
+     * @param totalEventsConsumed Total events processed so far
+     * @return Pointer to the processed data (caller must cast to appropriate type)
+     */
+    void* processCollection(const std::string& collection_name, 
+                           size_t index_offset,
+                           float time_offset,
+                           int totalEventsConsumed);
     
-    std::vector<podio::ObjectID>& processObjectID(const std::string& collection_name, size_t index_offset, int totalEventsConsumed);
+    /**
+     * @brief Template helper to get processed collection data with proper type
+     */
+    template<typename T>
+    std::vector<T>& getProcessedCollection(const std::string& collection_name,
+                                          size_t index_offset,
+                                          float time_offset,
+                                          int totalEventsConsumed) {
+        void* ptr = processCollection(collection_name, index_offset, time_offset, totalEventsConsumed);
+        return *static_cast<std::vector<T>*>(ptr);
+    }
     
-    std::vector<edm4hep::SimTrackerHitData>& processTrackerHits(const std::string& collection_name,
-                                                              size_t particle_index_offset,
-                                                              int totalEventsConsumed);
-    
-    std::vector<edm4hep::SimCalorimeterHitData>& processCaloHits(const std::string& collection_name,
-                                                                size_t particle_index_offset,
-                                                                int totalEventsConsumed);
-    std::vector<edm4hep::CaloHitContributionData>& processCaloContributions(const std::string& collection_name,
-                                                                           size_t particle_index_offset,
-                                                                           int totalEventsConsumed);
+    /**
+     * @brief Process ObjectID relationship branches
+     * 
+     * Updates indices in ObjectID vectors by adding the offset
+     * 
+     * @param branch_name Name of the relationship branch
+     * @param index_offset Offset to add to indices
+     * @param totalEventsConsumed Total events processed so far
+     * @return Reference to the processed ObjectID vector
+     */
+    std::vector<podio::ObjectID>& processObjectID(const std::string& branch_name, size_t index_offset, int totalEventsConsumed);
 
-    std::vector<std::string>& processGPBranch(const std::string& branch_name);
-    std::vector<std::vector<int>>& processGPIntValues();
-    std::vector<std::vector<float>>& processGPFloatValues();
-    std::vector<std::vector<double>>& processGPDoubleValues();
-    std::vector<std::vector<std::string>>& processGPStringValues();
+    /**
+     * @brief Get generic branch data without processing
+     * Used for collections that don't need time/index updates
+     */
+    void* getBranchData(const std::string& branch_name);
     
-    // Event header processing methods
-    std::vector<edm4hep::EventHeaderData>& processEventHeaders(const std::string& collection_name);
+    /**
+     * @brief Template helper to get branch data with proper type
+     * For branches that don't need processing (like GP branches)
+     */
+    template<typename T>
+    std::vector<T>& getBranchDataTyped(const std::string& branch_name) {
+        void* ptr = getBranchData(branch_name);
+        return *static_cast<std::vector<T>*>(ptr);
+    }
     
 
     
@@ -81,10 +110,19 @@ public:
     void printStatus() const;
     bool isInitialized() const { return chain_ != nullptr; }
 
+    // Helper to calculate time offset for current event
+    void calculateTimeOffsetForEvent(const std::string& mcparticle_collection,
+                                     float time_slice_duration,
+                                     float bunch_crossing_period,
+                                     std::mt19937& rng);
+
 private:
     // Configuration
     const SourceConfig* config_;
     size_t source_index_;
+    
+    // Relationship mapper (not owned by this class)
+    const BranchRelationshipMapper* relationship_mapper_;
     
     // ROOT chain and state
     std::unique_ptr<TChain> chain_;
@@ -93,44 +131,26 @@ private:
     size_t entries_needed_;
     
     // Collection names (references to shared data)
-    const std::vector<std::string>* tracker_collection_names_;
-    const std::vector<std::string>* calo_collection_names_;
-    const std::vector<std::string>* gp_collection_names_;
+    // No longer needed - GP collections are discovered from relationship_mapper_
     
-    // Branch pointers for reading data as vectors
-    std::vector<edm4hep::MCParticleData>* mcparticle_branch_;
-    std::unordered_map<std::string, std::vector<edm4hep::SimTrackerHitData>*> tracker_hit_branches_;
-    std::unordered_map<std::string, std::vector<edm4hep::SimCalorimeterHitData>*> calo_hit_branches_;
-    std::unordered_map<std::string, std::vector<edm4hep::CaloHitContributionData>*> calo_contrib_branches_;
-    std::unordered_map<std::string, std::vector<edm4hep::EventHeaderData>*> event_header_branches_;
+    // Generic branch storage - stores void* to branch data, keyed by branch name
+    // The actual type is determined by the BranchRelationshipMapper metadata
+    // This includes EDM4hep collections, ObjectID references, and GP branches
+    std::unordered_map<std::string, void*> generic_branches_;
     
     // Branch pointers for reading ObjectID references - consolidated into single map
     std::unordered_map<std::string, std::vector<podio::ObjectID>*> objectid_branches_;
-    
-    // Branch pointers for reading GP (Global Parameter) branches
-    std::unordered_map<std::string, std::vector<std::string>*> gp_key_branches_;
-    std::vector<std::vector<int>>* gp_int_branch_;
-    std::vector<std::vector<float>>* gp_float_branch_;
-    std::vector<std::vector<double>>* gp_double_branch_;
-    std::vector<std::vector<std::string>>* gp_string_branch_;
 
     // Current event processing state
     float current_time_offset_;
-    size_t current_particle_index_offset_;
+    
     
     // Private helper methods
     void setupBranches();
-    void setupMCParticleBranches();
-    void setupTrackerBranches();
-    void setupCalorimeterBranches();
-    void setupEventHeaderBranches();
-    void setupGPBranches();
+    void setupGenericBranches();
+    void setupRelationshipBranches();
     void cleanup();
     
     // Helper methods for physics calculations
     float calculateBeamDistance(const std::vector<edm4hep::MCParticleData>& particles) const;
-    
-    // Helper methods for collection name mapping
-    std::string getCorrespondingContributionCollection(const std::string& calo_collection_name) const;
-    std::string getCorrespondingCaloCollection(const std::string& contrib_collection_name) const;
 };

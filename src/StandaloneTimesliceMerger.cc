@@ -111,27 +111,36 @@ std::vector<std::unique_ptr<DataSource>> StandaloneTimesliceMerger::initializeDa
         data_sources.push_back(std::move(data_source));
     }
     
-    // Use first source to discover collection names
+    // Use first source to discover collection names and relationships
     if (!data_sources.empty() && !m_config.sources[0].input_files.empty()) {
-        // Discover collection names using the first source
-        tracker_collection_names_ = discoverCollectionNames(*data_sources[0], "SimTrackerHit");
-        calo_collection_names_ = discoverCollectionNames(*data_sources[0], "SimCalorimeterHit");
-        gp_collection_names_ = discoverGPBranches(*data_sources[0]);
+        // Create a temporary chain to discover relationships
+        auto temp_chain = std::make_unique<TChain>(m_config.sources[0].tree_name.c_str());
+        temp_chain->Add(m_config.sources[0].input_files[0].c_str());
+        
+        // Initialize the relationship mapper
+        relationship_mapper_ = std::make_unique<BranchRelationshipMapper>();
+        relationship_mapper_->discoverRelationships(temp_chain.get());
+        
+        // Print discovered relationships for debugging
+        relationship_mapper_->printDiscoveredRelationships();
+        
+        // Get GP collection names from relationship mapper
+        gp_collection_names_ = relationship_mapper_->getGPBranches();
         
         std::cout << "Global collection names discovered:" << std::endl;
         std::cout << "  Tracker: ";
-        for (const auto& name : tracker_collection_names_) std::cout << name << " ";
+        for (const auto& name : relationship_mapper_->getCollectionsByType("SimTrackerHit")) std::cout << name << " ";
         std::cout << std::endl;
         std::cout << "  Calo: ";
-        for (const auto& name : calo_collection_names_) std::cout << name << " ";
+        for (const auto& name : relationship_mapper_->getCollectionsByType("SimCalorimeterHit")) std::cout << name << " ";
         std::cout << std::endl;
         std::cout << "  GP: ";
         for (const auto& name : gp_collection_names_) std::cout << name << " ";
         std::cout << std::endl;
         
-        // Initialize all data sources with discovered collection names
+        // Initialize all data sources with relationship mapper
         for (auto& data_source : data_sources) {
-            data_source->initialize(tracker_collection_names_, calo_collection_names_, gp_collection_names_);
+            data_source->initialize(relationship_mapper_.get());
         }
     }
     
@@ -189,27 +198,38 @@ void StandaloneTimesliceMerger::createMergedTimeslice(std::vector<std::unique_pt
             // Load the event data from this source
             data_source->loadEvent(data_source->getCurrentEntryIndex());
             
-            // Process MCParticles - use move semantics to avoid copying
-            auto& processed_particles = data_source->processMCParticles(particle_index_offset,
-                                                                       m_config.time_slice_duration,
-                                                                       m_config.bunch_crossing_period,
-                                                                       gen,totalEventsConsumed);
+            // Calculate time offset for this event (used by all collections with time fields)
+            data_source->calculateTimeOffsetForEvent("MCParticles",
+                                                    m_config.time_slice_duration,
+                                                    m_config.bunch_crossing_period,
+                                                    gen);
+            float time_offset = data_source->getCurrentTimeOffset();
+            
+            // Process MCParticles using generic method
+            auto& processed_particles = data_source->getProcessedCollection<edm4hep::MCParticleData>(
+                "MCParticles", particle_index_offset, time_offset, totalEventsConsumed);
             merged_collections_.mcparticles.insert(merged_collections_.mcparticles.end(), 
                                                   std::make_move_iterator(processed_particles.begin()), 
                                                   std::make_move_iterator(processed_particles.end()));
             
-            // Process MCParticle references - use move semantics
-            std::string parent_ref_branch_name = "_MCParticles_parents";
-            auto& processed_parents = data_source->processObjectID(parent_ref_branch_name, particle_index_offset,totalEventsConsumed);
-            merged_collections_.mcparticle_parents_refs.insert(merged_collections_.mcparticle_parents_refs.end(),
-                                                              std::make_move_iterator(processed_parents.begin()), 
-                                                              std::make_move_iterator(processed_parents.end()));
-
-            std::string children_ref_branch_name = "_MCParticles_daughters";
-            auto& processed_children = data_source->processObjectID(children_ref_branch_name, particle_index_offset,totalEventsConsumed);
-            merged_collections_.mcparticle_children_refs.insert(merged_collections_.mcparticle_children_refs.end(),
-                                                               std::make_move_iterator(processed_children.begin()), 
-                                                               std::make_move_iterator(processed_children.end()));
+            // Process MCParticle references using relationship mapper
+            if (relationship_mapper_->hasRelationships("MCParticles")) {
+                auto rel_branches = relationship_mapper_->getRelationshipBranches("MCParticles");
+                for (const auto& branch_name : rel_branches) {
+                    auto& processed_refs = data_source->processObjectID(branch_name, particle_index_offset, totalEventsConsumed);
+                    
+                    // Determine which collection to insert into based on relationship name
+                    if (branch_name.find("_parents") != std::string::npos) {
+                        merged_collections_.mcparticle_parents_refs.insert(merged_collections_.mcparticle_parents_refs.end(),
+                                                                          std::make_move_iterator(processed_refs.begin()), 
+                                                                          std::make_move_iterator(processed_refs.end()));
+                    } else if (branch_name.find("_daughters") != std::string::npos) {
+                        merged_collections_.mcparticle_children_refs.insert(merged_collections_.mcparticle_children_refs.end(),
+                                                                           std::make_move_iterator(processed_refs.begin()), 
+                                                                           std::make_move_iterator(processed_refs.end()));
+                    }
+                }
+            }
             
             // Process SubEventHeaders for non-merged sources to track which MCParticles came from this source
             if (!config.already_merged) {
@@ -231,86 +251,112 @@ void StandaloneTimesliceMerger::createMergedTimeslice(std::vector<std::unique_pt
                 //           << ", particle_offset=" << static_cast<size_t>(sub_header.weight) << std::endl;
             } else {
                 // For already merged sources, try to process existing SubEventHeaders if available
-                auto& existing_sub_headers = data_source->processEventHeaders("SubEventHeaders");
-                for (auto& sub_header : existing_sub_headers) {
-                    // Adjust the weight (particle index) to account for the current offset
-                    float original_offset = sub_header.weight;
-                    sub_header.weight += static_cast<float>(particle_index_offset);
-                    merged_collections_.sub_event_headers.push_back(sub_header);
-                    merged_collections_.sub_event_header_weights.push_back(sub_header.weight);
+                void* sub_header_data = data_source->getBranchData("SubEventHeaders");
+                if (sub_header_data) {
+                    auto& existing_sub_headers = *static_cast<std::vector<edm4hep::EventHeaderData>*>(sub_header_data);
+                    for (auto& sub_header : existing_sub_headers) {
+                        // Adjust the weight (particle index) to account for the current offset
+                        float original_offset = sub_header.weight;
+                        sub_header.weight += static_cast<float>(particle_index_offset);
+                        merged_collections_.sub_event_headers.push_back(sub_header);
+                        merged_collections_.sub_event_header_weights.push_back(sub_header.weight);
 
-                    std::cout << "Processed existing SubEventHeader: event=" << sub_header.eventNumber 
-                              << ", source=" << sub_header.runNumber 
-                              << ", original_offset=" << static_cast<size_t>(original_offset)
-                              << ", new_offset=" << static_cast<size_t>(sub_header.weight) << std::endl;
+                        std::cout << "Processed existing SubEventHeader: event=" << sub_header.eventNumber 
+                                  << ", source=" << sub_header.runNumber 
+                                  << ", original_offset=" << static_cast<size_t>(original_offset)
+                                  << ", new_offset=" << static_cast<size_t>(sub_header.weight) << std::endl;
+                    }
                 }
             }
             
-            // Process tracker hits - use move semantics to avoid copying
-            for (const auto& name : tracker_collection_names_) {
-                auto& processed_hits = data_source->processTrackerHits(name, particle_index_offset,totalEventsConsumed);
+            // Process tracker hits using generic method
+            for (const auto& name : relationship_mapper_->getCollectionsByType("SimTrackerHit")) {
+                auto& processed_hits = data_source->getProcessedCollection<edm4hep::SimTrackerHitData>(
+                    name, particle_index_offset, time_offset, totalEventsConsumed);
                 merged_collections_.tracker_hits[name].insert(merged_collections_.tracker_hits[name].end(),
                                                              std::make_move_iterator(processed_hits.begin()), 
                                                              std::make_move_iterator(processed_hits.end()));
 
-                std::string ref_branch_name = "_" + name + "_particle";
-                auto& processed_refs = data_source->processObjectID(ref_branch_name, particle_index_offset,totalEventsConsumed);
-                merged_collections_.tracker_hit_particle_refs[name].insert(merged_collections_.tracker_hit_particle_refs[name].end(),
-                                                                          std::make_move_iterator(processed_refs.begin()), 
-                                                                          std::make_move_iterator(processed_refs.end()));
+                // Process relationship branches dynamically
+                if (relationship_mapper_->hasRelationships(name)) {
+                    auto rel_branches = relationship_mapper_->getRelationshipBranches(name);
+                    for (const auto& branch_name : rel_branches) {
+                        auto& processed_refs = data_source->processObjectID(branch_name, particle_index_offset,totalEventsConsumed);
+                        merged_collections_.tracker_hit_particle_refs[name].insert(merged_collections_.tracker_hit_particle_refs[name].end(),
+                                                                                  std::make_move_iterator(processed_refs.begin()), 
+                                                                                  std::make_move_iterator(processed_refs.end()));
+                    }
+                }
             }
             
-            // Process calorimeter hits - use move semantics to avoid copying
-            for (const auto& name : calo_collection_names_) {
+            // Process calorimeter hits using generic method
+            for (const auto& name : relationship_mapper_->getCollectionsByType("SimCalorimeterHit")) {
                 size_t existing_contrib_size = merged_collections_.calo_contributions[name].size();
 
-                auto& processed_hits = data_source->processCaloHits(name, existing_contrib_size,totalEventsConsumed);
+                // Process calo hits (index ranges for contributions will be updated)
+                auto& processed_hits = data_source->getProcessedCollection<edm4hep::SimCalorimeterHitData>(
+                    name, existing_contrib_size, time_offset, totalEventsConsumed);
                 merged_collections_.calo_hits[name].insert(merged_collections_.calo_hits[name].end(),
                                                           std::make_move_iterator(processed_hits.begin()), 
                                                           std::make_move_iterator(processed_hits.end()));
                 
-                std::string ref_branch_name = "_" + name + "_contributions";
-                auto& processed_contrib_refs = data_source->processObjectID(ref_branch_name, existing_contrib_size,totalEventsConsumed);
-                merged_collections_.calo_hit_contributions_refs[name].insert(merged_collections_.calo_hit_contributions_refs[name].end(),
-                                                                            std::make_move_iterator(processed_contrib_refs.begin()), 
-                                                                            std::make_move_iterator(processed_contrib_refs.end()));
+                // Process calo hit contribution references
+                if (relationship_mapper_->hasRelationships(name)) {
+                    auto rel_branches = relationship_mapper_->getRelationshipBranches(name);
+                    for (const auto& branch_name : rel_branches) {
+                        if (branch_name.find("_contributions") != std::string::npos) {
+                            auto& processed_contrib_refs = data_source->processObjectID(branch_name, existing_contrib_size,totalEventsConsumed);
+                            merged_collections_.calo_hit_contributions_refs[name].insert(merged_collections_.calo_hit_contributions_refs[name].end(),
+                                                                                        std::make_move_iterator(processed_contrib_refs.begin()), 
+                                                                                        std::make_move_iterator(processed_contrib_refs.end()));
+                        }
+                    }
+                }
                 
-                // Process contributions
-                std::string contrib_branch_name = name + "Contributions";
-                auto& processed_contribs = data_source->processCaloContributions(contrib_branch_name, particle_index_offset,totalEventsConsumed);
-                merged_collections_.calo_contributions[name].insert(merged_collections_.calo_contributions[name].end(),
-                                                                   std::make_move_iterator(processed_contribs.begin()), 
-                                                                   std::make_move_iterator(processed_contribs.end()));
-                
-                std::string ref_branch_name_contrib = "_" + contrib_branch_name + "_particle";
-                auto& processed_contrib_particle_refs = data_source->processObjectID(ref_branch_name_contrib, particle_index_offset,totalEventsConsumed);
-                merged_collections_.calo_contrib_particle_refs[name].insert(merged_collections_.calo_contrib_particle_refs[name].end(),
-                                                                           std::make_move_iterator(processed_contrib_particle_refs.begin()), 
-                                                                           std::make_move_iterator(processed_contrib_particle_refs.end()));
+                // Process contribution data - use mapper to find contribution collection
+                std::string contrib_branch_name = relationship_mapper_->getContributionCollection(name);
+                if (!contrib_branch_name.empty()) {
+                    auto& processed_contribs = data_source->getProcessedCollection<edm4hep::CaloHitContributionData>(
+                        contrib_branch_name, particle_index_offset, time_offset, totalEventsConsumed);
+                    merged_collections_.calo_contributions[name].insert(merged_collections_.calo_contributions[name].end(),
+                                                                       std::make_move_iterator(processed_contribs.begin()), 
+                                                                       std::make_move_iterator(processed_contribs.end()));
+                    
+                    // Process contribution particle references
+                    if (relationship_mapper_->hasRelationships(contrib_branch_name)) {
+                        auto rel_branches = relationship_mapper_->getRelationshipBranches(contrib_branch_name);
+                        for (const auto& branch_name : rel_branches) {
+                            auto& processed_contrib_particle_refs = data_source->processObjectID(branch_name, particle_index_offset,totalEventsConsumed);
+                            merged_collections_.calo_contrib_particle_refs[name].insert(merged_collections_.calo_contrib_particle_refs[name].end(),
+                                                                                       std::make_move_iterator(processed_contrib_particle_refs.begin()), 
+                                                                                       std::make_move_iterator(processed_contrib_particle_refs.end()));
+                        }
+                    }
+                }
             }
             
             // Process GP (Global Parameter) branches from all source events
-            // Process GP key branches - append from each event
+            // GP branches don't need processing - just copy the data as-is
             for (const auto& name : gp_collection_names_) {
-                auto& gp_keys = data_source->processGPBranch(name);
+                auto& gp_keys = data_source->getBranchDataTyped<std::string>(name);
                 merged_collections_.gp_key_branches[name].insert(merged_collections_.gp_key_branches[name].end(),
                                                                     std::make_move_iterator(gp_keys.begin()), std::make_move_iterator(gp_keys.end()));
             }
 
-            // Process GP value branches - append from each event
-            auto& gp_int_values = data_source->processGPIntValues();
+            // Process GP value branches - just copy, no processing needed
+            auto& gp_int_values = data_source->getBranchDataTyped<std::vector<int>>("GPIntValues");
             merged_collections_.gp_int_values.insert(merged_collections_.gp_int_values.end(),
                 std::make_move_iterator(gp_int_values.begin()), std::make_move_iterator(gp_int_values.end()));
 
-            auto& gp_float_values = data_source->processGPFloatValues();
+            auto& gp_float_values = data_source->getBranchDataTyped<std::vector<float>>("GPFloatValues");
             merged_collections_.gp_float_values.insert(merged_collections_.gp_float_values.end(),
                 std::make_move_iterator(gp_float_values.begin()), std::make_move_iterator(gp_float_values.end()));
 
-            auto& gp_double_values = data_source->processGPDoubleValues();
+            auto& gp_double_values = data_source->getBranchDataTyped<std::vector<double>>("GPDoubleValues");
             merged_collections_.gp_double_values.insert(merged_collections_.gp_double_values.end(),
                 std::make_move_iterator(gp_double_values.begin()), std::make_move_iterator(gp_double_values.end()));
 
-            auto& gp_string_values = data_source->processGPStringValues();
+            auto& gp_string_values = data_source->getBranchDataTyped<std::vector<std::string>>("GPStringValues");
             merged_collections_.gp_string_values.insert(merged_collections_.gp_string_values.end(),
                 std::make_move_iterator(gp_string_values.begin()), std::make_move_iterator(gp_string_values.end()));
 
@@ -342,25 +388,57 @@ void StandaloneTimesliceMerger::setupOutputTree(TTree* tree) {
     auto subEventHeaderBranch = tree->Branch("SubEventHeaders", &merged_collections_.sub_event_headers);
     auto subEventHeaderWeightsBranch = tree->Branch("_SubEventHeader_weights", &merged_collections_.sub_event_header_weights);
     auto mcParticlesBranch = tree->Branch("MCParticles", &merged_collections_.mcparticles);
-    auto mcDaughtersBranch = tree->Branch("_MCParticles_daughters", &merged_collections_.mcparticle_children_refs);
-    auto mcParentsBranch = tree->Branch("_MCParticles_parents", &merged_collections_.mcparticle_parents_refs);
+    
+    // Use relationship mapper to create MCParticle relationship branches dynamically
+    if (relationship_mapper_->hasRelationships("MCParticles")) {
+        auto rel_branches = relationship_mapper_->getRelationshipBranches("MCParticles");
+        for (const auto& branch_name : rel_branches) {
+            if (branch_name.find("_daughters") != std::string::npos) {
+                auto mcDaughtersBranch = tree->Branch(branch_name.c_str(), &merged_collections_.mcparticle_children_refs);
+            } else if (branch_name.find("_parents") != std::string::npos) {
+                auto mcParentsBranch = tree->Branch(branch_name.c_str(), &merged_collections_.mcparticle_parents_refs);
+            }
+        }
+    }
 
     // Tracker collections and their references
-    for (const auto& name : tracker_collection_names_) {
+    for (const auto& name : relationship_mapper_->getCollectionsByType("SimTrackerHit")) {
         auto trackerBranch = tree->Branch(name.c_str(), &merged_collections_.tracker_hits[name]);        
-        std::string ref_name = "_" + name + "_particle";
-        auto trackerRefBranch = tree->Branch(ref_name.c_str(), &merged_collections_.tracker_hit_particle_refs[name]);
+        
+        // Use relationship mapper to create tracker relationship branches dynamically
+        if (relationship_mapper_->hasRelationships(name)) {
+            auto rel_branches = relationship_mapper_->getRelationshipBranches(name);
+            for (const auto& branch_name : rel_branches) {
+                auto trackerRefBranch = tree->Branch(branch_name.c_str(), &merged_collections_.tracker_hit_particle_refs[name]);
+            }
+        }
     }
 
     // Calorimeter collections and their references
-    for (const auto& name : calo_collection_names_) {
+    for (const auto& name : relationship_mapper_->getCollectionsByType("SimCalorimeterHit")) {
         auto caloBranch = tree->Branch(name.c_str(), &merged_collections_.calo_hits[name]);        
-        std::string ref_name = "_" + name + "_contributions";
-        auto caloRefBranch = tree->Branch(ref_name.c_str(), &merged_collections_.calo_hit_contributions_refs[name]);        
-        std::string contrib_name = name + "Contributions";
-        auto contribBranch = tree->Branch(contrib_name.c_str(), &merged_collections_.calo_contributions[name]);        
-        std::string ref_name_contrib = "_" + contrib_name + "_particle";
-        auto contribRefBranch = tree->Branch(ref_name_contrib.c_str(), &merged_collections_.calo_contrib_particle_refs[name]);
+        
+        // Use relationship mapper for calo hit relationship branches
+        if (relationship_mapper_->hasRelationships(name)) {
+            auto rel_branches = relationship_mapper_->getRelationshipBranches(name);
+            for (const auto& branch_name : rel_branches) {
+                auto caloRefBranch = tree->Branch(branch_name.c_str(), &merged_collections_.calo_hit_contributions_refs[name]);
+            }
+        }
+        
+        // Use mapper to find contribution collection
+        std::string contrib_name = relationship_mapper_->getContributionCollection(name);
+        if (!contrib_name.empty()) {
+            auto contribBranch = tree->Branch(contrib_name.c_str(), &merged_collections_.calo_contributions[name]);        
+            
+            // Use relationship mapper for contribution particle references
+            if (relationship_mapper_->hasRelationships(contrib_name)) {
+                auto rel_branches = relationship_mapper_->getRelationshipBranches(contrib_name);
+                for (const auto& branch_name : rel_branches) {
+                    auto contribRefBranch = tree->Branch(branch_name.c_str(), &merged_collections_.calo_contrib_particle_refs[name]);
+                }
+            }
+        }
     }
     
     // GP (Global Parameter) branches - keys and values
@@ -576,20 +654,6 @@ void StandaloneTimesliceMerger::copyPodioMetadata(std::vector<std::unique_ptr<Da
         
         source_file->Close();
     }
-}
-
-std::string StandaloneTimesliceMerger::getCorrespondingContributionCollection(const std::string& calo_collection_name) const {
-    // Add "Contributions" suffix to get the contribution collection name
-    return calo_collection_name + "Contributions";
-}
-
-std::string StandaloneTimesliceMerger::getCorrespondingCaloCollection(const std::string& contrib_collection_name) const {
-    // Remove "Contributions" suffix if present
-    std::string base = contrib_collection_name;
-    if (base.length() > 13 && base.substr(base.length() - 13) == "Contributions") {
-        base = base.substr(0, base.length() - 13);
-    }
-    return base;
 }
 
 void StandaloneTimesliceMerger::copyAndUpdatePodioMetadataTree(TTree* source_metadata_tree, TFile* output_file) {

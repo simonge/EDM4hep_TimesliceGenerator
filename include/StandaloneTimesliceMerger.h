@@ -2,6 +2,7 @@
 
 #include "StandaloneMergerConfig.h"
 #include "DataSource.h"
+#include "BranchRelationshipMapper.h"
 #include <edm4hep/MCParticleData.h>
 #include <edm4hep/SimTrackerHitData.h>
 #include <edm4hep/SimCalorimeterHitData.h>
@@ -70,13 +71,13 @@ private:
     MergedCollections merged_collections_;
 
     // Collection names discovered from first source
-    std::vector<std::string> tracker_collection_names_;
-    std::vector<std::string> calo_collection_names_;
-    std::vector<std::string> calo_contrib_collection_names_;
     std::vector<std::string> gp_collection_names_;
 
     // Data sources
     std::vector<std::unique_ptr<DataSource>> data_sources_;
+    
+    // Branch relationship mapper for automatic discovery
+    std::unique_ptr<BranchRelationshipMapper> relationship_mapper_;
 
     // Core functionality methods
     std::vector<std::unique_ptr<DataSource>> initializeDataSources();
@@ -90,8 +91,4 @@ private:
     std::vector<std::string> discoverGPBranches(DataSource& source);
     void copyPodioMetadata(std::vector<std::unique_ptr<DataSource>>& sources, std::unique_ptr<TFile>& output_file);
     void copyAndUpdatePodioMetadataTree(TTree* source_metadata_tree, TFile* output_file);
-    
-    // Utility methods for collection name mapping
-    std::string getCorrespondingContributionCollection(const std::string& calo_collection_name) const;
-    std::string getCorrespondingCaloCollection(const std::string& contrib_collection_name) const;
 };

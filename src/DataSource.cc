@@ -8,16 +8,10 @@
 DataSource::DataSource(const SourceConfig& config, size_t source_index)
     : config_(&config)
     , source_index_(source_index)
+    , relationship_mapper_(nullptr)
     , total_entries_(0)
     , current_entry_index_(0)
     , entries_needed_(1)
-    , tracker_collection_names_(nullptr)
-    , calo_collection_names_(nullptr)
-    , mcparticle_branch_(nullptr)
-    , gp_int_branch_(nullptr)
-    , gp_float_branch_(nullptr)
-    , gp_double_branch_(nullptr)
-    , gp_string_branch_(nullptr)
 {
 }
 
@@ -25,13 +19,9 @@ DataSource::~DataSource() {
     cleanup();
 }
 
-void DataSource::initialize(const std::vector<std::string>& tracker_collections,
-                           const std::vector<std::string>& calo_collections,
-                           const std::vector<std::string>& gp_collections) {
-    // Store references to collection names
-    tracker_collection_names_ = &tracker_collections;
-    calo_collection_names_ = &calo_collections;
-    gp_collection_names_ = &gp_collections;
+void DataSource::initialize(const BranchRelationshipMapper* relationship_mapper) {
+    // Store reference to relationship mapper
+    relationship_mapper_ = relationship_mapper;
     
     if (!config_->input_files.empty()) {
         try {
@@ -118,6 +108,83 @@ void DataSource::loadEvent(size_t event_index) {
     
 }
 
+void* DataSource::processCollection(const std::string& collection_name, 
+                                    size_t index_offset,
+                                    float time_offset,
+                                    int totalEventsConsumed) {
+    // Get the branch data
+    auto it = generic_branches_.find(collection_name);
+    if (it == generic_branches_.end()) {
+        std::cerr << "Warning: Collection " << collection_name << " not found in generic branches" << std::endl;
+        return nullptr;
+    }
+    
+    void* branch_ptr = it->second;
+    
+    // If first event and already merged, skip updating
+    if (totalEventsConsumed == 0 && config_->already_merged) {
+        return branch_ptr;
+    }
+    
+    // Get collection metadata from relationship mapper
+    if (!relationship_mapper_) {
+        return branch_ptr;
+    }
+    
+    auto coll_info = relationship_mapper_->getCollectionRelationships(collection_name);
+    
+    // Cast and process based on type
+    if (coll_info.isType("MCParticleData")) {
+        auto* particles = static_cast<std::vector<edm4hep::MCParticleData>*>(branch_ptr);
+        for (auto& particle : *particles) {
+            if (coll_info.has_time_field) {
+                particle.time += time_offset;
+            }
+            if (coll_info.has_index_ranges) {
+                particle.parents_begin += index_offset;
+                particle.parents_end += index_offset;
+                particle.daughters_begin += index_offset;
+                particle.daughters_end += index_offset;
+            }
+            if (!config_->already_merged) {
+                particle.generatorStatus += config_->generator_status_offset;
+            }
+        }
+    } else if (coll_info.isType("SimTrackerHitData")) {
+        auto* hits = static_cast<std::vector<edm4hep::SimTrackerHitData>*>(branch_ptr);
+        if (coll_info.has_time_field && !config_->already_merged) {
+            for (auto& hit : *hits) {
+                hit.time += time_offset;
+            }
+        }
+    } else if (coll_info.isType("SimCalorimeterHitData")) {
+        auto* hits = static_cast<std::vector<edm4hep::SimCalorimeterHitData>*>(branch_ptr);
+        if (coll_info.has_index_ranges) {
+            for (auto& hit : *hits) {
+                hit.contributions_begin += index_offset;
+                hit.contributions_end += index_offset;
+            }
+        }
+    } else if (coll_info.isType("CaloHitContributionData")) {
+        auto* contribs = static_cast<std::vector<edm4hep::CaloHitContributionData>*>(branch_ptr);
+        if (coll_info.has_time_field && !config_->already_merged) {
+            for (auto& contrib : *contribs) {
+                contrib.time += time_offset;
+            }
+        }
+    }
+    
+    return branch_ptr;
+}
+
+void* DataSource::getBranchData(const std::string& branch_name) {
+    auto it = generic_branches_.find(branch_name);
+    if (it != generic_branches_.end()) {
+        return it->second;
+    }
+    return nullptr;
+}
+
 std::vector<podio::ObjectID>& DataSource::processObjectID(const std::string& branch_name, size_t index_offset, int totalEventsConsumed) {
     
     //If first event and already merged, skip updating references
@@ -133,284 +200,186 @@ std::vector<podio::ObjectID>& DataSource::processObjectID(const std::string& bra
     return *objectid_branches_[branch_name];
 }
 
-std::vector<edm4hep::MCParticleData>& DataSource::processMCParticles(size_t particle_index_offset,
-                                                                   float time_slice_duration,
-                                                                   float bunch_crossing_period,
-                                                                   std::mt19937& rng,
-                                                                   int totalEventsConsumed) {
-
-    auto& particles = *mcparticle_branch_;
-
-    if (totalEventsConsumed == 0 && config_->already_merged) {
-        return particles;
-    }
-
+void DataSource::calculateTimeOffsetForEvent(const std::string& mcparticle_collection,
+                                             float time_slice_duration,
+                                             float bunch_crossing_period,
+                                             std::mt19937& rng) {
     float distance = 0.0f;
     
     // Calculate time offset if not already merged
     if (!config_->already_merged) {
-        if (config_->attach_to_beam && !particles.empty()) {
-            distance = calculateBeamDistance(particles);
+        // Get MCParticle data to calculate beam distance if needed
+        if (config_->attach_to_beam) {
+            void* mc_branch = getBranchData(mcparticle_collection);
+            if (mc_branch) {
+                auto* particles = static_cast<std::vector<edm4hep::MCParticleData>*>(mc_branch);
+                if (!particles->empty()) {
+                    distance = calculateBeamDistance(*particles);
+                }
+            }
         }
         current_time_offset_ = generateTimeOffset(distance, time_slice_duration, bunch_crossing_period, rng);
     } else {
         current_time_offset_ = 0.0f;
     }
-    
-    // Work directly on the branch data
-    for (auto& particle : particles) {
-        if (!config_->already_merged) {
-            particle.time += current_time_offset_;
-            // Update generator status offset
-            particle.generatorStatus += config_->generator_status_offset;
-        }
-        // Update index ranges for parent-child relationships
-        particle.parents_begin   += particle_index_offset;
-        particle.parents_end     += particle_index_offset;
-        particle.daughters_begin += particle_index_offset;
-        particle.daughters_end   += particle_index_offset;        
-    }
-    
-    return particles; // Return reference to the branch data itself
-}
-
-
-std::vector<edm4hep::SimTrackerHitData>& DataSource::processTrackerHits(const std::string& collection_name,
-                                                                       size_t particle_index_offset,
-                                                                       int totalEventsConsumed) {
-                                                        
-    if(totalEventsConsumed == 0 && config_->already_merged) {
-        return *tracker_hit_branches_[collection_name];
-    }
-
-    // Apply index offset to particle references in hits
-    if (!config_->already_merged) {
-        for (auto& hit : *tracker_hit_branches_[collection_name]) {// Apply time offset if not already merged
-            hit.time += current_time_offset_;
-        }
-    }
-
-    return *tracker_hit_branches_[collection_name]; // Return reference to the branch data itself
-}
-
-
-std::vector<edm4hep::SimCalorimeterHitData>& DataSource::processCaloHits(const std::string& collection_name,
-                                                                        size_t contribution_index_offset,
-                                                                        int totalEventsConsumed) {
-
-    if(totalEventsConsumed == 0 && config_->already_merged) {
-        return *calo_hit_branches_[collection_name];
-    }
-
-    auto& hits = *calo_hit_branches_[collection_name];
-
-    for (auto& hit : hits) {
-        hit.contributions_begin += contribution_index_offset;
-        hit.contributions_end += contribution_index_offset;
-    }
-    
-    return hits; // Return reference to the branch data itself
-}
-
-std::vector<edm4hep::CaloHitContributionData>& DataSource::processCaloContributions(const std::string& collection_name,
-                                                                                   size_t particle_index_offset,
-                                                                                   int totalEventsConsumed) {
-
-    auto& contribs = *calo_contrib_branches_[collection_name];
-
-    if(totalEventsConsumed == 0 && config_->already_merged) {
-        return contribs;
-    }
-    
-    // Apply time offset if not already merged - work directly on branch data
-    if (!config_->already_merged) {
-        for (auto& contrib : contribs) {
-            contrib.time += current_time_offset_;
-        }
-    }
-    
-    return contribs; // Return reference to the branch data itself
-}
-
-std::vector<edm4hep::EventHeaderData>& DataSource::processEventHeaders(const std::string& collection_name) {
-    // Check if the collection exists in our event header branches
-    if (event_header_branches_.find(collection_name) == event_header_branches_.end()) {
-        // Collection not found, return empty vector
-        static std::vector<edm4hep::EventHeaderData> empty_headers;
-        empty_headers.clear();
-        return empty_headers;
-    }
-    
-    // Get the current event headers
-    auto* headers = event_header_branches_[collection_name];
-    if (!headers) {
-        static std::vector<edm4hep::EventHeaderData> empty_headers;
-        empty_headers.clear();
-        return empty_headers;
-    }
-    
-    // Return reference to the branch data itself - no processing needed for headers
-    return *headers;
 }
 
 void DataSource::setupBranches() {
     std::cout << "=== Setting up branches for source " << source_index_ << " ===" << std::endl;
     
-    setupMCParticleBranches();
-    setupTrackerBranches();
-    setupCalorimeterBranches();
-    setupEventHeaderBranches();
-    setupGPBranches();
+    setupGenericBranches();  // Now includes GP branches
+    setupRelationshipBranches();
     
     std::cout << "=== Branch setup complete ===" << std::endl;
 }
 
-void DataSource::setupMCParticleBranches() {
-    // Setup MCParticles branch
-    mcparticle_branch_ = new std::vector<edm4hep::MCParticleData>();
-    int result = chain_->SetBranchAddress("MCParticles", &mcparticle_branch_);
-
-    // Setup MCParticle parent-child relationship branches using consolidated map
-    std::string parents_branch_name = "_MCParticles_parents";
-    std::string children_branch_name = "_MCParticles_daughters";
+void DataSource::setupGenericBranches() {
+    if (!relationship_mapper_) {
+        std::cerr << "Warning: No relationship mapper available for generic branch setup" << std::endl;
+        return;
+    }
     
-    objectid_branches_[parents_branch_name] = new std::vector<podio::ObjectID>();
-    objectid_branches_[children_branch_name] = new std::vector<podio::ObjectID>();
+    // Get all discovered collections
+    auto all_collections = relationship_mapper_->getAllCollectionNames();
     
-    result = chain_->SetBranchAddress(parents_branch_name.c_str(), &objectid_branches_[parents_branch_name]);
-    result = chain_->SetBranchAddress(children_branch_name.c_str(), &objectid_branches_[children_branch_name]);
-}
-
-void DataSource::setupTrackerBranches() {
-    for (const auto& coll_name : *tracker_collection_names_) {
-        tracker_hit_branches_[coll_name] = new std::vector<edm4hep::SimTrackerHitData>();
-        int result = chain_->SetBranchAddress(coll_name.c_str(), &tracker_hit_branches_[coll_name]);
+    for (const auto& coll_name : all_collections) {
+        auto coll_info = relationship_mapper_->getCollectionRelationships(coll_name);
         
-        // Also setup the particle reference branch using consolidated map
-        std::string ref_branch_name = "_" + coll_name + "_particle";  
-        objectid_branches_[ref_branch_name] = new std::vector<podio::ObjectID>();
-        result = chain_->SetBranchAddress(ref_branch_name.c_str(), &objectid_branches_[ref_branch_name]);
-    }
-}
-
-void DataSource::setupCalorimeterBranches() {
-    // Setup calorimeter hit branches
-    for (const auto& coll_name : *calo_collection_names_) {
-        calo_hit_branches_[coll_name] = new std::vector<edm4hep::SimCalorimeterHitData>();
-        int result = chain_->SetBranchAddress(coll_name.c_str(), &calo_hit_branches_[coll_name]);
+        // Allocate appropriate vector type based on data type
+        void* branch_ptr = nullptr;
         
-        // Also setup the contributions reference branch using consolidated map
-        std::string contrib_link_branch_name = "_" + coll_name + "_contributions";
-        objectid_branches_[contrib_link_branch_name] = new std::vector<podio::ObjectID>();
-        result = chain_->SetBranchAddress(contrib_link_branch_name.c_str(), &objectid_branches_[contrib_link_branch_name]);
+        if (coll_info.isType("MCParticleData")) {
+            branch_ptr = new std::vector<edm4hep::MCParticleData>();
+        } else if (coll_info.isType("SimTrackerHitData")) {
+            branch_ptr = new std::vector<edm4hep::SimTrackerHitData>();
+        } else if (coll_info.isType("SimCalorimeterHitData")) {
+            branch_ptr = new std::vector<edm4hep::SimCalorimeterHitData>();
+        } else if (coll_info.isType("CaloHitContributionData")) {
+            branch_ptr = new std::vector<edm4hep::CaloHitContributionData>();
+        } else if (coll_info.isType("EventHeaderData")) {
+            branch_ptr = new std::vector<edm4hep::EventHeaderData>();
+        } else {
+            // Unknown type, skip
+            continue;
+        }
         
-        std::string contrib_branch_name = coll_name + "Contributions";
-        calo_contrib_branches_[contrib_branch_name] = new std::vector<edm4hep::CaloHitContributionData>();
-        result = chain_->SetBranchAddress(contrib_branch_name.c_str(), &calo_contrib_branches_[contrib_branch_name]);
+        generic_branches_[coll_name] = branch_ptr;
+        int result = chain_->SetBranchAddress(coll_name.c_str(), branch_ptr);
         
-        // Also setup the particle reference branch using consolidated map
-        std::string ref_branch_name = "_" + contrib_branch_name + "_particle";  
-        objectid_branches_[ref_branch_name] = new std::vector<podio::ObjectID>();
-        result = chain_->SetBranchAddress(ref_branch_name.c_str(), &objectid_branches_[ref_branch_name]);
+        std::cout << "  Set up generic branch: " << coll_name << " (type: " << coll_info.data_type << ")" << std::endl;
+    }
+    
+    // Setup GP (Global Parameter) branches
+    // GP value branches - these hold the actual values
+    generic_branches_["GPIntValues"] = new std::vector<std::vector<int>>();
+    generic_branches_["GPFloatValues"] = new std::vector<std::vector<float>>();
+    generic_branches_["GPDoubleValues"] = new std::vector<std::vector<double>>();
+    generic_branches_["GPStringValues"] = new std::vector<std::vector<std::string>>();
+    
+    chain_->SetBranchAddress("GPIntValues", generic_branches_["GPIntValues"]);    
+    chain_->SetBranchAddress("GPFloatValues", generic_branches_["GPFloatValues"]);
+    chain_->SetBranchAddress("GPDoubleValues", generic_branches_["GPDoubleValues"]);    
+    chain_->SetBranchAddress("GPStringValues", generic_branches_["GPStringValues"]);
+    
+    // GP key branches - these hold the parameter names
+    auto gp_branches = relationship_mapper_->getGPBranches();
+    for (const auto& branch_name : gp_branches) {
+        generic_branches_[branch_name] = new std::vector<std::string>();
+        chain_->SetBranchAddress(branch_name.c_str(), generic_branches_[branch_name]);
+        std::cout << "  Set up GP branch: " << branch_name << std::endl;
     }
 }
 
-void DataSource::setupEventHeaderBranches() {
-    // Setup EventHeader if available
-    std::vector<std::string> header_collections = {"EventHeader"};
-    
-    // Only add SubEventHeaders for non-merged sources (where they aren't already present)
-    if (!config_->already_merged) {
-        header_collections.push_back("SubEventHeaders");
+void DataSource::setupRelationshipBranches() {
+    if (!relationship_mapper_) {
+        std::cerr << "Warning: No relationship mapper available for relationship branch setup" << std::endl;
+        return;
     }
     
-    for (const auto& coll_name : header_collections) {
-        event_header_branches_[coll_name] = new std::vector<edm4hep::EventHeaderData>();
-        int result = chain_->SetBranchAddress(coll_name.c_str(), &event_header_branches_[coll_name]);
-        // Branch not available yet so returns 5
-        // if (result != 0) {
-        //     std::cout << "    ❌ Could not set branch address for " << coll_name << " (result: " << result << ")" << std::endl;
-        // } else {
-        //     std::cout << "    ✓ Successfully set up " << coll_name << std::endl;
-        // }
-    }
-}
-
-void DataSource::setupGPBranches() {
-    // Initialize GP value branch pointers
-    gp_int_branch_ = new std::vector<std::vector<int>>();
-    gp_float_branch_ = new std::vector<std::vector<float>>();
-    gp_double_branch_ = new std::vector<std::vector<double>>();
-    gp_string_branch_ = new std::vector<std::vector<std::string>>();
+    // Get all discovered collections
+    auto all_collections = relationship_mapper_->getAllCollectionNames();
     
-    // Setup the fixed GP value branches
-    int result = chain_->SetBranchAddress("GPIntValues", &gp_int_branch_);    
-    result = chain_->SetBranchAddress("GPFloatValues", &gp_float_branch_);
-    result = chain_->SetBranchAddress("GPDoubleValues", &gp_double_branch_);    
-    result = chain_->SetBranchAddress("GPStringValues", &gp_string_branch_);
-    
-    // Setup GP key branches
-    for (const auto& branch_name : *gp_collection_names_) {
-        gp_key_branches_[branch_name] = new std::vector<std::string>();
-        result = chain_->SetBranchAddress(branch_name.c_str(), &gp_key_branches_[branch_name]);
+    for (const auto& coll_name : all_collections) {
+        if (relationship_mapper_->hasRelationships(coll_name)) {
+            auto rel_branches = relationship_mapper_->getRelationshipBranches(coll_name);
+            for (const auto& branch_name : rel_branches) {
+                objectid_branches_[branch_name] = new std::vector<podio::ObjectID>();
+                int result = chain_->SetBranchAddress(branch_name.c_str(), &objectid_branches_[branch_name]);
+                std::cout << "  Set up relationship: " << branch_name << " for " << coll_name << std::endl;
+            }
+        }
     }
 }
 
-std::vector<std::string>& DataSource::processGPBranch(const std::string& branch_name) {
-    // GP key branches don't need any processing, just return the data as-is
-    // They contain global parameter keys that should be copied unchanged
-    return *gp_key_branches_[branch_name];
-}
 
-std::vector<std::vector<int>>& DataSource::processGPIntValues() {
-    // GP int values don't need any processing, just return the data as-is
-    return *gp_int_branch_;
-}
 
-std::vector<std::vector<float>>& DataSource::processGPFloatValues() {
-    // GP float values don't need any processing, just return the data as-is
-    return *gp_float_branch_;
-}
 
-std::vector<std::vector<double>>& DataSource::processGPDoubleValues() {
-    // GP double values don't need any processing, just return the data as-is
-    return *gp_double_branch_;
-}
-
-std::vector<std::vector<std::string>>& DataSource::processGPStringValues() {
-    // GP string values don't need any processing, just return the data as-is
-    return *gp_string_branch_;
-}
 
 void DataSource::cleanup() {
-    // Clean up dynamically allocated vectors
-    delete mcparticle_branch_;
+    // Clean up generic branches - need to cast and delete based on actual type
+    if (relationship_mapper_) {
+        auto all_collections = relationship_mapper_->getAllCollectionNames();
+        
+        for (const auto& coll_name : all_collections) {
+            auto it = generic_branches_.find(coll_name);
+            if (it != generic_branches_.end()) {
+                auto coll_info = relationship_mapper_->getCollectionRelationships(coll_name);
+                
+                // Delete based on actual type
+                if (coll_info.isType("MCParticleData")) {
+                    delete static_cast<std::vector<edm4hep::MCParticleData>*>(it->second);
+                } else if (coll_info.isType("SimTrackerHitData")) {
+                    delete static_cast<std::vector<edm4hep::SimTrackerHitData>*>(it->second);
+                } else if (coll_info.isType("SimCalorimeterHitData")) {
+                    delete static_cast<std::vector<edm4hep::SimCalorimeterHitData>*>(it->second);
+                } else if (coll_info.isType("CaloHitContributionData")) {
+                    delete static_cast<std::vector<edm4hep::CaloHitContributionData>*>(it->second);
+                } else if (coll_info.isType("EventHeaderData")) {
+                    delete static_cast<std::vector<edm4hep::EventHeaderData>*>(it->second);
+                }
+            }
+        }
+    }
     
-    for (auto& [name, ptr] : tracker_hit_branches_) {
-        delete ptr;
+    // Clean up GP value branches
+    auto gp_int = generic_branches_.find("GPIntValues");
+    if (gp_int != generic_branches_.end()) {
+        delete static_cast<std::vector<std::vector<int>>*>(gp_int->second);
     }
-    for (auto& [name, ptr] : calo_hit_branches_) {
-        delete ptr;
+    
+    auto gp_float = generic_branches_.find("GPFloatValues");
+    if (gp_float != generic_branches_.end()) {
+        delete static_cast<std::vector<std::vector<float>>*>(gp_float->second);
     }
-    for (auto& [name, ptr] : calo_contrib_branches_) {
-        delete ptr;
+    
+    auto gp_double = generic_branches_.find("GPDoubleValues");
+    if (gp_double != generic_branches_.end()) {
+        delete static_cast<std::vector<std::vector<double>>*>(gp_double->second);
     }
-    for (auto& [name, ptr] : event_header_branches_) {
-        delete ptr;
+    
+    auto gp_string = generic_branches_.find("GPStringValues");
+    if (gp_string != generic_branches_.end()) {
+        delete static_cast<std::vector<std::vector<std::string>>*>(gp_string->second);
     }
+    
+    // Clean up GP key branches
+    if (relationship_mapper_) {
+        auto gp_branches = relationship_mapper_->getGPBranches();
+        for (const auto& branch_name : gp_branches) {
+            auto it = generic_branches_.find(branch_name);
+            if (it != generic_branches_.end()) {
+                delete static_cast<std::vector<std::string>*>(it->second);
+            }
+        }
+    }
+    
+    generic_branches_.clear();
+    
+    // Clean up ObjectID branches
     for (auto& [name, ptr] : objectid_branches_) {
         delete ptr;
     }
-    for (auto& [name, ptr] : gp_key_branches_) {
-        delete ptr;
-    }
-    
-    // Clean up GP value branch pointers
-    delete gp_int_branch_;
-    delete gp_float_branch_;
-    delete gp_double_branch_;
-    delete gp_string_branch_;
-    
+    objectid_branches_.clear();
 }
 
 
@@ -441,12 +410,5 @@ void DataSource::printStatus() const {
     std::cout << "Current entry: " << current_entry_index_ << std::endl;
     std::cout << "Entries needed: " << entries_needed_ << std::endl;
     std::cout << "Initialized: " << (isInitialized() ? "Yes" : "No") << std::endl;
-    
-    if (tracker_collection_names_) {
-        std::cout << "Tracker collections: " << tracker_collection_names_->size() << std::endl;
-    }
-    if (calo_collection_names_) {
-        std::cout << "Calorimeter collections: " << calo_collection_names_->size() << std::endl;
-    }
     std::cout << "=========================" << std::endl;
 }

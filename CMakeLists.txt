@@ -25,6 +25,7 @@ include_directories(${ROOT_INCLUDE_DIRS})
 
 # Create the standalone executable
 add_executable(timeslice_merger
+    src/BranchRelationshipMapper.cc
     src/DataSource.cc
     src/StandaloneTimesliceMerger.cc
     src/timeslice_merger_main.cc
