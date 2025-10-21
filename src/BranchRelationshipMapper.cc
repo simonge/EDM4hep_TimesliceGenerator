@@ -45,7 +45,28 @@ void BranchRelationshipMapper::discoverRelationships(TChain* chain) {
             data_type.find("Data>") != std::string::npos) {
             // This is an object data branch
             object_branches.push_back(branch_name);
-            collection_map_[branch_name] = CollectionRelationships(branch_name, data_type);
+            CollectionRelationships coll_info(branch_name, data_type);
+            
+            // Determine if this collection type has a time field
+            // SimTrackerHit, SimCalorimeterHit, CaloHitContribution, MCParticle all have time
+            if (data_type.find("SimTrackerHitData") != std::string::npos ||
+                data_type.find("SimCalorimeterHitData") != std::string::npos ||
+                data_type.find("CaloHitContributionData") != std::string::npos ||
+                data_type.find("MCParticleData") != std::string::npos) {
+                coll_info.has_time_field = true;
+            }
+            
+            // MCParticle and some others have index range fields (parents_begin/end, daughters_begin/end, etc.)
+            if (data_type.find("MCParticleData") != std::string::npos) {
+                coll_info.has_index_ranges = true;
+            }
+            
+            // SimCalorimeterHit has contributions_begin/end
+            if (data_type.find("SimCalorimeterHitData") != std::string::npos) {
+                coll_info.has_index_ranges = true;
+            }
+            
+            collection_map_[branch_name] = coll_info;
             
             std::cout << "  Found collection: " << branch_name << " (type: " << data_type << ")" << std::endl;
         }

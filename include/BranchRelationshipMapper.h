@@ -29,10 +29,12 @@ struct CollectionRelationships {
     std::string collection_name;       // e.g., "MCParticles", "VertexBarrelHits"
     std::string data_type;            // e.g., "vector<edm4hep::MCParticleData>"
     std::vector<RelationshipInfo> relationships;  // All relationships for this collection
+    bool has_time_field;              // true if this collection type has a time field to update
+    bool has_index_ranges;            // true if objects have begin/end index ranges (e.g., parents_begin/end)
     
-    CollectionRelationships() = default;
+    CollectionRelationships() : has_time_field(false), has_index_ranges(false) {}
     CollectionRelationships(const std::string& name, const std::string& type) 
-        : collection_name(name), data_type(type) {}
+        : collection_name(name), data_type(type), has_time_field(false), has_index_ranges(false) {}
 };
 
 /**
