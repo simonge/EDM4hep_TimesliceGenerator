@@ -8,6 +8,7 @@
 DataSource::DataSource(const SourceConfig& config, size_t source_index)
     : config_(&config)
     , source_index_(source_index)
+    , relationship_mapper_(nullptr)
     , total_entries_(0)
     , current_entry_index_(0)
     , entries_needed_(1)
@@ -27,11 +28,13 @@ DataSource::~DataSource() {
 
 void DataSource::initialize(const std::vector<std::string>& tracker_collections,
                            const std::vector<std::string>& calo_collections,
-                           const std::vector<std::string>& gp_collections) {
-    // Store references to collection names
+                           const std::vector<std::string>& gp_collections,
+                           const BranchRelationshipMapper* relationship_mapper) {
+    // Store references to collection names and relationship mapper
     tracker_collection_names_ = &tracker_collections;
     calo_collection_names_ = &calo_collections;
     gp_collection_names_ = &gp_collections;
+    relationship_mapper_ = relationship_mapper;
     
     if (!config_->input_files.empty()) {
         try {
@@ -270,15 +273,26 @@ void DataSource::setupMCParticleBranches() {
     mcparticle_branch_ = new std::vector<edm4hep::MCParticleData>();
     int result = chain_->SetBranchAddress("MCParticles", &mcparticle_branch_);
 
-    // Setup MCParticle parent-child relationship branches using consolidated map
-    std::string parents_branch_name = "_MCParticles_parents";
-    std::string children_branch_name = "_MCParticles_daughters";
-    
-    objectid_branches_[parents_branch_name] = new std::vector<podio::ObjectID>();
-    objectid_branches_[children_branch_name] = new std::vector<podio::ObjectID>();
-    
-    result = chain_->SetBranchAddress(parents_branch_name.c_str(), &objectid_branches_[parents_branch_name]);
-    result = chain_->SetBranchAddress(children_branch_name.c_str(), &objectid_branches_[children_branch_name]);
+    // Use relationship mapper to discover MCParticle relationships dynamically
+    if (relationship_mapper_ && relationship_mapper_->hasRelationships("MCParticles")) {
+        auto rel_branches = relationship_mapper_->getRelationshipBranches("MCParticles");
+        for (const auto& branch_name : rel_branches) {
+            objectid_branches_[branch_name] = new std::vector<podio::ObjectID>();
+            result = chain_->SetBranchAddress(branch_name.c_str(), &objectid_branches_[branch_name]);
+            std::cout << "  Set up MCParticle relationship: " << branch_name << std::endl;
+        }
+    } else {
+        // Fallback to hardcoded names if mapper not available (for backward compatibility)
+        std::string parents_branch_name = "_MCParticles_parents";
+        std::string children_branch_name = "_MCParticles_daughters";
+        
+        objectid_branches_[parents_branch_name] = new std::vector<podio::ObjectID>();
+        objectid_branches_[children_branch_name] = new std::vector<podio::ObjectID>();
+        
+        result = chain_->SetBranchAddress(parents_branch_name.c_str(), &objectid_branches_[parents_branch_name]);
+        result = chain_->SetBranchAddress(children_branch_name.c_str(), &objectid_branches_[children_branch_name]);
+        std::cout << "  Warning: Using fallback hardcoded MCParticle relationships" << std::endl;
+    }
 }
 
 void DataSource::setupTrackerBranches() {
@@ -286,10 +300,20 @@ void DataSource::setupTrackerBranches() {
         tracker_hit_branches_[coll_name] = new std::vector<edm4hep::SimTrackerHitData>();
         int result = chain_->SetBranchAddress(coll_name.c_str(), &tracker_hit_branches_[coll_name]);
         
-        // Also setup the particle reference branch using consolidated map
-        std::string ref_branch_name = "_" + coll_name + "_particle";  
-        objectid_branches_[ref_branch_name] = new std::vector<podio::ObjectID>();
-        result = chain_->SetBranchAddress(ref_branch_name.c_str(), &objectid_branches_[ref_branch_name]);
+        // Use relationship mapper to discover relationships dynamically
+        if (relationship_mapper_ && relationship_mapper_->hasRelationships(coll_name)) {
+            auto rel_branches = relationship_mapper_->getRelationshipBranches(coll_name);
+            for (const auto& branch_name : rel_branches) {
+                objectid_branches_[branch_name] = new std::vector<podio::ObjectID>();
+                result = chain_->SetBranchAddress(branch_name.c_str(), &objectid_branches_[branch_name]);
+                std::cout << "  Set up tracker relationship: " << branch_name << std::endl;
+            }
+        } else {
+            // Fallback to hardcoded pattern
+            std::string ref_branch_name = "_" + coll_name + "_particle";  
+            objectid_branches_[ref_branch_name] = new std::vector<podio::ObjectID>();
+            result = chain_->SetBranchAddress(ref_branch_name.c_str(), &objectid_branches_[ref_branch_name]);
+        }
     }
 }
 
@@ -299,19 +323,40 @@ void DataSource::setupCalorimeterBranches() {
         calo_hit_branches_[coll_name] = new std::vector<edm4hep::SimCalorimeterHitData>();
         int result = chain_->SetBranchAddress(coll_name.c_str(), &calo_hit_branches_[coll_name]);
         
-        // Also setup the contributions reference branch using consolidated map
-        std::string contrib_link_branch_name = "_" + coll_name + "_contributions";
-        objectid_branches_[contrib_link_branch_name] = new std::vector<podio::ObjectID>();
-        result = chain_->SetBranchAddress(contrib_link_branch_name.c_str(), &objectid_branches_[contrib_link_branch_name]);
+        // Use relationship mapper to discover relationships dynamically
+        if (relationship_mapper_ && relationship_mapper_->hasRelationships(coll_name)) {
+            auto rel_branches = relationship_mapper_->getRelationshipBranches(coll_name);
+            for (const auto& branch_name : rel_branches) {
+                objectid_branches_[branch_name] = new std::vector<podio::ObjectID>();
+                result = chain_->SetBranchAddress(branch_name.c_str(), &objectid_branches_[branch_name]);
+                std::cout << "  Set up calo hit relationship: " << branch_name << std::endl;
+            }
+        } else {
+            // Fallback to hardcoded pattern
+            std::string contrib_link_branch_name = "_" + coll_name + "_contributions";
+            objectid_branches_[contrib_link_branch_name] = new std::vector<podio::ObjectID>();
+            result = chain_->SetBranchAddress(contrib_link_branch_name.c_str(), &objectid_branches_[contrib_link_branch_name]);
+        }
         
+        // Setup contribution branches - use naming convention
         std::string contrib_branch_name = coll_name + "Contributions";
         calo_contrib_branches_[contrib_branch_name] = new std::vector<edm4hep::CaloHitContributionData>();
         result = chain_->SetBranchAddress(contrib_branch_name.c_str(), &calo_contrib_branches_[contrib_branch_name]);
         
-        // Also setup the particle reference branch using consolidated map
-        std::string ref_branch_name = "_" + contrib_branch_name + "_particle";  
-        objectid_branches_[ref_branch_name] = new std::vector<podio::ObjectID>();
-        result = chain_->SetBranchAddress(ref_branch_name.c_str(), &objectid_branches_[ref_branch_name]);
+        // Use relationship mapper for contribution particle references
+        if (relationship_mapper_ && relationship_mapper_->hasRelationships(contrib_branch_name)) {
+            auto rel_branches = relationship_mapper_->getRelationshipBranches(contrib_branch_name);
+            for (const auto& branch_name : rel_branches) {
+                objectid_branches_[branch_name] = new std::vector<podio::ObjectID>();
+                result = chain_->SetBranchAddress(branch_name.c_str(), &objectid_branches_[branch_name]);
+                std::cout << "  Set up contribution relationship: " << branch_name << std::endl;
+            }
+        } else {
+            // Fallback to hardcoded pattern
+            std::string ref_branch_name = "_" + contrib_branch_name + "_particle";  
+            objectid_branches_[ref_branch_name] = new std::vector<podio::ObjectID>();
+            result = chain_->SetBranchAddress(ref_branch_name.c_str(), &objectid_branches_[ref_branch_name]);
+        }
     }
 }
 

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "StandaloneMergerConfig.h"
+#include "BranchRelationshipMapper.h"
 #include <edm4hep/MCParticleData.h>
 #include <edm4hep/SimTrackerHitData.h>
 #include <edm4hep/SimCalorimeterHitData.h>
@@ -22,7 +23,8 @@ public:
     // Initialization
     void initialize(const std::vector<std::string>& tracker_collections,
                    const std::vector<std::string>& calo_collections,
-                   const std::vector<std::string>& gp_collections);
+                   const std::vector<std::string>& gp_collections,
+                   const BranchRelationshipMapper* relationship_mapper);
     
     // Data access
     bool hasMoreEntries() const;
@@ -85,6 +87,9 @@ private:
     // Configuration
     const SourceConfig* config_;
     size_t source_index_;
+    
+    // Relationship mapper (not owned by this class)
+    const BranchRelationshipMapper* relationship_mapper_;
     
     // ROOT chain and state
     std::unique_ptr<TChain> chain_;

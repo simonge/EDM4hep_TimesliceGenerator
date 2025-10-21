@@ -2,6 +2,7 @@
 
 #include "StandaloneMergerConfig.h"
 #include "DataSource.h"
+#include "BranchRelationshipMapper.h"
 #include <edm4hep/MCParticleData.h>
 #include <edm4hep/SimTrackerHitData.h>
 #include <edm4hep/SimCalorimeterHitData.h>
@@ -77,6 +78,9 @@ private:
 
     // Data sources
     std::vector<std::unique_ptr<DataSource>> data_sources_;
+    
+    // Branch relationship mapper for automatic discovery
+    std::unique_ptr<BranchRelationshipMapper> relationship_mapper_;
 
     // Core functionality methods
     std::vector<std::unique_ptr<DataSource>> initializeDataSources();
