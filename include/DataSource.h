@@ -109,6 +109,12 @@ public:
     void printStatus() const;
     bool isInitialized() const { return chain_ != nullptr; }
 
+    // Helper to calculate time offset for current event
+    void calculateTimeOffsetForEvent(const std::string& mcparticle_collection,
+                                     float time_slice_duration,
+                                     float bunch_crossing_period,
+                                     std::mt19937& rng);
+
 private:
     // Configuration
     const SourceConfig* config_;
@@ -143,11 +149,6 @@ private:
     // Current event processing state
     float current_time_offset_;
     
-    // Helper to calculate time offset for current event
-    void calculateTimeOffsetForEvent(const std::string& mcparticle_collection,
-                                     float time_slice_duration,
-                                     float bunch_crossing_period,
-                                     std::mt19937& rng);
     
     // Private helper methods
     void setupBranches();
