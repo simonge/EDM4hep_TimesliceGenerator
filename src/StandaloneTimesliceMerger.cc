@@ -124,8 +124,8 @@ std::vector<std::unique_ptr<DataSource>> StandaloneTimesliceMerger::initializeDa
         // Print discovered relationships for debugging
         relationship_mapper_->printDiscoveredRelationships();
         
-        // Discover GP collection names
-        gp_collection_names_ = discoverGPBranches(*data_sources[0]);
+        // Get GP collection names from relationship mapper
+        gp_collection_names_ = relationship_mapper_->getGPBranches();
         
         std::cout << "Global collection names discovered:" << std::endl;
         std::cout << "  Tracker: ";
@@ -138,9 +138,9 @@ std::vector<std::unique_ptr<DataSource>> StandaloneTimesliceMerger::initializeDa
         for (const auto& name : gp_collection_names_) std::cout << name << " ";
         std::cout << std::endl;
         
-        // Initialize all data sources with GP collection names and relationship mapper
+        // Initialize all data sources with relationship mapper
         for (auto& data_source : data_sources) {
-            data_source->initialize(gp_collection_names_, relationship_mapper_.get());
+            data_source->initialize(relationship_mapper_.get());
         }
     }
     

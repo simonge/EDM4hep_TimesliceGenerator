@@ -21,8 +21,7 @@ public:
     ~DataSource();
     
     // Initialization
-    void initialize(const std::vector<std::string>& gp_collections,
-                   const BranchRelationshipMapper* relationship_mapper);
+    void initialize(const BranchRelationshipMapper* relationship_mapper);
     
     // Data access
     bool hasMoreEntries() const;
@@ -128,7 +127,7 @@ private:
     size_t entries_needed_;
     
     // Collection names (references to shared data)
-    const std::vector<std::string>* gp_collection_names_;
+    // No longer needed - GP collections are discovered from relationship_mapper_
     
     // Generic branch storage - stores void* to branch data, keyed by branch name
     // The actual type is determined by the BranchRelationshipMapper metadata

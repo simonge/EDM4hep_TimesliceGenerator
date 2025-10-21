@@ -106,6 +106,15 @@ public:
     std::string getContributionCollection(const std::string& calo_collection_name) const;
     
     /**
+     * @brief Get all discovered Global Parameter (GP) branch names
+     * 
+     * Returns names of GP key branches like "GPIntKeys", "GPFloatKeys", etc.
+     * 
+     * @return Vector of GP branch names
+     */
+    std::vector<std::string> getGPBranches() const;
+    
+    /**
      * @brief Check if a collection has relationships
      * 
      * @param collection_name Name of the collection
@@ -134,6 +143,9 @@ public:
 private:
     // Map from collection name to its relationships
     std::unordered_map<std::string, CollectionRelationships> collection_map_;
+    
+    // GP (Global Parameter) branch names discovered during analysis
+    std::vector<std::string> gp_branches_;
     
     /**
      * @brief Parse a relationship branch name to extract information

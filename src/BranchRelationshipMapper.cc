@@ -119,8 +119,27 @@ void BranchRelationshipMapper::discoverRelationships(TChain* chain) {
         }
     }
     
+    // Third pass: identify GP (Global Parameter) branches
+    std::vector<std::string> gp_patterns = {"GPIntKeys", "GPFloatKeys", "GPStringKeys", "GPDoubleKeys"};
+    for (int i = 0; i < branches->GetEntries(); ++i) {
+        TBranch* branch = dynamic_cast<TBranch*>(branches->At(i));
+        if (!branch) continue;
+        
+        std::string branch_name = branch->GetName();
+        
+        // Check if this matches a GP branch pattern
+        for (const auto& pattern : gp_patterns) {
+            if (branch_name.find(pattern) != std::string::npos) {
+                gp_branches_.push_back(branch_name);
+                std::cout << "  Found GP branch: " << branch_name << std::endl;
+                break;
+            }
+        }
+    }
+    
     std::cout << "=== Discovery Complete ===" << std::endl;
     std::cout << "Discovered " << collection_map_.size() << " collections with relationships" << std::endl;
+    std::cout << "Discovered " << gp_branches_.size() << " GP branches" << std::endl;
 }
 
 CollectionRelationships BranchRelationshipMapper::getCollectionRelationships(const std::string& collection_name) const {
@@ -168,6 +187,10 @@ std::string BranchRelationshipMapper::getContributionCollection(const std::strin
     return ""; // Not found
 }
 
+std::vector<std::string> BranchRelationshipMapper::getGPBranches() const {
+    return gp_branches_;
+}
+
 bool BranchRelationshipMapper::hasRelationships(const std::string& collection_name) const {
     auto it = collection_map_.find(collection_name);
     return (it != collection_map_.end() && !it->second.relationships.empty());
@@ -202,6 +225,7 @@ void BranchRelationshipMapper::printDiscoveredRelationships() const {
 
 void BranchRelationshipMapper::clear() {
     collection_map_.clear();
+    gp_branches_.clear();
 }
 
 bool BranchRelationshipMapper::parseRelationshipBranch(const std::string& branch_name,

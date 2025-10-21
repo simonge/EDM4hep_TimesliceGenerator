@@ -12,7 +12,6 @@ DataSource::DataSource(const SourceConfig& config, size_t source_index)
     , total_entries_(0)
     , current_entry_index_(0)
     , entries_needed_(1)
-    , gp_collection_names_(nullptr)
 {
 }
 
@@ -20,10 +19,8 @@ DataSource::~DataSource() {
     cleanup();
 }
 
-void DataSource::initialize(const std::vector<std::string>& gp_collections,
-                           const BranchRelationshipMapper* relationship_mapper) {
-    // Store references to collection names and relationship mapper
-    gp_collection_names_ = &gp_collections;
+void DataSource::initialize(const BranchRelationshipMapper* relationship_mapper) {
+    // Store reference to relationship mapper
     relationship_mapper_ = relationship_mapper;
     
     if (!config_->input_files.empty()) {
@@ -311,10 +308,13 @@ void DataSource::setupGPBranches() {
     result = chain_->SetBranchAddress("GPDoubleValues", generic_branches_["GPDoubleValues"]);    
     result = chain_->SetBranchAddress("GPStringValues", generic_branches_["GPStringValues"]);
     
-    // Setup GP key branches in generic_branches_ map
-    for (const auto& branch_name : *gp_collection_names_) {
-        generic_branches_[branch_name] = new std::vector<std::string>();
-        result = chain_->SetBranchAddress(branch_name.c_str(), generic_branches_[branch_name]);
+    // Setup GP key branches in generic_branches_ map - get from relationship mapper
+    if (relationship_mapper_) {
+        auto gp_branches = relationship_mapper_->getGPBranches();
+        for (const auto& branch_name : gp_branches) {
+            generic_branches_[branch_name] = new std::vector<std::string>();
+            result = chain_->SetBranchAddress(branch_name.c_str(), generic_branches_[branch_name]);
+        }
     }
 }
 
