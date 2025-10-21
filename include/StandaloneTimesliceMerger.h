@@ -71,9 +71,6 @@ private:
     MergedCollections merged_collections_;
 
     // Collection names discovered from first source
-    std::vector<std::string> tracker_collection_names_;
-    std::vector<std::string> calo_collection_names_;
-    std::vector<std::string> calo_contrib_collection_names_;
     std::vector<std::string> gp_collection_names_;
 
     // Data sources

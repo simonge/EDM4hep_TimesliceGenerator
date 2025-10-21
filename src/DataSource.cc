@@ -20,9 +20,7 @@ DataSource::~DataSource() {
     cleanup();
 }
 
-void DataSource::initialize(const std::vector<std::string>& tracker_collections,
-                           const std::vector<std::string>& calo_collections,
-                           const std::vector<std::string>& gp_collections,
+void DataSource::initialize(const std::vector<std::string>& gp_collections,
                            const BranchRelationshipMapper* relationship_mapper) {
     // Store references to collection names and relationship mapper
     gp_collection_names_ = &gp_collections;

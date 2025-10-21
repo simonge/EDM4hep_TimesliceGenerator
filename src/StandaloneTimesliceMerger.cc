@@ -124,26 +124,23 @@ std::vector<std::unique_ptr<DataSource>> StandaloneTimesliceMerger::initializeDa
         // Print discovered relationships for debugging
         relationship_mapper_->printDiscoveredRelationships();
         
-        // Discover collection names using the relationship mapper
-        tracker_collection_names_ = relationship_mapper_->getCollectionsByType("SimTrackerHit");
-        calo_collection_names_ = relationship_mapper_->getCollectionsByType("SimCalorimeterHit");
+        // Discover GP collection names
         gp_collection_names_ = discoverGPBranches(*data_sources[0]);
         
         std::cout << "Global collection names discovered:" << std::endl;
         std::cout << "  Tracker: ";
-        for (const auto& name : tracker_collection_names_) std::cout << name << " ";
+        for (const auto& name : relationship_mapper_->getCollectionsByType("SimTrackerHit")) std::cout << name << " ";
         std::cout << std::endl;
         std::cout << "  Calo: ";
-        for (const auto& name : calo_collection_names_) std::cout << name << " ";
+        for (const auto& name : relationship_mapper_->getCollectionsByType("SimCalorimeterHit")) std::cout << name << " ";
         std::cout << std::endl;
         std::cout << "  GP: ";
         for (const auto& name : gp_collection_names_) std::cout << name << " ";
         std::cout << std::endl;
         
-        // Initialize all data sources with discovered collection names and relationship mapper
+        // Initialize all data sources with GP collection names and relationship mapper
         for (auto& data_source : data_sources) {
-            data_source->initialize(tracker_collection_names_, calo_collection_names_, 
-                                   gp_collection_names_, relationship_mapper_.get());
+            data_source->initialize(gp_collection_names_, relationship_mapper_.get());
         }
     }
     
@@ -273,7 +270,7 @@ void StandaloneTimesliceMerger::createMergedTimeslice(std::vector<std::unique_pt
             }
             
             // Process tracker hits using generic method
-            for (const auto& name : tracker_collection_names_) {
+            for (const auto& name : relationship_mapper_->getCollectionsByType("SimTrackerHit")) {
                 auto& processed_hits = data_source->getProcessedCollection<edm4hep::SimTrackerHitData>(
                     name, particle_index_offset, time_offset, totalEventsConsumed);
                 merged_collections_.tracker_hits[name].insert(merged_collections_.tracker_hits[name].end(),
@@ -293,7 +290,7 @@ void StandaloneTimesliceMerger::createMergedTimeslice(std::vector<std::unique_pt
             }
             
             // Process calorimeter hits using generic method
-            for (const auto& name : calo_collection_names_) {
+            for (const auto& name : relationship_mapper_->getCollectionsByType("SimCalorimeterHit")) {
                 size_t existing_contrib_size = merged_collections_.calo_contributions[name].size();
 
                 // Process calo hits (index ranges for contributions will be updated)
@@ -405,7 +402,7 @@ void StandaloneTimesliceMerger::setupOutputTree(TTree* tree) {
     }
 
     // Tracker collections and their references
-    for (const auto& name : tracker_collection_names_) {
+    for (const auto& name : relationship_mapper_->getCollectionsByType("SimTrackerHit")) {
         auto trackerBranch = tree->Branch(name.c_str(), &merged_collections_.tracker_hits[name]);        
         
         // Use relationship mapper to create tracker relationship branches dynamically
@@ -418,7 +415,7 @@ void StandaloneTimesliceMerger::setupOutputTree(TTree* tree) {
     }
 
     // Calorimeter collections and their references
-    for (const auto& name : calo_collection_names_) {
+    for (const auto& name : relationship_mapper_->getCollectionsByType("SimCalorimeterHit")) {
         auto caloBranch = tree->Branch(name.c_str(), &merged_collections_.calo_hits[name]);        
         
         // Use relationship mapper for calo hit relationship branches

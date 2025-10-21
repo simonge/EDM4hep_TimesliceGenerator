@@ -21,9 +21,7 @@ public:
     ~DataSource();
     
     // Initialization
-    void initialize(const std::vector<std::string>& tracker_collections,
-                   const std::vector<std::string>& calo_collections,
-                   const std::vector<std::string>& gp_collections,
+    void initialize(const std::vector<std::string>& gp_collections,
                    const BranchRelationshipMapper* relationship_mapper);
     
     // Data access
