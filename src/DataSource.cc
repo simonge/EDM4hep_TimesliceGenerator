@@ -13,10 +13,6 @@ DataSource::DataSource(const SourceConfig& config, size_t source_index)
     , current_entry_index_(0)
     , entries_needed_(1)
     , gp_collection_names_(nullptr)
-    , gp_int_branch_(nullptr)
-    , gp_float_branch_(nullptr)
-    , gp_double_branch_(nullptr)
-    , gp_string_branch_(nullptr)
 {
 }
 
@@ -306,49 +302,53 @@ void DataSource::setupRelationshipBranches() {
 
 
 void DataSource::setupGPBranches() {
-    // Initialize GP value branch pointers
-    gp_int_branch_ = new std::vector<std::vector<int>>();
-    gp_float_branch_ = new std::vector<std::vector<float>>();
-    gp_double_branch_ = new std::vector<std::vector<double>>();
-    gp_string_branch_ = new std::vector<std::vector<std::string>>();
+    // Setup GP value branches in generic_branches_ map
+    generic_branches_["GPIntValues"] = new std::vector<std::vector<int>>();
+    generic_branches_["GPFloatValues"] = new std::vector<std::vector<float>>();
+    generic_branches_["GPDoubleValues"] = new std::vector<std::vector<double>>();
+    generic_branches_["GPStringValues"] = new std::vector<std::vector<std::string>>();
     
-    // Setup the fixed GP value branches
-    int result = chain_->SetBranchAddress("GPIntValues", &gp_int_branch_);    
-    result = chain_->SetBranchAddress("GPFloatValues", &gp_float_branch_);
-    result = chain_->SetBranchAddress("GPDoubleValues", &gp_double_branch_);    
-    result = chain_->SetBranchAddress("GPStringValues", &gp_string_branch_);
+    int result = chain_->SetBranchAddress("GPIntValues", generic_branches_["GPIntValues"]);    
+    result = chain_->SetBranchAddress("GPFloatValues", generic_branches_["GPFloatValues"]);
+    result = chain_->SetBranchAddress("GPDoubleValues", generic_branches_["GPDoubleValues"]);    
+    result = chain_->SetBranchAddress("GPStringValues", generic_branches_["GPStringValues"]);
     
-    // Setup GP key branches
+    // Setup GP key branches in generic_branches_ map
     for (const auto& branch_name : *gp_collection_names_) {
-        gp_key_branches_[branch_name] = new std::vector<std::string>();
-        result = chain_->SetBranchAddress(branch_name.c_str(), &gp_key_branches_[branch_name]);
+        generic_branches_[branch_name] = new std::vector<std::string>();
+        result = chain_->SetBranchAddress(branch_name.c_str(), generic_branches_[branch_name]);
     }
 }
 
 std::vector<std::string>& DataSource::processGPBranch(const std::string& branch_name) {
     // GP key branches don't need any processing, just return the data as-is
     // They contain global parameter keys that should be copied unchanged
-    return *gp_key_branches_[branch_name];
+    void* branch_ptr = getBranchData(branch_name);
+    return *static_cast<std::vector<std::string>*>(branch_ptr);
 }
 
 std::vector<std::vector<int>>& DataSource::processGPIntValues() {
     // GP int values don't need any processing, just return the data as-is
-    return *gp_int_branch_;
+    void* branch_ptr = getBranchData("GPIntValues");
+    return *static_cast<std::vector<std::vector<int>>*>(branch_ptr);
 }
 
 std::vector<std::vector<float>>& DataSource::processGPFloatValues() {
     // GP float values don't need any processing, just return the data as-is
-    return *gp_float_branch_;
+    void* branch_ptr = getBranchData("GPFloatValues");
+    return *static_cast<std::vector<std::vector<float>>*>(branch_ptr);
 }
 
 std::vector<std::vector<double>>& DataSource::processGPDoubleValues() {
     // GP double values don't need any processing, just return the data as-is
-    return *gp_double_branch_;
+    void* branch_ptr = getBranchData("GPDoubleValues");
+    return *static_cast<std::vector<std::vector<double>>*>(branch_ptr);
 }
 
 std::vector<std::vector<std::string>>& DataSource::processGPStringValues() {
     // GP string values don't need any processing, just return the data as-is
-    return *gp_string_branch_;
+    void* branch_ptr = getBranchData("GPStringValues");
+    return *static_cast<std::vector<std::vector<std::string>>*>(branch_ptr);
 }
 
 void DataSource::cleanup() {
@@ -360,16 +360,6 @@ void DataSource::cleanup() {
     for (auto& [name, ptr] : objectid_branches_) {
         delete ptr;
     }
-    for (auto& [name, ptr] : gp_key_branches_) {
-        delete ptr;
-    }
-    
-    // Clean up GP value branch pointers
-    delete gp_int_branch_;
-    delete gp_float_branch_;
-    delete gp_double_branch_;
-    delete gp_string_branch_;
-    
 }
 
 

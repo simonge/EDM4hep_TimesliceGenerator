@@ -134,17 +134,11 @@ private:
     
     // Generic branch storage - stores void* to branch data, keyed by branch name
     // The actual type is determined by the BranchRelationshipMapper metadata
+    // This includes EDM4hep collections, ObjectID references, and GP branches
     std::unordered_map<std::string, void*> generic_branches_;
     
     // Branch pointers for reading ObjectID references - consolidated into single map
     std::unordered_map<std::string, std::vector<podio::ObjectID>*> objectid_branches_;
-    
-    // Branch pointers for reading GP (Global Parameter) branches
-    std::unordered_map<std::string, std::vector<std::string>*> gp_key_branches_;
-    std::vector<std::vector<int>>* gp_int_branch_;
-    std::vector<std::vector<float>>* gp_float_branch_;
-    std::vector<std::vector<double>>* gp_double_branch_;
-    std::vector<std::vector<std::string>>* gp_string_branch_;
 
     // Current event processing state
     float current_time_offset_;
