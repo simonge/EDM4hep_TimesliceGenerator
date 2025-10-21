@@ -201,16 +201,21 @@ void StandaloneTimesliceMerger::createMergedTimeslice(std::vector<std::unique_pt
             // Load the event data from this source
             data_source->loadEvent(data_source->getCurrentEntryIndex());
             
-            // Process MCParticles - use move semantics to avoid copying
-            auto& processed_particles = data_source->processMCParticles(particle_index_offset,
-                                                                       m_config.time_slice_duration,
-                                                                       m_config.bunch_crossing_period,
-                                                                       gen,totalEventsConsumed);
+            // Calculate time offset for this event (used by all collections with time fields)
+            data_source->calculateTimeOffsetForEvent("MCParticles",
+                                                    m_config.time_slice_duration,
+                                                    m_config.bunch_crossing_period,
+                                                    gen);
+            float time_offset = data_source->getCurrentTimeOffset();
+            
+            // Process MCParticles using generic method
+            auto& processed_particles = data_source->getProcessedCollection<edm4hep::MCParticleData>(
+                "MCParticles", particle_index_offset, time_offset, totalEventsConsumed);
             merged_collections_.mcparticles.insert(merged_collections_.mcparticles.end(), 
                                                   std::make_move_iterator(processed_particles.begin()), 
                                                   std::make_move_iterator(processed_particles.end()));
             
-            // Process MCParticle references - use move semantics and relationship mapper
+            // Process MCParticle references using relationship mapper
             if (relationship_mapper_->hasRelationships("MCParticles")) {
                 auto rel_branches = relationship_mapper_->getRelationshipBranches("MCParticles");
                 for (const auto& branch_name : rel_branches) {
@@ -227,19 +232,6 @@ void StandaloneTimesliceMerger::createMergedTimeslice(std::vector<std::unique_pt
                                                                            std::make_move_iterator(processed_refs.end()));
                     }
                 }
-            } else {
-                // Fallback to hardcoded names for backward compatibility
-                std::string parent_ref_branch_name = "_MCParticles_parents";
-                auto& processed_parents = data_source->processObjectID(parent_ref_branch_name, particle_index_offset,totalEventsConsumed);
-                merged_collections_.mcparticle_parents_refs.insert(merged_collections_.mcparticle_parents_refs.end(),
-                                                                  std::make_move_iterator(processed_parents.begin()), 
-                                                                  std::make_move_iterator(processed_parents.end()));
-
-                std::string children_ref_branch_name = "_MCParticles_daughters";
-                auto& processed_children = data_source->processObjectID(children_ref_branch_name, particle_index_offset,totalEventsConsumed);
-                merged_collections_.mcparticle_children_refs.insert(merged_collections_.mcparticle_children_refs.end(),
-                                                                   std::make_move_iterator(processed_children.begin()), 
-                                                                   std::make_move_iterator(processed_children.end()));
             }
             
             // Process SubEventHeaders for non-merged sources to track which MCParticles came from this source
@@ -262,29 +254,33 @@ void StandaloneTimesliceMerger::createMergedTimeslice(std::vector<std::unique_pt
                 //           << ", particle_offset=" << static_cast<size_t>(sub_header.weight) << std::endl;
             } else {
                 // For already merged sources, try to process existing SubEventHeaders if available
-                auto& existing_sub_headers = data_source->processEventHeaders("SubEventHeaders");
-                for (auto& sub_header : existing_sub_headers) {
-                    // Adjust the weight (particle index) to account for the current offset
-                    float original_offset = sub_header.weight;
-                    sub_header.weight += static_cast<float>(particle_index_offset);
-                    merged_collections_.sub_event_headers.push_back(sub_header);
-                    merged_collections_.sub_event_header_weights.push_back(sub_header.weight);
+                void* sub_header_data = data_source->getBranchData("SubEventHeaders");
+                if (sub_header_data) {
+                    auto& existing_sub_headers = *static_cast<std::vector<edm4hep::EventHeaderData>*>(sub_header_data);
+                    for (auto& sub_header : existing_sub_headers) {
+                        // Adjust the weight (particle index) to account for the current offset
+                        float original_offset = sub_header.weight;
+                        sub_header.weight += static_cast<float>(particle_index_offset);
+                        merged_collections_.sub_event_headers.push_back(sub_header);
+                        merged_collections_.sub_event_header_weights.push_back(sub_header.weight);
 
-                    std::cout << "Processed existing SubEventHeader: event=" << sub_header.eventNumber 
-                              << ", source=" << sub_header.runNumber 
-                              << ", original_offset=" << static_cast<size_t>(original_offset)
-                              << ", new_offset=" << static_cast<size_t>(sub_header.weight) << std::endl;
+                        std::cout << "Processed existing SubEventHeader: event=" << sub_header.eventNumber 
+                                  << ", source=" << sub_header.runNumber 
+                                  << ", original_offset=" << static_cast<size_t>(original_offset)
+                                  << ", new_offset=" << static_cast<size_t>(sub_header.weight) << std::endl;
+                    }
                 }
             }
             
-            // Process tracker hits - use move semantics to avoid copying
+            // Process tracker hits using generic method
             for (const auto& name : tracker_collection_names_) {
-                auto& processed_hits = data_source->processTrackerHits(name, particle_index_offset,totalEventsConsumed);
+                auto& processed_hits = data_source->getProcessedCollection<edm4hep::SimTrackerHitData>(
+                    name, particle_index_offset, time_offset, totalEventsConsumed);
                 merged_collections_.tracker_hits[name].insert(merged_collections_.tracker_hits[name].end(),
                                                              std::make_move_iterator(processed_hits.begin()), 
                                                              std::make_move_iterator(processed_hits.end()));
 
-                // Use relationship mapper to get particle reference branches dynamically
+                // Process relationship branches dynamically
                 if (relationship_mapper_->hasRelationships(name)) {
                     auto rel_branches = relationship_mapper_->getRelationshipBranches(name);
                     for (const auto& branch_name : rel_branches) {
@@ -293,26 +289,21 @@ void StandaloneTimesliceMerger::createMergedTimeslice(std::vector<std::unique_pt
                                                                                   std::make_move_iterator(processed_refs.begin()), 
                                                                                   std::make_move_iterator(processed_refs.end()));
                     }
-                } else {
-                    // Fallback to hardcoded pattern
-                    std::string ref_branch_name = "_" + name + "_particle";
-                    auto& processed_refs = data_source->processObjectID(ref_branch_name, particle_index_offset,totalEventsConsumed);
-                    merged_collections_.tracker_hit_particle_refs[name].insert(merged_collections_.tracker_hit_particle_refs[name].end(),
-                                                                              std::make_move_iterator(processed_refs.begin()), 
-                                                                              std::make_move_iterator(processed_refs.end()));
                 }
             }
             
-            // Process calorimeter hits - use move semantics to avoid copying
+            // Process calorimeter hits using generic method
             for (const auto& name : calo_collection_names_) {
                 size_t existing_contrib_size = merged_collections_.calo_contributions[name].size();
 
-                auto& processed_hits = data_source->processCaloHits(name, existing_contrib_size,totalEventsConsumed);
+                // Process calo hits (index ranges for contributions will be updated)
+                auto& processed_hits = data_source->getProcessedCollection<edm4hep::SimCalorimeterHitData>(
+                    name, existing_contrib_size, time_offset, totalEventsConsumed);
                 merged_collections_.calo_hits[name].insert(merged_collections_.calo_hits[name].end(),
                                                           std::make_move_iterator(processed_hits.begin()), 
                                                           std::make_move_iterator(processed_hits.end()));
                 
-                // Use relationship mapper for calo hit contribution references
+                // Process calo hit contribution references
                 if (relationship_mapper_->hasRelationships(name)) {
                     auto rel_branches = relationship_mapper_->getRelationshipBranches(name);
                     for (const auto& branch_name : rel_branches) {
@@ -323,23 +314,17 @@ void StandaloneTimesliceMerger::createMergedTimeslice(std::vector<std::unique_pt
                                                                                         std::make_move_iterator(processed_contrib_refs.end()));
                         }
                     }
-                } else {
-                    // Fallback to hardcoded pattern
-                    std::string ref_branch_name = "_" + name + "_contributions";
-                    auto& processed_contrib_refs = data_source->processObjectID(ref_branch_name, existing_contrib_size,totalEventsConsumed);
-                    merged_collections_.calo_hit_contributions_refs[name].insert(merged_collections_.calo_hit_contributions_refs[name].end(),
-                                                                                std::make_move_iterator(processed_contrib_refs.begin()), 
-                                                                                std::make_move_iterator(processed_contrib_refs.end()));
                 }
                 
-                // Process contributions
+                // Process contribution data
                 std::string contrib_branch_name = name + "Contributions";
-                auto& processed_contribs = data_source->processCaloContributions(contrib_branch_name, particle_index_offset,totalEventsConsumed);
+                auto& processed_contribs = data_source->getProcessedCollection<edm4hep::CaloHitContributionData>(
+                    contrib_branch_name, particle_index_offset, time_offset, totalEventsConsumed);
                 merged_collections_.calo_contributions[name].insert(merged_collections_.calo_contributions[name].end(),
                                                                    std::make_move_iterator(processed_contribs.begin()), 
                                                                    std::make_move_iterator(processed_contribs.end()));
                 
-                // Use relationship mapper for contribution particle references
+                // Process contribution particle references
                 if (relationship_mapper_->hasRelationships(contrib_branch_name)) {
                     auto rel_branches = relationship_mapper_->getRelationshipBranches(contrib_branch_name);
                     for (const auto& branch_name : rel_branches) {
@@ -348,13 +333,6 @@ void StandaloneTimesliceMerger::createMergedTimeslice(std::vector<std::unique_pt
                                                                                    std::make_move_iterator(processed_contrib_particle_refs.begin()), 
                                                                                    std::make_move_iterator(processed_contrib_particle_refs.end()));
                     }
-                } else {
-                    // Fallback to hardcoded pattern
-                    std::string ref_branch_name_contrib = "_" + contrib_branch_name + "_particle";
-                    auto& processed_contrib_particle_refs = data_source->processObjectID(ref_branch_name_contrib, particle_index_offset,totalEventsConsumed);
-                    merged_collections_.calo_contrib_particle_refs[name].insert(merged_collections_.calo_contrib_particle_refs[name].end(),
-                                                                               std::make_move_iterator(processed_contrib_particle_refs.begin()), 
-                                                                               std::make_move_iterator(processed_contrib_particle_refs.end()));
                 }
             }
             
@@ -422,10 +400,6 @@ void StandaloneTimesliceMerger::setupOutputTree(TTree* tree) {
                 auto mcParentsBranch = tree->Branch(branch_name.c_str(), &merged_collections_.mcparticle_parents_refs);
             }
         }
-    } else {
-        // Fallback to hardcoded names
-        auto mcDaughtersBranch = tree->Branch("_MCParticles_daughters", &merged_collections_.mcparticle_children_refs);
-        auto mcParentsBranch = tree->Branch("_MCParticles_parents", &merged_collections_.mcparticle_parents_refs);
     }
 
     // Tracker collections and their references
@@ -438,10 +412,6 @@ void StandaloneTimesliceMerger::setupOutputTree(TTree* tree) {
             for (const auto& branch_name : rel_branches) {
                 auto trackerRefBranch = tree->Branch(branch_name.c_str(), &merged_collections_.tracker_hit_particle_refs[name]);
             }
-        } else {
-            // Fallback to hardcoded pattern
-            std::string ref_name = "_" + name + "_particle";
-            auto trackerRefBranch = tree->Branch(ref_name.c_str(), &merged_collections_.tracker_hit_particle_refs[name]);
         }
     }
 
@@ -455,10 +425,6 @@ void StandaloneTimesliceMerger::setupOutputTree(TTree* tree) {
             for (const auto& branch_name : rel_branches) {
                 auto caloRefBranch = tree->Branch(branch_name.c_str(), &merged_collections_.calo_hit_contributions_refs[name]);
             }
-        } else {
-            // Fallback to hardcoded pattern
-            std::string ref_name = "_" + name + "_contributions";
-            auto caloRefBranch = tree->Branch(ref_name.c_str(), &merged_collections_.calo_hit_contributions_refs[name]);
         }
         
         std::string contrib_name = name + "Contributions";
@@ -470,10 +436,6 @@ void StandaloneTimesliceMerger::setupOutputTree(TTree* tree) {
             for (const auto& branch_name : rel_branches) {
                 auto contribRefBranch = tree->Branch(branch_name.c_str(), &merged_collections_.calo_contrib_particle_refs[name]);
             }
-        } else {
-            // Fallback to hardcoded pattern
-            std::string ref_name_contrib = "_" + contrib_name + "_particle";
-            auto contribRefBranch = tree->Branch(ref_name_contrib.c_str(), &merged_collections_.calo_contrib_particle_refs[name]);
         }
     }
     
