@@ -213,124 +213,28 @@ std::vector<podio::ObjectID>& DataSource::processObjectID(const std::string& bra
     return *objectid_branches_[branch_name];
 }
 
-std::vector<edm4hep::MCParticleData>& DataSource::processMCParticles(size_t particle_index_offset,
-                                                                   float time_slice_duration,
-                                                                   float bunch_crossing_period,
-                                                                   std::mt19937& rng,
-                                                                   int totalEventsConsumed) {
-
-    auto& particles = *mcparticle_branch_;
-
-    if (totalEventsConsumed == 0 && config_->already_merged) {
-        return particles;
-    }
-
+void DataSource::calculateTimeOffsetForEvent(const std::string& mcparticle_collection,
+                                             float time_slice_duration,
+                                             float bunch_crossing_period,
+                                             std::mt19937& rng) {
     float distance = 0.0f;
     
     // Calculate time offset if not already merged
     if (!config_->already_merged) {
-        if (config_->attach_to_beam && !particles.empty()) {
-            distance = calculateBeamDistance(particles);
+        // Get MCParticle data to calculate beam distance if needed
+        if (config_->attach_to_beam) {
+            void* mc_branch = getBranchData(mcparticle_collection);
+            if (mc_branch) {
+                auto* particles = static_cast<std::vector<edm4hep::MCParticleData>*>(mc_branch);
+                if (!particles->empty()) {
+                    distance = calculateBeamDistance(*particles);
+                }
+            }
         }
         current_time_offset_ = generateTimeOffset(distance, time_slice_duration, bunch_crossing_period, rng);
     } else {
         current_time_offset_ = 0.0f;
     }
-    
-    // Work directly on the branch data
-    for (auto& particle : particles) {
-        if (!config_->already_merged) {
-            particle.time += current_time_offset_;
-            // Update generator status offset
-            particle.generatorStatus += config_->generator_status_offset;
-        }
-        // Update index ranges for parent-child relationships
-        particle.parents_begin   += particle_index_offset;
-        particle.parents_end     += particle_index_offset;
-        particle.daughters_begin += particle_index_offset;
-        particle.daughters_end   += particle_index_offset;        
-    }
-    
-    return particles; // Return reference to the branch data itself
-}
-
-
-std::vector<edm4hep::SimTrackerHitData>& DataSource::processTrackerHits(const std::string& collection_name,
-                                                                       size_t particle_index_offset,
-                                                                       int totalEventsConsumed) {
-                                                        
-    if(totalEventsConsumed == 0 && config_->already_merged) {
-        return *tracker_hit_branches_[collection_name];
-    }
-
-    // Apply index offset to particle references in hits
-    if (!config_->already_merged) {
-        for (auto& hit : *tracker_hit_branches_[collection_name]) {// Apply time offset if not already merged
-            hit.time += current_time_offset_;
-        }
-    }
-
-    return *tracker_hit_branches_[collection_name]; // Return reference to the branch data itself
-}
-
-
-std::vector<edm4hep::SimCalorimeterHitData>& DataSource::processCaloHits(const std::string& collection_name,
-                                                                        size_t contribution_index_offset,
-                                                                        int totalEventsConsumed) {
-
-    if(totalEventsConsumed == 0 && config_->already_merged) {
-        return *calo_hit_branches_[collection_name];
-    }
-
-    auto& hits = *calo_hit_branches_[collection_name];
-
-    for (auto& hit : hits) {
-        hit.contributions_begin += contribution_index_offset;
-        hit.contributions_end += contribution_index_offset;
-    }
-    
-    return hits; // Return reference to the branch data itself
-}
-
-std::vector<edm4hep::CaloHitContributionData>& DataSource::processCaloContributions(const std::string& collection_name,
-                                                                                   size_t particle_index_offset,
-                                                                                   int totalEventsConsumed) {
-
-    auto& contribs = *calo_contrib_branches_[collection_name];
-
-    if(totalEventsConsumed == 0 && config_->already_merged) {
-        return contribs;
-    }
-    
-    // Apply time offset if not already merged - work directly on branch data
-    if (!config_->already_merged) {
-        for (auto& contrib : contribs) {
-            contrib.time += current_time_offset_;
-        }
-    }
-    
-    return contribs; // Return reference to the branch data itself
-}
-
-std::vector<edm4hep::EventHeaderData>& DataSource::processEventHeaders(const std::string& collection_name) {
-    // Check if the collection exists in our event header branches
-    if (event_header_branches_.find(collection_name) == event_header_branches_.end()) {
-        // Collection not found, return empty vector
-        static std::vector<edm4hep::EventHeaderData> empty_headers;
-        empty_headers.clear();
-        return empty_headers;
-    }
-    
-    // Get the current event headers
-    auto* headers = event_header_branches_[collection_name];
-    if (!headers) {
-        static std::vector<edm4hep::EventHeaderData> empty_headers;
-        empty_headers.clear();
-        return empty_headers;
-    }
-    
-    // Return reference to the branch data itself - no processing needed for headers
-    return *headers;
 }
 
 void DataSource::setupBranches() {

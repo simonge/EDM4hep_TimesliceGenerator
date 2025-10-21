@@ -63,6 +63,18 @@ public:
                            int totalEventsConsumed);
     
     /**
+     * @brief Template helper to get processed collection data with proper type
+     */
+    template<typename T>
+    std::vector<T>& getProcessedCollection(const std::string& collection_name,
+                                          size_t index_offset,
+                                          float time_offset,
+                                          int totalEventsConsumed) {
+        void* ptr = processCollection(collection_name, index_offset, time_offset, totalEventsConsumed);
+        return *static_cast<std::vector<T>*>(ptr);
+    }
+    
+    /**
      * @brief Process ObjectID relationship branches
      * 
      * Updates indices in ObjectID vectors by adding the offset
@@ -133,6 +145,12 @@ private:
     // Current event processing state
     float current_time_offset_;
     size_t current_particle_index_offset_;
+    
+    // Helper to calculate time offset for current event
+    void calculateTimeOffsetForEvent(const std::string& mcparticle_collection,
+                                     float time_slice_duration,
+                                                     float bunch_crossing_period,
+                                     std::mt19937& rng);
     
     // Private helper methods
     void setupBranches();
