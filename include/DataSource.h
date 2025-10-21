@@ -162,6 +162,10 @@ private:
     // Private helper methods
     void setupBranches();
     
+    // Helper to extract podio type name from ROOT type name
+    // (e.g., "edm4hep::MCParticleData" -> "MCParticle")
+    std::string extractPodioTypeName(const std::string& root_type_name);
+    
     // Generic function to setup an object branch and its associated relation branches
     template<typename T>
     void setupObjectBranch(const std::string& collection_name, const std::string& type_name, T*& branch_ptr);

@@ -231,6 +231,36 @@ EventData* DataSource::loadEvent(size_t event_index, float time_slice_duration,
 }
 
 
+// Helper function to extract podio type name from ROOT type name
+// Converts "edm4hep::MCParticleData" -> "MCParticle"
+// Converts "std::vector<edm4hep::SimTrackerHitData>" -> "SimTrackerHit"
+std::string DataSource::extractPodioTypeName(const std::string& root_type_name) {
+    // Find the actual type name within potential vector wrapper
+    std::string type_name = root_type_name;
+    
+    // Strip std::vector< > if present
+    size_t vec_start = type_name.find("std::vector<");
+    if (vec_start != std::string::npos) {
+        size_t vec_end = type_name.rfind(">");
+        if (vec_end != std::string::npos) {
+            type_name = type_name.substr(vec_start + 12, vec_end - vec_start - 12);
+        }
+    }
+    
+    // Strip namespace (everything before ::)
+    size_t namespace_pos = type_name.rfind("::");
+    if (namespace_pos != std::string::npos) {
+        type_name = type_name.substr(namespace_pos + 2);
+    }
+    
+    // Strip "Data" suffix (EDM4hep convention: MCParticleData -> MCParticle)
+    if (type_name.size() > 4 && type_name.substr(type_name.size() - 4) == "Data") {
+        type_name = type_name.substr(0, type_name.size() - 4);
+    }
+    
+    return type_name;
+}
+
 void DataSource::setupBranches() {
     std::cout << "=== Setting up branches for source " << source_index_ << " ===" << std::endl;
     
@@ -264,7 +294,7 @@ void DataSource::setupBranches() {
             continue;
         }
         
-        // Get the branch data type
+        // Get the branch data type from ROOT
         TClass* expectedClass = nullptr;
         EDataType expectedType;
         std::string branch_type = "";
@@ -272,25 +302,41 @@ void DataSource::setupBranches() {
             branch_type = expectedClass->GetName();
         }
         
-        // Setup branches based on their type
-        if (branch_type.find("edm4hep::MCParticleData") != std::string::npos) {
-            setupObjectBranch(branch_name, "MCParticle", mcparticle_branch_);
+        // Skip if we couldn't determine the type or if it's not an EDM4hep type
+        if (branch_type.empty() || branch_type.find("edm4hep::") == std::string::npos) {
+            continue;
         }
-        else if (branch_type.find("edm4hep::SimTrackerHitData") != std::string::npos) {
+        
+        // Extract the podio type name from ROOT type name automatically
+        std::string podio_type_name = extractPodioTypeName(branch_type);
+        
+        // Verify the type is registered in podio before attempting to set it up
+        auto relationInfo = registry.getRelationNames(podio_type_name);
+        
+        // Setup branches based on their type - dispatch to appropriate storage
+        if (branch_type.find("MCParticleData") != std::string::npos) {
+            setupObjectBranch(branch_name, podio_type_name, mcparticle_branch_);
+        }
+        else if (branch_type.find("SimTrackerHitData") != std::string::npos) {
             auto& branch_ptr = tracker_hit_branches_[branch_name];
-            setupObjectBranch(branch_name, "SimTrackerHit", branch_ptr);
+            setupObjectBranch(branch_name, podio_type_name, branch_ptr);
         }
-        else if (branch_type.find("edm4hep::SimCalorimeterHitData") != std::string::npos) {
+        else if (branch_type.find("SimCalorimeterHitData") != std::string::npos) {
             auto& branch_ptr = calo_hit_branches_[branch_name];
-            setupObjectBranch(branch_name, "SimCalorimeterHit", branch_ptr);
+            setupObjectBranch(branch_name, podio_type_name, branch_ptr);
         }
-        else if (branch_type.find("edm4hep::CaloHitContributionData") != std::string::npos) {
+        else if (branch_type.find("CaloHitContributionData") != std::string::npos) {
             auto& branch_ptr = calo_contrib_branches_[branch_name];
-            setupObjectBranch(branch_name, "CaloHitContribution", branch_ptr);
+            setupObjectBranch(branch_name, podio_type_name, branch_ptr);
         }
-        else if (branch_type.find("edm4hep::EventHeaderData") != std::string::npos) {
+        else if (branch_type.find("EventHeaderData") != std::string::npos) {
             auto& branch_ptr = event_header_branches_[branch_name];
-            setupObjectBranch(branch_name, "EventHeader", branch_ptr);
+            setupObjectBranch(branch_name, podio_type_name, branch_ptr);
+        }
+        else {
+            // Log unrecognized EDM4hep type
+            std::cout << "  Note: Unrecognized EDM4hep type for branch '" << branch_name 
+                      << "': " << branch_type << " (podio type: " << podio_type_name << ")" << std::endl;
         }
     }
     
