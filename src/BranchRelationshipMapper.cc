@@ -49,20 +49,20 @@ void BranchRelationshipMapper::discoverRelationships(TChain* chain) {
             
             // Determine if this collection type has a time field
             // SimTrackerHit, SimCalorimeterHit, CaloHitContribution, MCParticle all have time
-            if (data_type.find("SimTrackerHitData") != std::string::npos ||
-                data_type.find("SimCalorimeterHitData") != std::string::npos ||
-                data_type.find("CaloHitContributionData") != std::string::npos ||
-                data_type.find("MCParticleData") != std::string::npos) {
+            if (coll_info.isType("SimTrackerHitData") ||
+                coll_info.isType("SimCalorimeterHitData") ||
+                coll_info.isType("CaloHitContributionData") ||
+                coll_info.isType("MCParticleData")) {
                 coll_info.has_time_field = true;
             }
             
             // MCParticle and some others have index range fields (parents_begin/end, daughters_begin/end, etc.)
-            if (data_type.find("MCParticleData") != std::string::npos) {
+            if (coll_info.isType("MCParticleData")) {
                 coll_info.has_index_ranges = true;
             }
             
             // SimCalorimeterHit has contributions_begin/end
-            if (data_type.find("SimCalorimeterHitData") != std::string::npos) {
+            if (coll_info.isType("SimCalorimeterHitData")) {
                 coll_info.has_index_ranges = true;
             }
             
@@ -148,6 +148,24 @@ std::vector<std::string> BranchRelationshipMapper::getCollectionsByType(const st
         }
     }
     return names;
+}
+
+std::string BranchRelationshipMapper::getContributionCollection(const std::string& calo_collection_name) const {
+    // Look for a contribution collection by checking if this calo collection has a "_contributions" relationship
+    auto coll_it = collection_map_.find(calo_collection_name);
+    if (coll_it != collection_map_.end()) {
+        // Check if there's a relationship branch like "_<CaloName>_contributions"
+        for (const auto& rel : coll_it->second.relationships) {
+            if (rel.relation_name == "contributions") {
+                // Try the naming convention: <CaloName>Contributions
+                std::string contrib_name = calo_collection_name + "Contributions";
+                if (collection_map_.find(contrib_name) != collection_map_.end()) {
+                    return contrib_name;
+                }
+            }
+        }
+    }
+    return ""; // Not found
 }
 
 bool BranchRelationshipMapper::hasRelationships(const std::string& collection_name) const {

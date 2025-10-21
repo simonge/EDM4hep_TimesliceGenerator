@@ -35,6 +35,11 @@ struct CollectionRelationships {
     CollectionRelationships() : has_time_field(false), has_index_ranges(false) {}
     CollectionRelationships(const std::string& name, const std::string& type) 
         : collection_name(name), data_type(type), has_time_field(false), has_index_ranges(false) {}
+    
+    // Helper method to check if this is a specific type
+    bool isType(const std::string& type_name) const {
+        return data_type.find(type_name) != std::string::npos;
+    }
 };
 
 /**
@@ -89,6 +94,16 @@ public:
      * @return Vector of collection names matching the pattern
      */
     std::vector<std::string> getCollectionsByType(const std::string& type_pattern) const;
+    
+    /**
+     * @brief Get related contribution collection name for a calo collection
+     * 
+     * For a collection like "EcalBarrelHits", returns "EcalBarrelHitsContributions" if it exists
+     * 
+     * @param calo_collection_name Name of the calorimeter hit collection
+     * @return Name of the contribution collection, or empty string if not found
+     */
+    std::string getContributionCollection(const std::string& calo_collection_name) const;
     
     /**
      * @brief Check if a collection has relationships

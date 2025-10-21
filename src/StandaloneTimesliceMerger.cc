@@ -316,22 +316,24 @@ void StandaloneTimesliceMerger::createMergedTimeslice(std::vector<std::unique_pt
                     }
                 }
                 
-                // Process contribution data
-                std::string contrib_branch_name = name + "Contributions";
-                auto& processed_contribs = data_source->getProcessedCollection<edm4hep::CaloHitContributionData>(
-                    contrib_branch_name, particle_index_offset, time_offset, totalEventsConsumed);
-                merged_collections_.calo_contributions[name].insert(merged_collections_.calo_contributions[name].end(),
-                                                                   std::make_move_iterator(processed_contribs.begin()), 
-                                                                   std::make_move_iterator(processed_contribs.end()));
-                
-                // Process contribution particle references
-                if (relationship_mapper_->hasRelationships(contrib_branch_name)) {
-                    auto rel_branches = relationship_mapper_->getRelationshipBranches(contrib_branch_name);
-                    for (const auto& branch_name : rel_branches) {
-                        auto& processed_contrib_particle_refs = data_source->processObjectID(branch_name, particle_index_offset,totalEventsConsumed);
-                        merged_collections_.calo_contrib_particle_refs[name].insert(merged_collections_.calo_contrib_particle_refs[name].end(),
-                                                                                   std::make_move_iterator(processed_contrib_particle_refs.begin()), 
-                                                                                   std::make_move_iterator(processed_contrib_particle_refs.end()));
+                // Process contribution data - use mapper to find contribution collection
+                std::string contrib_branch_name = relationship_mapper_->getContributionCollection(name);
+                if (!contrib_branch_name.empty()) {
+                    auto& processed_contribs = data_source->getProcessedCollection<edm4hep::CaloHitContributionData>(
+                        contrib_branch_name, particle_index_offset, time_offset, totalEventsConsumed);
+                    merged_collections_.calo_contributions[name].insert(merged_collections_.calo_contributions[name].end(),
+                                                                       std::make_move_iterator(processed_contribs.begin()), 
+                                                                       std::make_move_iterator(processed_contribs.end()));
+                    
+                    // Process contribution particle references
+                    if (relationship_mapper_->hasRelationships(contrib_branch_name)) {
+                        auto rel_branches = relationship_mapper_->getRelationshipBranches(contrib_branch_name);
+                        for (const auto& branch_name : rel_branches) {
+                            auto& processed_contrib_particle_refs = data_source->processObjectID(branch_name, particle_index_offset,totalEventsConsumed);
+                            merged_collections_.calo_contrib_particle_refs[name].insert(merged_collections_.calo_contrib_particle_refs[name].end(),
+                                                                                       std::make_move_iterator(processed_contrib_particle_refs.begin()), 
+                                                                                       std::make_move_iterator(processed_contrib_particle_refs.end()));
+                        }
                     }
                 }
             }
@@ -427,14 +429,17 @@ void StandaloneTimesliceMerger::setupOutputTree(TTree* tree) {
             }
         }
         
-        std::string contrib_name = name + "Contributions";
-        auto contribBranch = tree->Branch(contrib_name.c_str(), &merged_collections_.calo_contributions[name]);        
-        
-        // Use relationship mapper for contribution particle references
-        if (relationship_mapper_->hasRelationships(contrib_name)) {
-            auto rel_branches = relationship_mapper_->getRelationshipBranches(contrib_name);
-            for (const auto& branch_name : rel_branches) {
-                auto contribRefBranch = tree->Branch(branch_name.c_str(), &merged_collections_.calo_contrib_particle_refs[name]);
+        // Use mapper to find contribution collection
+        std::string contrib_name = relationship_mapper_->getContributionCollection(name);
+        if (!contrib_name.empty()) {
+            auto contribBranch = tree->Branch(contrib_name.c_str(), &merged_collections_.calo_contributions[name]);        
+            
+            // Use relationship mapper for contribution particle references
+            if (relationship_mapper_->hasRelationships(contrib_name)) {
+                auto rel_branches = relationship_mapper_->getRelationshipBranches(contrib_name);
+                for (const auto& branch_name : rel_branches) {
+                    auto contribRefBranch = tree->Branch(branch_name.c_str(), &merged_collections_.calo_contrib_particle_refs[name]);
+                }
             }
         }
     }

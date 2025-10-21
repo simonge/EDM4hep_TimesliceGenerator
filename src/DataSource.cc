@@ -143,7 +143,7 @@ void* DataSource::processCollection(const std::string& collection_name,
     auto coll_info = relationship_mapper_->getCollectionRelationships(collection_name);
     
     // Cast and process based on type
-    if (coll_info.data_type.find("MCParticleData") != std::string::npos) {
+    if (coll_info.isType("MCParticleData")) {
         auto* particles = static_cast<std::vector<edm4hep::MCParticleData>*>(branch_ptr);
         for (auto& particle : *particles) {
             if (coll_info.has_time_field) {
@@ -159,14 +159,14 @@ void* DataSource::processCollection(const std::string& collection_name,
                 particle.generatorStatus += config_->generator_status_offset;
             }
         }
-    } else if (coll_info.data_type.find("SimTrackerHitData") != std::string::npos) {
+    } else if (coll_info.isType("SimTrackerHitData")) {
         auto* hits = static_cast<std::vector<edm4hep::SimTrackerHitData>*>(branch_ptr);
         if (coll_info.has_time_field && !config_->already_merged) {
             for (auto& hit : *hits) {
                 hit.time += time_offset;
             }
         }
-    } else if (coll_info.data_type.find("SimCalorimeterHitData") != std::string::npos) {
+    } else if (coll_info.isType("SimCalorimeterHitData")) {
         auto* hits = static_cast<std::vector<edm4hep::SimCalorimeterHitData>*>(branch_ptr);
         if (coll_info.has_index_ranges) {
             for (auto& hit : *hits) {
@@ -174,7 +174,7 @@ void* DataSource::processCollection(const std::string& collection_name,
                 hit.contributions_end += index_offset;
             }
         }
-    } else if (coll_info.data_type.find("CaloHitContributionData") != std::string::npos) {
+    } else if (coll_info.isType("CaloHitContributionData")) {
         auto* contribs = static_cast<std::vector<edm4hep::CaloHitContributionData>*>(branch_ptr);
         if (coll_info.has_time_field && !config_->already_merged) {
             for (auto& contrib : *contribs) {
@@ -258,15 +258,15 @@ void DataSource::setupGenericBranches() {
         // Allocate appropriate vector type based on data type
         void* branch_ptr = nullptr;
         
-        if (coll_info.data_type.find("MCParticleData") != std::string::npos) {
+        if (coll_info.isType("MCParticleData")) {
             branch_ptr = new std::vector<edm4hep::MCParticleData>();
-        } else if (coll_info.data_type.find("SimTrackerHitData") != std::string::npos) {
+        } else if (coll_info.isType("SimTrackerHitData")) {
             branch_ptr = new std::vector<edm4hep::SimTrackerHitData>();
-        } else if (coll_info.data_type.find("SimCalorimeterHitData") != std::string::npos) {
+        } else if (coll_info.isType("SimCalorimeterHitData")) {
             branch_ptr = new std::vector<edm4hep::SimCalorimeterHitData>();
-        } else if (coll_info.data_type.find("CaloHitContributionData") != std::string::npos) {
+        } else if (coll_info.isType("CaloHitContributionData")) {
             branch_ptr = new std::vector<edm4hep::CaloHitContributionData>();
-        } else if (coll_info.data_type.find("EventHeaderData") != std::string::npos) {
+        } else if (coll_info.isType("EventHeaderData")) {
             branch_ptr = new std::vector<edm4hep::EventHeaderData>();
         } else {
             // Unknown type, skip
