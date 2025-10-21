@@ -654,20 +654,6 @@ void StandaloneTimesliceMerger::copyPodioMetadata(std::vector<std::unique_ptr<Da
     }
 }
 
-std::string StandaloneTimesliceMerger::getCorrespondingContributionCollection(const std::string& calo_collection_name) const {
-    // Add "Contributions" suffix to get the contribution collection name
-    return calo_collection_name + "Contributions";
-}
-
-std::string StandaloneTimesliceMerger::getCorrespondingCaloCollection(const std::string& contrib_collection_name) const {
-    // Remove "Contributions" suffix if present
-    std::string base = contrib_collection_name;
-    if (base.length() > 13 && base.substr(base.length() - 13) == "Contributions") {
-        base = base.substr(0, base.length() - 13);
-    }
-    return base;
-}
-
 void StandaloneTimesliceMerger::copyAndUpdatePodioMetadataTree(TTree* source_metadata_tree, TFile* output_file) {
     if (!source_metadata_tree || !output_file) {
         std::cout << "Warning: Invalid metadata tree or output file for podio_metadata updating" << std::endl;

@@ -12,9 +12,7 @@ DataSource::DataSource(const SourceConfig& config, size_t source_index)
     , total_entries_(0)
     , current_entry_index_(0)
     , entries_needed_(1)
-    , tracker_collection_names_(nullptr)
-    , calo_collection_names_(nullptr)
-    , mcparticle_branch_(nullptr)
+    , gp_collection_names_(nullptr)
     , gp_int_branch_(nullptr)
     , gp_float_branch_(nullptr)
     , gp_double_branch_(nullptr)
@@ -31,8 +29,6 @@ void DataSource::initialize(const std::vector<std::string>& tracker_collections,
                            const std::vector<std::string>& gp_collections,
                            const BranchRelationshipMapper* relationship_mapper) {
     // Store references to collection names and relationship mapper
-    tracker_collection_names_ = &tracker_collections;
-    calo_collection_names_ = &calo_collections;
     gp_collection_names_ = &gp_collections;
     relationship_mapper_ = relationship_mapper;
     
@@ -404,12 +400,5 @@ void DataSource::printStatus() const {
     std::cout << "Current entry: " << current_entry_index_ << std::endl;
     std::cout << "Entries needed: " << entries_needed_ << std::endl;
     std::cout << "Initialized: " << (isInitialized() ? "Yes" : "No") << std::endl;
-    
-    if (tracker_collection_names_) {
-        std::cout << "Tracker collections: " << tracker_collection_names_->size() << std::endl;
-    }
-    if (calo_collection_names_) {
-        std::cout << "Calorimeter collections: " << calo_collection_names_->size() << std::endl;
-    }
     std::cout << "=========================" << std::endl;
 }

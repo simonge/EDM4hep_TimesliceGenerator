@@ -124,8 +124,6 @@ private:
     size_t entries_needed_;
     
     // Collection names (references to shared data)
-    const std::vector<std::string>* tracker_collection_names_;
-    const std::vector<std::string>* calo_collection_names_;
     const std::vector<std::string>* gp_collection_names_;
     
     // Generic branch storage - stores void* to branch data, keyed by branch name
@@ -144,12 +142,11 @@ private:
 
     // Current event processing state
     float current_time_offset_;
-    size_t current_particle_index_offset_;
     
     // Helper to calculate time offset for current event
     void calculateTimeOffsetForEvent(const std::string& mcparticle_collection,
                                      float time_slice_duration,
-                                                     float bunch_crossing_period,
+                                     float bunch_crossing_period,
                                      std::mt19937& rng);
     
     // Private helper methods
@@ -161,8 +158,4 @@ private:
     
     // Helper methods for physics calculations
     float calculateBeamDistance(const std::vector<edm4hep::MCParticleData>& particles) const;
-    
-    // Helper methods for collection name mapping
-    std::string getCorrespondingContributionCollection(const std::string& calo_collection_name) const;
-    std::string getCorrespondingCaloCollection(const std::string& contrib_collection_name) const;
 };
