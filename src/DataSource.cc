@@ -317,13 +317,69 @@ void DataSource::setupRelationshipBranches() {
 
 void DataSource::cleanup() {
     // Clean up generic branches - need to cast and delete based on actual type
-    // For now, we'll let ROOT handle cleanup when chain is destroyed
-    // This is safer than trying to cast void* without knowing the exact type
+    if (relationship_mapper_) {
+        auto all_collections = relationship_mapper_->getAllCollectionNames();
+        
+        for (const auto& coll_name : all_collections) {
+            auto it = generic_branches_.find(coll_name);
+            if (it != generic_branches_.end()) {
+                auto coll_info = relationship_mapper_->getCollectionRelationships(coll_name);
+                
+                // Delete based on actual type
+                if (coll_info.isType("MCParticleData")) {
+                    delete static_cast<std::vector<edm4hep::MCParticleData>*>(it->second);
+                } else if (coll_info.isType("SimTrackerHitData")) {
+                    delete static_cast<std::vector<edm4hep::SimTrackerHitData>*>(it->second);
+                } else if (coll_info.isType("SimCalorimeterHitData")) {
+                    delete static_cast<std::vector<edm4hep::SimCalorimeterHitData>*>(it->second);
+                } else if (coll_info.isType("CaloHitContributionData")) {
+                    delete static_cast<std::vector<edm4hep::CaloHitContributionData>*>(it->second);
+                } else if (coll_info.isType("EventHeaderData")) {
+                    delete static_cast<std::vector<edm4hep::EventHeaderData>*>(it->second);
+                }
+            }
+        }
+    }
+    
+    // Clean up GP value branches
+    auto gp_int = generic_branches_.find("GPIntValues");
+    if (gp_int != generic_branches_.end()) {
+        delete static_cast<std::vector<std::vector<int>>*>(gp_int->second);
+    }
+    
+    auto gp_float = generic_branches_.find("GPFloatValues");
+    if (gp_float != generic_branches_.end()) {
+        delete static_cast<std::vector<std::vector<float>>*>(gp_float->second);
+    }
+    
+    auto gp_double = generic_branches_.find("GPDoubleValues");
+    if (gp_double != generic_branches_.end()) {
+        delete static_cast<std::vector<std::vector<double>>*>(gp_double->second);
+    }
+    
+    auto gp_string = generic_branches_.find("GPStringValues");
+    if (gp_string != generic_branches_.end()) {
+        delete static_cast<std::vector<std::vector<std::string>>*>(gp_string->second);
+    }
+    
+    // Clean up GP key branches
+    if (relationship_mapper_) {
+        auto gp_branches = relationship_mapper_->getGPBranches();
+        for (const auto& branch_name : gp_branches) {
+            auto it = generic_branches_.find(branch_name);
+            if (it != generic_branches_.end()) {
+                delete static_cast<std::vector<std::string>*>(it->second);
+            }
+        }
+    }
+    
     generic_branches_.clear();
     
+    // Clean up ObjectID branches
     for (auto& [name, ptr] : objectid_branches_) {
         delete ptr;
     }
+    objectid_branches_.clear();
 }
 
 
