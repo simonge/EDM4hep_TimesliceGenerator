@@ -149,8 +149,9 @@ void DataSource::UpdateTimeOffset(float time_slice_duration,
     }
 }
 
-std::vector<edm4hep::MCParticleData>& DataSource::processMCParticles(size_t particle_index_offset,
-                                                                   int totalEventsConsumed) {
+std::vector<edm4hep::MCParticleData>& DataSource::processMCParticles(size_t particle_parents_offset,
+                                                                     size_t particle_daughters_offset,
+                                                                     int totalEventsConsumed) {
 
     auto& particles = *mcparticle_branch_;
 
@@ -168,10 +169,10 @@ std::vector<edm4hep::MCParticleData>& DataSource::processMCParticles(size_t part
             particle.generatorStatus += config_->generator_status_offset;
         }
         // Update index ranges for parent-child relationships
-        particle.parents_begin   += particle_index_offset;
-        particle.parents_end     += particle_index_offset;
-        particle.daughters_begin += particle_index_offset;
-        particle.daughters_end   += particle_index_offset;        
+        particle.parents_begin   += particle_parents_offset;
+        particle.parents_end     += particle_parents_offset;
+        particle.daughters_begin += particle_daughters_offset;
+        particle.daughters_end   += particle_daughters_offset;        
     }
     
     return particles; // Return reference to the branch data itself

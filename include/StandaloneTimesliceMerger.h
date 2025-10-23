@@ -34,7 +34,7 @@ struct MergedCollections {
     
     // Reference collections
     std::vector<podio::ObjectID> mcparticle_parents_refs;
-    std::vector<podio::ObjectID> mcparticle_children_refs;
+    std::vector<podio::ObjectID> mcparticle_daughters_refs;
     std::unordered_map<std::string, std::vector<podio::ObjectID>> tracker_hit_particle_refs;
     std::unordered_map<std::string, std::vector<podio::ObjectID>> calo_contrib_particle_refs;
     std::unordered_map<std::string, std::vector<podio::ObjectID>> calo_hit_contributions_refs;
