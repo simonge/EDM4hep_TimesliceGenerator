@@ -133,11 +133,25 @@ std::vector<podio::ObjectID>& DataSource::processObjectID(const std::string& bra
     return *objectid_branches_[branch_name];
 }
 
-std::vector<edm4hep::MCParticleData>& DataSource::processMCParticles(size_t particle_index_offset,
-                                                                   float time_slice_duration,
-                                                                   float bunch_crossing_period,
-                                                                   std::mt19937& rng,
-                                                                   int totalEventsConsumed) {
+void DataSource::UpdateTimeOffset(float time_slice_duration,
+                                  float bunch_crossing_period,
+                                  std::mt19937& rng) {
+    float distance = 0.0f;
+    
+    // Calculate time offset if not already merged
+    if (!config_->already_merged && mcparticle_branch_ && !mcparticle_branch_->empty()) {
+        if (config_->attach_to_beam) {
+            distance = calculateBeamDistance(*mcparticle_branch_);
+        }
+        current_time_offset_ = generateTimeOffset(distance, time_slice_duration, bunch_crossing_period, rng);
+    } else {
+        current_time_offset_ = 0.0f;
+    }
+}
+
+std::vector<edm4hep::MCParticleData>& DataSource::processMCParticles(size_t particle_parents_offset,
+                                                                     size_t particle_daughters_offset,
+                                                                     int totalEventsConsumed) {
 
     auto& particles = *mcparticle_branch_;
 
@@ -147,16 +161,6 @@ std::vector<edm4hep::MCParticleData>& DataSource::processMCParticles(size_t part
 
     float distance = 0.0f;
     
-    // Calculate time offset if not already merged
-    if (!config_->already_merged) {
-        if (config_->attach_to_beam && !particles.empty()) {
-            distance = calculateBeamDistance(particles);
-        }
-        current_time_offset_ = generateTimeOffset(distance, time_slice_duration, bunch_crossing_period, rng);
-    } else {
-        current_time_offset_ = 0.0f;
-    }
-    
     // Work directly on the branch data
     for (auto& particle : particles) {
         if (!config_->already_merged) {
@@ -165,10 +169,10 @@ std::vector<edm4hep::MCParticleData>& DataSource::processMCParticles(size_t part
             particle.generatorStatus += config_->generator_status_offset;
         }
         // Update index ranges for parent-child relationships
-        particle.parents_begin   += particle_index_offset;
-        particle.parents_end     += particle_index_offset;
-        particle.daughters_begin += particle_index_offset;
-        particle.daughters_end   += particle_index_offset;        
+        particle.parents_begin   += particle_parents_offset;
+        particle.parents_end     += particle_parents_offset;
+        particle.daughters_begin += particle_daughters_offset;
+        particle.daughters_end   += particle_daughters_offset;        
     }
     
     return particles; // Return reference to the branch data itself

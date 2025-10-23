@@ -30,7 +30,7 @@ void MergedCollections::clear() {
     }
     
     mcparticle_parents_refs.clear();
-    mcparticle_children_refs.clear();
+    mcparticle_daughters_refs.clear();
     
     for (auto& [name, vec] : calo_hit_contributions_refs) {
         vec.clear();
@@ -184,16 +184,20 @@ void StandaloneTimesliceMerger::createMergedTimeslice(std::vector<std::unique_pt
 
         for (size_t i = 0; i < data_source->getEntriesNeeded(); ++i) {
             // Calculate particle index offset for this event
-            size_t particle_index_offset = merged_collections_.mcparticles.size();
-            
+            size_t particle_index_offset   = merged_collections_.mcparticles.size();
+            size_t particle_parents_offset = merged_collections_.mcparticle_parents_refs.size();
+            size_t particle_daughters_offset = merged_collections_.mcparticle_daughters_refs.size();
+
             // Load the event data from this source
             data_source->loadEvent(data_source->getCurrentEntryIndex());
+
+            // Generate time offset for this event
+            data_source->UpdateTimeOffset(m_config.time_slice_duration,
+                                          m_config.bunch_crossing_period,
+                                          gen);
             
             // Process MCParticles - use move semantics to avoid copying
-            auto& processed_particles = data_source->processMCParticles(particle_index_offset,
-                                                                       m_config.time_slice_duration,
-                                                                       m_config.bunch_crossing_period,
-                                                                       gen,totalEventsConsumed);
+            auto& processed_particles = data_source->processMCParticles(particle_parents_offset, particle_daughters_offset, totalEventsConsumed);
             merged_collections_.mcparticles.insert(merged_collections_.mcparticles.end(), 
                                                   std::make_move_iterator(processed_particles.begin()), 
                                                   std::make_move_iterator(processed_particles.end()));
@@ -205,12 +209,12 @@ void StandaloneTimesliceMerger::createMergedTimeslice(std::vector<std::unique_pt
                                                               std::make_move_iterator(processed_parents.begin()), 
                                                               std::make_move_iterator(processed_parents.end()));
 
-            std::string children_ref_branch_name = "_MCParticles_daughters";
-            auto& processed_children = data_source->processObjectID(children_ref_branch_name, particle_index_offset,totalEventsConsumed);
-            merged_collections_.mcparticle_children_refs.insert(merged_collections_.mcparticle_children_refs.end(),
-                                                               std::make_move_iterator(processed_children.begin()), 
-                                                               std::make_move_iterator(processed_children.end()));
-            
+            std::string daughters_ref_branch_name = "_MCParticles_daughters";
+            auto& processed_daughters = data_source->processObjectID(daughters_ref_branch_name, particle_index_offset,totalEventsConsumed);
+            merged_collections_.mcparticle_daughters_refs.insert(merged_collections_.mcparticle_daughters_refs.end(),
+                                                               std::make_move_iterator(processed_daughters.begin()), 
+                                                               std::make_move_iterator(processed_daughters.end()));
+
             // Process SubEventHeaders for non-merged sources to track which MCParticles came from this source
             if (!config.already_merged) {
                 // Create a SubEventHeader for this source/event combination
@@ -342,7 +346,7 @@ void StandaloneTimesliceMerger::setupOutputTree(TTree* tree) {
     auto subEventHeaderBranch = tree->Branch("SubEventHeaders", &merged_collections_.sub_event_headers);
     auto subEventHeaderWeightsBranch = tree->Branch("_SubEventHeader_weights", &merged_collections_.sub_event_header_weights);
     auto mcParticlesBranch = tree->Branch("MCParticles", &merged_collections_.mcparticles);
-    auto mcDaughtersBranch = tree->Branch("_MCParticles_daughters", &merged_collections_.mcparticle_children_refs);
+    auto mcDaughtersBranch = tree->Branch("_MCParticles_daughters", &merged_collections_.mcparticle_daughters_refs);
     auto mcParentsBranch = tree->Branch("_MCParticles_parents", &merged_collections_.mcparticle_parents_refs);
 
     // Tracker collections and their references
