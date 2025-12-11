@@ -1,8 +1,16 @@
-# EDM4hep event merger
+# Event Timeslice Merger
 
-An application for merging multiple events output by dd4hep into timeslices. All collections of particles and hits are zipped together while maintaining the references between collections.  
+This repository provides tools for merging multiple event files into timeslices with configurable timing offsets and event placement strategies.
 
-This tool provides control over timing adjustments allowing optional shifting of the time from each event source based on:
+## Available Mergers
+
+### 1. EDM4hep Timeslice Merger (`timeslice_merger`)
+An application for merging multiple events output by dd4hep into timeslices. All collections of particles and hits are zipped together while maintaining the references between collections.
+
+### 2. HepMC3 Timeslice Merger (`hepmc3_timeslice_merger`)
+A HepMC3-based merger for combining HepMC3 format event files into timeslices. Based on the [EPIC HEPMC_Merger](https://github.com/eic/HEPMC_Merger) implementation, it provides the same configuration interface as the EDM4hep merger.
+
+Both tools provide control over timing adjustments allowing optional shifting of the time from each event source based on:
 - Bunch crossing periods.
 - Attachment of backgrounds to beam bunches.
 - Additional Gaussian smearing.
@@ -11,11 +19,21 @@ Sources can either be individual events, or an already merged source allowing st
 
 ## Prerequisites
 
+### For EDM4hep Merger:
 - **PODIO library and headers** - Required for data I/O operations
 - **EDM4HEP library and headers** - Required for the EDM4HEP data model
 - **yaml-cpp library** - Required for configuration file support
 - **CMake 3.16 or later** - Required for building
 - **C++20 compatible compiler** - Required for compilation
+
+### For HepMC3 Merger (Optional):
+- **HepMC3 library (>= 3.2.0)** - Required for HepMC3 format support
+- **ROOT (>= 6.20)** - Required for HepMC3 ROOT I/O
+- **yaml-cpp library** - Required for configuration file support
+- **CMake 3.16 or later** - Required for building
+- **C++17 compatible compiler** - Required for compilation
+
+Note: The HepMC3 merger will only be built if HepMC3 is found on your system.
 
 ## Building
 
@@ -477,15 +495,79 @@ Main orchestration class:
 2. **Memory Usage**: Monitor with system tools (htop, top)
 3. **Output Size**: Verify timeslice parameters are reasonable
 
+## HepMC3 Timeslice Merger Usage
+
+The HepMC3 merger (`hepmc3_timeslice_merger`) uses the same configuration format as the EDM4hep merger, making it easy to switch between formats.
+
+### Basic HepMC3 Usage
+
+```bash
+# Single signal source (one event per timeslice)
+./install/bin/hepmc3_timeslice_merger \
+  --source:signal:input_files signal.hepmc3.tree.root \
+  --source:signal:frequency 0
+
+# Signal + background with Poisson distribution
+./install/bin/hepmc3_timeslice_merger \
+  --source:signal:input_files signal.hepmc3.tree.root \
+  --source:signal:frequency 0 \
+  --source:bg:input_files background.hepmc3.tree.root \
+  --source:bg:frequency 0.02 \
+  --source:bg:status_offset 1000 \
+  --source:bg:repeat_on_eof true
+
+# Using YAML configuration
+./install/bin/hepmc3_timeslice_merger --config configs/hepmc3_config.yml
+```
+
+### HepMC3 Configuration File
+
+The HepMC3 merger uses the same YAML structure as the EDM4hep merger. See `configs/hepmc3_config.yml` for a complete example.
+
+```yaml
+output_file: merged_timeslices.hepmc3.tree.root
+max_events: 100
+time_slice_duration: 2000.0
+bunch_crossing_period: 10.0
+
+sources:
+  - input_files: [signal.hepmc3.tree.root]
+    name: signal
+    mean_event_frequency: 0.0  # One event per slice
+    generator_status_offset: 0
+    
+  - input_files: [background.hepmc3.tree.root]
+    name: background
+    mean_event_frequency: 0.02  # Poisson with 20 kHz
+    generator_status_offset: 1000
+    repeat_on_eof: true
+```
+
+### HepMC3 Special Features
+
+- **Weighted Events**: Set `mean_event_frequency` to a negative value to use event weights from the input file
+- **Generator Status Offset**: Automatically shifts particle status codes to distinguish between sources
+- **Repeat on EOF**: Sources can cycle back to the beginning when exhausted
+- **Output Formats**: Supports both ASCII (`.hepmc3`) and ROOT (`.hepmc3.tree.root`) output
+
 ## Development and Contributing
 
 ### Code Structure
+
+#### EDM4hep Merger:
 - `src/StandaloneTimesliceMerger.cc`: Core merging logic and orchestration
 - `src/DataSource.cc`: Input file management and data reading  
 - `src/timeslice_merger_main.cc`: Command line interface and configuration parsing
 - `include/StandaloneTimesliceMerger.h`: Main API and data structures
 - `include/DataSource.h`: Input data source abstraction
-- `include/StandaloneMergerConfig.h`: Configuration structures
+
+#### HepMC3 Merger:
+- `src/HepMC3TimesliceMerger.cc`: HepMC3 merging implementation
+- `src/hepmc3_merger_main.cc`: HepMC3 command line interface
+- `include/HepMC3TimesliceMerger.h`: HepMC3 merger API
+
+#### Common:
+- `include/StandaloneMergerConfig.h`: Configuration structures (shared by both mergers)
 
 ### Testing
 ```bash

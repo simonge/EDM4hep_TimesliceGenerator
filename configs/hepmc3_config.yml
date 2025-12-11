@@ -1,0 +1,50 @@
+# Example HepMC3 configuration for timeslice merger
+# This configuration uses the same structure as the EDM4hep merger
+
+output_file: merged_timeslices.hepmc3.tree.root
+max_events: 100
+time_slice_duration: 2000.0  # nanoseconds
+bunch_crossing_period: 10.0  # nanoseconds
+introduce_offsets: true
+
+sources:
+  # Signal source - exactly one event per timeslice
+  - input_files:
+      - signal.hepmc3.tree.root
+    name: signal
+    static_number_of_events: false
+    mean_event_frequency: 0.0  # 0 means one event per slice
+    use_bunch_crossing: true
+    generator_status_offset: 0
+    repeat_on_eof: false
+    
+  # Background source 1 - Poisson distributed with frequency
+  - input_files:
+      - background1.hepmc3.tree.root
+    name: background1
+    static_number_of_events: false
+    mean_event_frequency: 0.02  # events per nanosecond (20 kHz)
+    use_bunch_crossing: true
+    generator_status_offset: 1000
+    repeat_on_eof: true
+    
+  # Background source 2 - Static number of events per slice
+  - input_files:
+      - background2.hepmc3.tree.root
+    name: background2
+    static_number_of_events: true
+    static_events_per_timeslice: 2
+    use_bunch_crossing: true
+    generator_status_offset: 2000
+    repeat_on_eof: true
+    
+  # Weighted background source - uses event weights
+  # Set mean_event_frequency to negative value to trigger weighted mode
+  - input_files:
+      - weighted_background.hepmc3.tree.root
+    name: synchrotron_radiation
+    static_number_of_events: false
+    mean_event_frequency: -1.0  # Negative value triggers weighted mode
+    use_bunch_crossing: false
+    generator_status_offset: 3000
+    repeat_on_eof: false

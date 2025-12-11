@@ -19,6 +19,14 @@ find_package(EDM4HEP REQUIRED)
 # Find yaml-cpp
 find_package(yaml-cpp REQUIRED)
 
+# Find HepMC3 (optional, for HepMC3 merging support)
+find_package(HepMC3 3.2.0 QUIET)
+if(HepMC3_FOUND)
+    message(STATUS "HepMC3 found - HepMC3 merger will be built")
+else()
+    message(STATUS "HepMC3 not found - HepMC3 merger will NOT be built")
+endif()
+
 # Include directories
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
 include_directories(${ROOT_INCLUDE_DIRS})
@@ -68,6 +76,33 @@ target_link_libraries(test_podio_format
 # Set install prefix if not specified
 if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
     set(CMAKE_INSTALL_PREFIX "${CMAKE_CURRENT_SOURCE_DIR}/install" CACHE PATH "Installation directory" FORCE)
+endif()
+
+# Create HepMC3 merger executable (only if HepMC3 is found)
+if(HepMC3_FOUND)
+    add_executable(hepmc3_timeslice_merger
+        src/HepMC3TimesliceMerger.cc
+        src/hepmc3_merger_main.cc
+    )
+    
+    # Set C++17 for HepMC3 merger (HepMC3 requires C++17)
+    target_compile_features(hepmc3_timeslice_merger PUBLIC cxx_std_17)
+    
+    # Link against ROOT, HepMC3 and yaml-cpp
+    target_link_libraries(hepmc3_timeslice_merger
+        ${ROOT_LIBRARIES}
+        HepMC3::HepMC3
+        HepMC3::rootIO
+        yaml-cpp
+    )
+    
+    target_include_directories(hepmc3_timeslice_merger
+        PRIVATE
+        ${HEPMC3_INCLUDE_DIR}
+    )
+    
+    # Install HepMC3 merger
+    install(TARGETS hepmc3_timeslice_merger DESTINATION bin)
 endif()
 
 # Install the executables
