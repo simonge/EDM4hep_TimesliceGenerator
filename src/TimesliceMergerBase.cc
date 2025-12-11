@@ -7,7 +7,8 @@ TimesliceMergerBase::TimesliceMergerBase(const MergerConfig& config)
     : m_config(config)
 {
     // Initialize RNG with time-based seed
-    initializeRNG(0);
+    auto seed = std::chrono::system_clock::now().time_since_epoch().count();
+    m_rng.seed(seed);
 }
 
 void TimesliceMergerBase::initializeRNG(unsigned int seed) {
