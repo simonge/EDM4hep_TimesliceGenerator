@@ -260,12 +260,20 @@ void HepMC3TimesliceMerger::addWeightedEvents(SourceData& source, std::unique_pt
     std::poisson_distribution<> d(m_config.time_slice_duration * source.avg_rate);
     
     int n_events;
+    int retry_count = 0;
+    const int max_retries = 100;
     while (true) {
         n_events = d(m_rng);
         if (n_events > static_cast<int>(source.events.size())) {
-            std::cout << "WARNING: Trying to place " << n_events << " events from " 
-                      << source.config.name << " but file has only " << source.events.size() 
-                      << ". Rerolling." << std::endl;
+            retry_count++;
+            if (retry_count >= max_retries) {
+                std::cout << "WARNING: After " << max_retries << " retries, still trying to place " 
+                          << n_events << " events from " << source.config.name 
+                          << " but file has only " << source.events.size() 
+                          << ". Using available events." << std::endl;
+                n_events = source.events.size();
+                break;
+            }
             continue;
         }
         break;
@@ -338,21 +346,27 @@ long HepMC3TimesliceMerger::insertHepmcEvent(const HepMC3::GenEvent& inevt,
         // Attach to production vertex
         if (particle->production_vertex() && particle->production_vertex()->id() < 0) {
             int production_vertex = particle->production_vertex()->id();
-            int abs_vertex = std::abs(production_vertex);
-            if (abs_vertex > 0 && abs_vertex <= static_cast<int>(vertices.size())) {
-                size_t vertex_idx = abs_vertex - 1;
-                vertices[vertex_idx]->add_particle_out(p1);
-                hepSlice->add_particle(p1);
+            // Safely convert to size_t, checking for INT_MIN edge case
+            if (production_vertex != INT_MIN) {
+                int abs_vertex = std::abs(production_vertex);
+                if (abs_vertex > 0 && static_cast<size_t>(abs_vertex) <= vertices.size()) {
+                    size_t vertex_idx = static_cast<size_t>(abs_vertex) - 1;
+                    vertices[vertex_idx]->add_particle_out(p1);
+                    hepSlice->add_particle(p1);
+                }
             }
         }
         
         // Attach to end vertex
         if (particle->end_vertex()) {
             int end_vertex = particle->end_vertex()->id();
-            int abs_vertex = std::abs(end_vertex);
-            if (abs_vertex > 0 && abs_vertex <= static_cast<int>(vertices.size())) {
-                size_t vertex_idx = abs_vertex - 1;
-                vertices[vertex_idx]->add_particle_in(p1);
+            // Safely convert to size_t, checking for INT_MIN edge case
+            if (end_vertex != INT_MIN) {
+                int abs_vertex = std::abs(end_vertex);
+                if (abs_vertex > 0 && static_cast<size_t>(abs_vertex) <= vertices.size()) {
+                    size_t vertex_idx = static_cast<size_t>(abs_vertex) - 1;
+                    vertices[vertex_idx]->add_particle_in(p1);
+                }
             }
         }
     }

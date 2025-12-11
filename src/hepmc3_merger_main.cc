@@ -242,20 +242,22 @@ int main(int argc, char* argv[]) {
     }
     
     // Merge CLI sources with config sources
-    // CLI values override YAML values only if they differ from defaults
-    // Note: Default values match SourceConfig defaults in StandaloneMergerConfig.h
+    // Note: This merge strategy checks if CLI values differ from defaults.
+    // Limitation: Cannot override YAML true with CLI false for boolean flags.
+    // This is acceptable as the typical use case is to add/modify values, not revert them.
     for (const auto& cli_source : cli_sources) {
         bool found = false;
         for (auto& existing_source : config.sources) {
             if (existing_source.name == cli_source.name) {
-                // Override with CLI values (only if explicitly set by user)
+                // Override with CLI values where provided
                 if (!cli_source.input_files.empty()) {
                     existing_source.input_files = cli_source.input_files;
                 }
-                // mean_event_frequency default is 1.0f
+                // mean_event_frequency default is 1.0f, but allow frequency=0 for signal mode
                 if (cli_source.mean_event_frequency != 1.0f) {
                     existing_source.mean_event_frequency = cli_source.mean_event_frequency;
                 }
+                // Boolean flags only set to true via CLI (limitation: can't unset YAML true values)
                 if (cli_source.static_number_of_events) {
                     existing_source.static_number_of_events = cli_source.static_number_of_events;
                 }
