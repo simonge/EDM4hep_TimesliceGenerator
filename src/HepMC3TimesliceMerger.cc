@@ -220,6 +220,10 @@ void HepMC3TimesliceMerger::addFreqEvents(SourceData& source, std::unique_ptr<He
                 std::cout << "Cycling back to start of " << source.config.name << std::endl;
                 source.reader->close();
                 source.reader = HepMC3::deduce_reader(source.config.input_files[0]);
+                if (!source.reader || source.reader->failed()) {
+                    std::cerr << "Warning: Failed to reopen " << source.config.name << std::endl;
+                    break;
+                }
             } else {
                 // Stop if source exhausted and we can't repeat
                 break;
@@ -229,7 +233,15 @@ void HepMC3TimesliceMerger::addFreqEvents(SourceData& source, std::unique_ptr<He
         HepMC3::GenEvent inevt;
         source.reader->read_event(inevt);
         
-        if (source.reader->failed()) break;
+        // Check if read failed
+        if (source.reader->failed()) {
+            // If we can't repeat, just stop
+            if (!source.config.repeat_on_eof) {
+                break;
+            }
+            // Otherwise continue to next iteration which will try to reopen
+            continue;
+        }
         
         // Apply bunch crossing if enabled
         if (source.config.use_bunch_crossing) {

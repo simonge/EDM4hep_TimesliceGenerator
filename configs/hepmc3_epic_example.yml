@@ -1,0 +1,75 @@
+# Example HepMC3 configuration for EPIC detector simulation
+# This example mimics the typical EPIC background merging scenario
+# Based on frequencies from https://wiki.bnl.gov/EPIC/index.php?title=Background
+
+output_file: epic_merged_timeslices.hepmc3.tree.root
+max_events: 10000
+time_slice_duration: 2000.0  # nanoseconds (2 microseconds)
+bunch_crossing_period: 10.0  # nanoseconds
+introduce_offsets: true
+
+sources:
+  # DIS Signal source - exactly one event per timeslice
+  - input_files:
+      - pythia_ep_noradcor_10x100.hepmc3.tree.root
+    name: signal
+    static_number_of_events: false
+    mean_event_frequency: 0.0  # 0 means one event per slice (signal mode)
+    use_bunch_crossing: true
+    generator_status_offset: 0
+    repeat_on_eof: false
+    
+  # Hadronic gas background
+  # Original: 2000 kHz → 0.002 events/ns
+  - input_files:
+      - hgas.hepmc3.tree.root
+    name: hgas
+    static_number_of_events: false
+    mean_event_frequency: 0.002
+    use_bunch_crossing: true
+    generator_status_offset: 2000
+    repeat_on_eof: true
+    
+  # Electromagnetic gas - Touschek scattering
+  # Original: 20 kHz → 0.00002 events/ns
+  - input_files:
+      - egastouschk.hepmc3.tree.root
+    name: egas_touschek
+    static_number_of_events: false
+    mean_event_frequency: 0.00002
+    use_bunch_crossing: true
+    generator_status_offset: 3000
+    repeat_on_eof: true
+    
+  # Electromagnetic gas - Coulomb scattering
+  # Original: 20 kHz → 0.00002 events/ns
+  - input_files:
+      - egascouloumb.hepmc3.tree.root
+    name: egas_coulomb
+    static_number_of_events: false
+    mean_event_frequency: 0.00002
+    use_bunch_crossing: true
+    generator_status_offset: 4000
+    repeat_on_eof: true
+    
+  # Electromagnetic gas - Bremsstrahlung
+  # Original: 20 kHz → 0.00002 events/ns
+  - input_files:
+      - egasbrems.hepmc3.tree.root
+    name: egas_brems
+    static_number_of_events: false
+    mean_event_frequency: 0.00002
+    use_bunch_crossing: true
+    generator_status_offset: 5000
+    repeat_on_eof: true
+    
+  # Synchrotron radiation background
+  # Original: 25 kHz → 0.000025 events/ns
+  - input_files:
+      - synrad.hepmc3.tree.root
+    name: synrad
+    static_number_of_events: false
+    mean_event_frequency: 0.000025
+    use_bunch_crossing: false
+    generator_status_offset: 6000
+    repeat_on_eof: true

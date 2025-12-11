@@ -23,7 +23,7 @@ sources:
       - background1.hepmc3.tree.root
     name: background1
     static_number_of_events: false
-    mean_event_frequency: 0.02  # events per nanosecond (20 kHz)
+    mean_event_frequency: 0.00002  # events per nanosecond (20 kHz = 0.00002 events/ns)
     use_bunch_crossing: true
     generator_status_offset: 1000
     repeat_on_eof: true
