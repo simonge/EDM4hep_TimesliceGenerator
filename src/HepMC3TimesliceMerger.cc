@@ -277,7 +277,12 @@ void HepMC3TimesliceMerger::addWeightedEvents(SourceData& source, std::unique_pt
     std::vector<HepMC3::GenEvent> to_place;
     for (int i = 0; i < n_events; ++i) {
         int idx = static_cast<int>((*source.weighted_dist)(m_rng));
-        to_place.push_back(source.events.at(idx));
+        // Validate index is within bounds
+        if (idx >= 0 && idx < static_cast<int>(source.events.size())) {
+            to_place.push_back(source.events.at(idx));
+        } else {
+            std::cerr << "Warning: Invalid event index " << idx << " from weighted distribution" << std::endl;
+        }
     }
     
     // Place at random times
@@ -333,8 +338,9 @@ long HepMC3TimesliceMerger::insertHepmcEvent(const HepMC3::GenEvent& inevt,
         // Attach to production vertex
         if (particle->production_vertex() && particle->production_vertex()->id() < 0) {
             int production_vertex = particle->production_vertex()->id();
-            size_t vertex_idx = std::abs(production_vertex) - 1;
-            if (vertex_idx < vertices.size()) {
+            int abs_vertex = std::abs(production_vertex);
+            if (abs_vertex > 0 && abs_vertex <= static_cast<int>(vertices.size())) {
+                size_t vertex_idx = abs_vertex - 1;
                 vertices[vertex_idx]->add_particle_out(p1);
                 hepSlice->add_particle(p1);
             }
@@ -343,8 +349,9 @@ long HepMC3TimesliceMerger::insertHepmcEvent(const HepMC3::GenEvent& inevt,
         // Attach to end vertex
         if (particle->end_vertex()) {
             int end_vertex = particle->end_vertex()->id();
-            size_t vertex_idx = std::abs(end_vertex) - 1;
-            if (vertex_idx < vertices.size()) {
+            int abs_vertex = std::abs(end_vertex);
+            if (abs_vertex > 0 && abs_vertex <= static_cast<int>(vertices.size())) {
+                size_t vertex_idx = abs_vertex - 1;
                 vertices[vertex_idx]->add_particle_in(p1);
             }
         }
