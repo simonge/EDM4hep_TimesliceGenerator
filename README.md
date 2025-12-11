@@ -578,11 +578,25 @@ sources:
 
 ### Code Structure
 
+The codebase uses object-oriented design with inheritance to share common functionality between both merger implementations.
+
+#### Architecture
+
+```
+TimesliceMergerBase (abstract base class)
+├── StandaloneTimesliceMerger (EDM4hep format)
+└── HepMC3TimesliceMerger (HepMC3 format)
+```
+
+#### Base Class:
+- `src/TimesliceMergerBase.cc`: Shared functionality (RNG, Poisson distribution, time offset generation)
+- `include/TimesliceMergerBase.h`: Base class API with common methods
+
 #### EDM4hep Merger:
-- `src/StandaloneTimesliceMerger.cc`: Core merging logic and orchestration
+- `src/StandaloneTimesliceMerger.cc`: Core merging logic for EDM4hep format
 - `src/DataSource.cc`: Input file management and data reading  
 - `src/timeslice_merger_main.cc`: Command line interface and configuration parsing
-- `include/StandaloneTimesliceMerger.h`: Main API and data structures
+- `include/StandaloneTimesliceMerger.h`: EDM4hep merger API
 - `include/DataSource.h`: Input data source abstraction
 
 #### HepMC3 Merger:
@@ -592,6 +606,13 @@ sources:
 
 #### Common:
 - `include/StandaloneMergerConfig.h`: Configuration structures (shared by both mergers)
+
+#### Shared Functionality (in Base Class):
+- Random number generation with mt19937
+- Poisson time distribution generation
+- Random time offset calculation
+- Bunch crossing discretization
+- Poisson event count calculation
 
 ### Testing
 ```bash

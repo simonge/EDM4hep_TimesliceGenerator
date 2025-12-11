@@ -4,6 +4,8 @@
 
 The HepMC3 Timeslice Merger (`hepmc3_timeslice_merger`) is an alternative to the EDM4hep merger that works with HepMC3 format event files. It is based on the [EPIC HEPMC_Merger](https://github.com/eic/HEPMC_Merger) implementation but uses the same configuration structure as the EDM4hep merger for consistency.
 
+Both the HepMC3 and EDM4hep mergers inherit from a common `TimesliceMergerBase` class, sharing functionality like random number generation, Poisson time distribution, and bunch crossing logic.
+
 ## Key Features
 
 - **Same Configuration Format**: Uses identical YAML and command-line configuration as the EDM4hep merger
@@ -212,6 +214,33 @@ In downstream simulation (e.g., DD4hep/ddsim), you may need to configure the phy
 ddsim --physics.alternativeStableStatuses="1 1001 2001" \
       --physics.alternativeDecayStatuses="2 1002 2002"
 ```
+
+## Architecture
+
+### Object-Oriented Design
+
+The HepMC3 merger uses an object-oriented architecture with inheritance:
+
+```
+TimesliceMergerBase (abstract)
+└── HepMC3TimesliceMerger
+```
+
+**Shared functionality (from base class):**
+- Random number generation (`m_rng`)
+- Configuration management (`m_config`)
+- Poisson time distribution generation
+- Random time offset calculation
+- Bunch crossing discretization
+- Poisson event count calculation
+
+**HepMC3-specific functionality:**
+- HepMC3 file I/O
+- Event merging and vertex handling
+- Particle status offset application
+- Weighted event selection
+
+This design ensures consistency with the EDM4hep merger and makes it easy to extend with new merger types in the future.
 
 ## Implementation Details
 
