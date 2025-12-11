@@ -1,13 +1,12 @@
 #pragma once
 
-#include "StandaloneMergerConfig.h"
+#include "TimesliceMergerBase.h"
 #include <HepMC3/ReaderFactory.h>
 #include <HepMC3/WriterAscii.h>
 #include <HepMC3/WriterRootTree.h>
 #include <HepMC3/GenEvent.h>
 #include <HepMC3/GenParticle.h>
 #include <HepMC3/GenVertex.h>
-#include <random>
 #include <memory>
 #include <map>
 #include <vector>
@@ -20,7 +19,7 @@
  * using the same configuration structure as the EDM4hep merger.
  * Based on the EPIC HEPMC_Merger implementation.
  */
-class HepMC3TimesliceMerger {
+class HepMC3TimesliceMerger : public TimesliceMergerBase {
 public:
     /**
      * @brief Constructor
@@ -31,17 +30,9 @@ public:
     /**
      * @brief Run the merging process
      */
-    void run();
+    void run() override;
 
 private:
-    // Configuration
-    MergerConfig m_config;
-    
-    // Random number generation
-    std::mt19937 m_rng;
-    
-    // Speed of light constant (mm/ns)
-    const double c_light = 299.792458;
     
     // Source readers and configurations
     struct SourceData {
@@ -73,8 +64,6 @@ private:
                           std::unique_ptr<HepMC3::GenEvent>& hepSlice, 
                           double time, 
                           int baseStatus);
-    
-    std::vector<double> poissonTimes(double mu, double endTime);
     
     void printBanner();
     void printStatistics(int slicesDone);

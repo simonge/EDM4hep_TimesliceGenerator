@@ -8,12 +8,8 @@
 #include <sys/resource.h>
 
 HepMC3TimesliceMerger::HepMC3TimesliceMerger(const MergerConfig& config)
-    : m_config(config)
+    : TimesliceMergerBase(config)
 {
-    // Initialize random number generator
-    auto seed = std::chrono::system_clock::now().time_since_epoch().count();
-    m_rng.seed(seed);
-    
     std::cout << "=== HepMC3 Timeslice Merger ===" << std::endl;
     std::cout << "Initializing " << m_config.sources.size() << " source(s)" << std::endl;
     
@@ -195,17 +191,15 @@ void HepMC3TimesliceMerger::addFreqEvents(SourceData& source, std::unique_ptr<He
     
     if (source.config.static_number_of_events) {
         // Static number of events - place them at random times
-        std::uniform_real_distribution<> uni(0, m_config.time_slice_duration);
         for (size_t i = 0; i < source.config.static_events_per_timeslice; ++i) {
-            timeline.push_back(uni(m_rng));
+            timeline.push_back(generateRandomTimeOffset());
         }
     } else if (source.config.mean_event_frequency <= 0) {
         // Single event at random time (signal mode)
-        std::uniform_real_distribution<> uni(0, m_config.time_slice_duration);
-        timeline.push_back(uni(m_rng));
+        timeline.push_back(generateRandomTimeOffset());
     } else {
         // Poisson-distributed times
-        timeline = poissonTimes(source.config.mean_event_frequency, m_config.time_slice_duration);
+        timeline = generatePoissonTimes(source.config.mean_event_frequency, m_config.time_slice_duration);
     }
     
     if (timeline.empty()) return;
@@ -245,7 +239,7 @@ void HepMC3TimesliceMerger::addFreqEvents(SourceData& source, std::unique_ptr<He
         
         // Apply bunch crossing if enabled
         if (source.config.use_bunch_crossing) {
-            time = std::floor(time / m_config.bunch_crossing_period) * m_config.bunch_crossing_period;
+            time = applyBunchCrossing(time);
         }
         
         particle_count += insertHepmcEvent(inevt, hepSlice, time, source.config.generator_status_offset);
@@ -257,13 +251,11 @@ void HepMC3TimesliceMerger::addFreqEvents(SourceData& source, std::unique_ptr<He
 
 void HepMC3TimesliceMerger::addWeightedEvents(SourceData& source, std::unique_ptr<HepMC3::GenEvent>& hepSlice) {
     // Determine number of events using Poisson distribution
-    std::poisson_distribution<> d(m_config.time_slice_duration * source.avg_rate);
-    
     int n_events;
     int retry_count = 0;
     const int max_retries = 100;
     while (true) {
-        n_events = d(m_rng);
+        n_events = calculatePoissonEventCount(source.avg_rate, m_config.time_slice_duration);
         if (n_events > static_cast<int>(source.events.size())) {
             retry_count++;
             if (retry_count >= max_retries) {
@@ -294,15 +286,14 @@ void HepMC3TimesliceMerger::addWeightedEvents(SourceData& source, std::unique_pt
     }
     
     // Place at random times
-    std::uniform_real_distribution<> uni(0, m_config.time_slice_duration);
     long particle_count = 0;
     
     for (auto& evt : to_place) {
-        double time = uni(m_rng);
+        double time = generateRandomTimeOffset();
         
         // Apply bunch crossing if enabled
         if (source.config.use_bunch_crossing) {
-            time = std::floor(time / m_config.bunch_crossing_period) * m_config.bunch_crossing_period;
+            time = applyBunchCrossing(time);
         }
         
         particle_count += insertHepmcEvent(evt, hepSlice, time, source.config.generator_status_offset);
@@ -377,22 +368,6 @@ long HepMC3TimesliceMerger::insertHepmcEvent(const HepMC3::GenEvent& inevt,
     }
     
     return final_particle_count;
-}
-
-std::vector<double> HepMC3TimesliceMerger::poissonTimes(double mu, double endTime) {
-    std::exponential_distribution<> exp(mu);
-    
-    double t = 0;
-    std::vector<double> ret;
-    while (true) {
-        double delt = exp(m_rng); // mu is already in events/ns, so delt is in ns
-        t += delt;
-        if (t >= endTime) {
-            break;
-        }
-        ret.push_back(t);
-    }
-    return ret;
 }
 
 void HepMC3TimesliceMerger::printBanner() {

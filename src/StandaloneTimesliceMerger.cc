@@ -50,7 +50,7 @@ void MergedCollections::clear() {
 }
 
 StandaloneTimesliceMerger::StandaloneTimesliceMerger(const MergerConfig& config)
-    : m_config(config), gen(rd()), events_generated(0) {
+    : TimesliceMergerBase(config), events_generated(0) {
     
 }
 
@@ -151,8 +151,7 @@ bool StandaloneTimesliceMerger::updateInputNEvents(std::vector<std::unique_ptr<D
         } else {
             // Use Poisson for this source
             float mean_freq = config.mean_event_frequency;
-            std::poisson_distribution<> poisson_dist(m_config.time_slice_duration * mean_freq);
-            size_t n = poisson_dist(gen);
+            size_t n = calculatePoissonEventCount(mean_freq, m_config.time_slice_duration);
             // data_source->setEntriesNeeded((n == 0) ? 1 : n);
             data_source->setEntriesNeeded(n);
         }
@@ -194,7 +193,7 @@ void StandaloneTimesliceMerger::createMergedTimeslice(std::vector<std::unique_pt
             // Generate time offset for this event
             data_source->UpdateTimeOffset(m_config.time_slice_duration,
                                           m_config.bunch_crossing_period,
-                                          gen);
+                                          m_rng);
             
             // Process MCParticles - use move semantics to avoid copying
             auto& processed_particles = data_source->processMCParticles(particle_parents_offset, particle_daughters_offset, totalEventsConsumed);

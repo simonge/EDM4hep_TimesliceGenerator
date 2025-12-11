@@ -1,6 +1,6 @@
 #pragma once
 
-#include "StandaloneMergerConfig.h"
+#include "TimesliceMergerBase.h"
 #include "DataSource.h"
 #include <edm4hep/MCParticleData.h>
 #include <edm4hep/SimTrackerHitData.h>
@@ -12,7 +12,6 @@
 #include <TFile.h>
 #include <TTree.h>
 #include <TChain.h>
-#include <random>
 #include <unordered_map>
 #include <vector>
 #include <string>
@@ -50,18 +49,13 @@ struct MergedCollections {
     void clear();
 };
 
-class StandaloneTimesliceMerger {
+class StandaloneTimesliceMerger : public TimesliceMergerBase {
 public:
     StandaloneTimesliceMerger(const MergerConfig& config);
     
-    void run();
+    void run() override;
 
 private:
-    MergerConfig m_config;
-    
-    // Random number generator members
-    std::random_device rd;
-    std::mt19937 gen;
 
     // State variables
     size_t events_generated;

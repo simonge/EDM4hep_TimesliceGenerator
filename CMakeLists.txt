@@ -33,6 +33,7 @@ include_directories(${ROOT_INCLUDE_DIRS})
 
 # Create the standalone executable
 add_executable(timeslice_merger
+    src/TimesliceMergerBase.cc
     src/DataSource.cc
     src/StandaloneTimesliceMerger.cc
     src/timeslice_merger_main.cc
@@ -81,6 +82,7 @@ endif()
 # Create HepMC3 merger executable (only if HepMC3 is found)
 if(HepMC3_FOUND)
     add_executable(hepmc3_timeslice_merger
+        src/TimesliceMergerBase.cc
         src/HepMC3TimesliceMerger.cc
         src/hepmc3_merger_main.cc
     )
