@@ -10,6 +10,8 @@ An application for merging multiple events output by dd4hep into timeslices. All
 ### 2. HepMC3 Timeslice Merger (`hepmc3_timeslice_merger`)
 A HepMC3-based merger for combining HepMC3 format event files into timeslices. Based on the [EPIC HEPMC_Merger](https://github.com/eic/HEPMC_Merger) implementation, it provides the same configuration interface as the EDM4hep merger.
 
+**📖 See [HEPMC3_MERGER.md](HEPMC3_MERGER.md) for detailed HepMC3 merger documentation, including migration guide from the original HEPMC_Merger.**
+
 Both tools provide control over timing adjustments allowing optional shifting of the time from each event source based on:
 - Bunch crossing periods.
 - Attachment of backgrounds to beam bunches.
@@ -45,6 +47,8 @@ Use the provided build script for automatic configuration and compilation:
 ./build.sh
 ```
 
+This will build the EDM4hep merger and, if HepMC3 is detected, the HepMC3 merger as well.
+
 ### Manual Build
 
 For more control over the build process:
@@ -63,6 +67,26 @@ cmake .. -DCMAKE_INSTALL_PREFIX=../install
 ```bash
 make -j$(nproc)
 make install
+```
+
+### Building with HepMC3 Support
+
+The HepMC3 merger is built automatically if HepMC3 is found. To explicitly specify the HepMC3 location:
+
+```bash
+cmake .. -DCMAKE_INSTALL_PREFIX=../install -DHepMC3_DIR=/path/to/hepmc3/cmake
+```
+
+If HepMC3 is not found, the build will continue without the HepMC3 merger:
+
+```
+-- HepMC3 not found - HepMC3 merger will NOT be built
+```
+
+To verify HepMC3 merger was built, check for the executable:
+
+```bash
+ls install/bin/hepmc3_timeslice_merger
 ```
 
 ## Usage
