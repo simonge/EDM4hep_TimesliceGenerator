@@ -333,14 +333,20 @@ long HepMC3TimesliceMerger::insertHepmcEvent(const HepMC3::GenEvent& inevt,
         // Attach to production vertex
         if (particle->production_vertex() && particle->production_vertex()->id() < 0) {
             int production_vertex = particle->production_vertex()->id();
-            vertices[std::abs(production_vertex) - 1]->add_particle_out(p1);
-            hepSlice->add_particle(p1);
+            size_t vertex_idx = std::abs(production_vertex) - 1;
+            if (vertex_idx < vertices.size()) {
+                vertices[vertex_idx]->add_particle_out(p1);
+                hepSlice->add_particle(p1);
+            }
         }
         
         // Attach to end vertex
         if (particle->end_vertex()) {
             int end_vertex = particle->end_vertex()->id();
-            vertices.at(std::abs(end_vertex) - 1)->add_particle_in(p1);
+            size_t vertex_idx = std::abs(end_vertex) - 1;
+            if (vertex_idx < vertices.size()) {
+                vertices[vertex_idx]->add_particle_in(p1);
+            }
         }
     }
     

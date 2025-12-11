@@ -75,7 +75,6 @@ private:
                           int baseStatus);
     
     std::vector<double> poissonTimes(double mu, double endTime);
-    double generateTimeOffset();
     
     void printBanner();
     void printStatistics(int slicesDone);

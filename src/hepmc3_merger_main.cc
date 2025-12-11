@@ -242,20 +242,24 @@ int main(int argc, char* argv[]) {
     }
     
     // Merge CLI sources with config sources
+    // CLI values override YAML values only if they differ from defaults
+    // Note: Default values match SourceConfig defaults in StandaloneMergerConfig.h
     for (const auto& cli_source : cli_sources) {
         bool found = false;
         for (auto& existing_source : config.sources) {
             if (existing_source.name == cli_source.name) {
-                // Override with CLI values
+                // Override with CLI values (only if explicitly set by user)
                 if (!cli_source.input_files.empty()) {
                     existing_source.input_files = cli_source.input_files;
                 }
+                // mean_event_frequency default is 1.0f
                 if (cli_source.mean_event_frequency != 1.0f) {
                     existing_source.mean_event_frequency = cli_source.mean_event_frequency;
                 }
                 if (cli_source.static_number_of_events) {
                     existing_source.static_number_of_events = cli_source.static_number_of_events;
                 }
+                // static_events_per_timeslice default is 1
                 if (cli_source.static_events_per_timeslice != 1) {
                     existing_source.static_events_per_timeslice = cli_source.static_events_per_timeslice;
                 }
