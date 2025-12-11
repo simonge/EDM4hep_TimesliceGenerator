@@ -56,20 +56,26 @@ sources:
     
   - name: bg1
     input_files: [bg1.root]
-    mean_event_frequency: 2.0  # kHz → events/ns: 2000 kHz = 2.0 events/ns
+    mean_event_frequency: 0.002  # 2000 kHz → 0.002 events/ns
     generator_status_offset: 1000
 ```
 
 ### Frequency Units
 
-- **Original HEPMC_Merger**: Uses kHz (kilohertz)
+- **Original HEPMC_Merger**: Uses kHz (kilohertz) 
 - **This Implementation**: Uses events/ns (events per nanosecond)
 
-To convert: `frequency_events_per_ns = frequency_kHz / 1000`
+To convert: `frequency_events_per_ns = frequency_kHz * 1e-6`
 
-Example:
-- 2000 kHz → 2.0 events/ns
-- 20 kHz → 0.02 events/ns
+Explanation:
+- 1 kHz = 1000 events/second
+- 1 second = 1e9 nanoseconds
+- Therefore: 1 kHz = 1000 events / 1e9 ns = 1e-6 events/ns
+
+Examples:
+- 2000 kHz → 2000 * 1e-6 = 0.002 events/ns
+- 20 kHz → 20 * 1e-6 = 0.00002 events/ns (2e-5 events/ns)
+- 31900 kHz → 31900 * 1e-6 = 0.0319 events/ns
 
 ### Skip Events
 
@@ -102,17 +108,19 @@ These are equivalent - just different naming.
 ### Example 2: Multiple Background Sources
 
 ```bash
+# Note: Original HEPMC_Merger uses kHz, convert to events/ns: freq_ns = freq_kHz * 1e-6
+# Example: 2000 kHz → 0.002 events/ns, 3177 kHz → 0.003177 events/ns
 ./install/bin/hepmc3_timeslice_merger \
     --source:signal:input_files signal.root \
     --source:signal:frequency 0 \
     --source:hgas:input_files hgas.root \
-    --source:hgas:frequency 2.0 \
+    --source:hgas:frequency 0.002 \
     --source:hgas:status_offset 2000 \
     --source:egas:input_files egas.root \
-    --source:egas:frequency 3.177 \
+    --source:egas:frequency 0.003177 \
     --source:egas:status_offset 3000 \
     --source:synrad:input_files synrad.root \
-    --source:synrad:frequency 0.025 \
+    --source:synrad:frequency 0.000025 \
     --source:synrad:status_offset 6000
 ```
 
@@ -151,7 +159,7 @@ sources:
   - name: hgas
     input_files:
       - hgas.hepmc3.tree.root
-    mean_event_frequency: 2.0
+    mean_event_frequency: 0.002  # 2000 kHz → 0.002 events/ns
     use_bunch_crossing: true
     generator_status_offset: 2000
     repeat_on_eof: true
@@ -159,7 +167,7 @@ sources:
   - name: egas
     input_files:
       - egas.hepmc3.tree.root
-    mean_event_frequency: 3.177
+    mean_event_frequency: 0.003177  # 3177 kHz → 0.003177 events/ns
     use_bunch_crossing: true
     generator_status_offset: 3000
     repeat_on_eof: true

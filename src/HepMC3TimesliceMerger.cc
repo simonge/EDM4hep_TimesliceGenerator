@@ -346,7 +346,7 @@ std::vector<double> HepMC3TimesliceMerger::poissonTimes(double mu, double endTim
     double t = 0;
     std::vector<double> ret;
     while (true) {
-        double delt = exp(m_rng) * 1e6; // Convert from kHz to ns
+        double delt = exp(m_rng); // mu is already in events/ns, so delt is in ns
         t += delt;
         if (t >= endTime) {
             break;
