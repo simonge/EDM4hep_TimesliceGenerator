@@ -1,4 +1,4 @@
-#include "StandaloneTimesliceMerger.h"
+#include "TimesliceMerger.h"
 #include <iostream>
 #include <algorithm>
 #include <cmath>
@@ -49,12 +49,12 @@ void MergedCollections::clear() {
     // This avoids repeated memory allocations for vectors that will grow again
 }
 
-StandaloneTimesliceMerger::StandaloneTimesliceMerger(const MergerConfig& config)
+TimesliceMerger::TimesliceMerger(const MergerConfig& config)
     : m_config(config), gen(rd()), events_generated(0) {
     
 }
 
-void StandaloneTimesliceMerger::run() {
+void TimesliceMerger::run() {
     std::cout << "Starting timeslice merger (object-oriented approach)..." << std::endl;
     std::cout << "Sources: " << m_config.sources.size() << std::endl;
     std::cout << "Output file: " << m_config.output_file << std::endl;
@@ -101,7 +101,7 @@ void StandaloneTimesliceMerger::run() {
     std::cout << "Output saved to: " << m_config.output_file << std::endl;
 }
 
-std::vector<std::unique_ptr<DataSource>> StandaloneTimesliceMerger::initializeDataSources() {
+std::vector<std::unique_ptr<DataSource>> TimesliceMerger::initializeDataSources() {
     std::vector<std::unique_ptr<DataSource>> data_sources;
     data_sources.reserve(m_config.sources.size());
     
@@ -138,7 +138,7 @@ std::vector<std::unique_ptr<DataSource>> StandaloneTimesliceMerger::initializeDa
     return data_sources;
 }
 
-bool StandaloneTimesliceMerger::updateInputNEvents(std::vector<std::unique_ptr<DataSource>>& sources) {
+bool TimesliceMerger::updateInputNEvents(std::vector<std::unique_ptr<DataSource>>& sources) {
     for (auto& data_source : sources) {
         const auto& config = data_source->getConfig();
         
@@ -167,7 +167,7 @@ bool StandaloneTimesliceMerger::updateInputNEvents(std::vector<std::unique_ptr<D
     return true;
 }
 
-void StandaloneTimesliceMerger::createMergedTimeslice(std::vector<std::unique_ptr<DataSource>>& sources, 
+void TimesliceMerger::createMergedTimeslice(std::vector<std::unique_ptr<DataSource>>& sources, 
                                                      std::unique_ptr<TFile>& output_file, 
                                                      TTree* output_tree) {
     
@@ -338,7 +338,7 @@ void StandaloneTimesliceMerger::createMergedTimeslice(std::vector<std::unique_pt
     writeTimesliceToTree(output_tree);
 }
 
-void StandaloneTimesliceMerger::setupOutputTree(TTree* tree) {
+void TimesliceMerger::setupOutputTree(TTree* tree) {
     // Directly create all required branches, no sorting or BranchInfo struct
     auto eventHeaderBranch = tree->Branch("EventHeader", &merged_collections_.event_headers);
     auto eventHeaderWeightsBranch = tree->Branch("_EventHeader_weights", &merged_collections_.event_header_weights);
@@ -383,7 +383,7 @@ void StandaloneTimesliceMerger::setupOutputTree(TTree* tree) {
     std::cout << "Created branches for all required collections with optimized basket sizes" << std::endl;
 }
 
-void StandaloneTimesliceMerger::writeTimesliceToTree(TTree* tree) {
+void TimesliceMerger::writeTimesliceToTree(TTree* tree) {
     // Debug: show sizes of merged vectors before writing
     // std::cout << "=== Writing timeslice ===" << std::endl;
     // std::cout << "  Event headers: " << merged_collections_.event_headers.size() << std::endl;
@@ -423,7 +423,7 @@ void StandaloneTimesliceMerger::writeTimesliceToTree(TTree* tree) {
     std::cout << "=== Timeslice written ===" << std::endl;
 }
 
-std::vector<std::string> StandaloneTimesliceMerger::discoverCollectionNames(DataSource& source, const std::string& branch_pattern) {
+std::vector<std::string> TimesliceMerger::discoverCollectionNames(DataSource& source, const std::string& branch_pattern) {
     std::vector<std::string> names;
     
     // We need to access the internal TChain from DataSource
@@ -485,7 +485,7 @@ std::vector<std::string> StandaloneTimesliceMerger::discoverCollectionNames(Data
     return names;
 }
 
-std::vector<std::string> StandaloneTimesliceMerger::discoverGPBranches(DataSource& source) {
+std::vector<std::string> TimesliceMerger::discoverGPBranches(DataSource& source) {
     std::vector<std::string> names;
     
     // We need to access the internal TChain from DataSource
@@ -530,7 +530,7 @@ std::vector<std::string> StandaloneTimesliceMerger::discoverGPBranches(DataSourc
     return names;
 }
 
-void StandaloneTimesliceMerger::copyPodioMetadata(std::vector<std::unique_ptr<DataSource>>& sources, std::unique_ptr<TFile>& output_file) {
+void TimesliceMerger::copyPodioMetadata(std::vector<std::unique_ptr<DataSource>>& sources, std::unique_ptr<TFile>& output_file) {
     if (sources.empty()) {
         std::cout << "Warning: No input sources available for podio_metadata copying" << std::endl;
         return;
@@ -582,12 +582,12 @@ void StandaloneTimesliceMerger::copyPodioMetadata(std::vector<std::unique_ptr<Da
     }
 }
 
-std::string StandaloneTimesliceMerger::getCorrespondingContributionCollection(const std::string& calo_collection_name) const {
+std::string TimesliceMerger::getCorrespondingContributionCollection(const std::string& calo_collection_name) const {
     // Add "Contributions" suffix to get the contribution collection name
     return calo_collection_name + "Contributions";
 }
 
-std::string StandaloneTimesliceMerger::getCorrespondingCaloCollection(const std::string& contrib_collection_name) const {
+std::string TimesliceMerger::getCorrespondingCaloCollection(const std::string& contrib_collection_name) const {
     // Remove "Contributions" suffix if present
     std::string base = contrib_collection_name;
     if (base.length() > 13 && base.substr(base.length() - 13) == "Contributions") {
@@ -596,7 +596,7 @@ std::string StandaloneTimesliceMerger::getCorrespondingCaloCollection(const std:
     return base;
 }
 
-void StandaloneTimesliceMerger::copyAndUpdatePodioMetadataTree(TTree* source_metadata_tree, TFile* output_file) {
+void TimesliceMerger::copyAndUpdatePodioMetadataTree(TTree* source_metadata_tree, TFile* output_file) {
     if (!source_metadata_tree || !output_file) {
         std::cout << "Warning: Invalid metadata tree or output file for podio_metadata updating" << std::endl;
         return;

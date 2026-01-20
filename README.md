@@ -403,7 +403,7 @@ Organizes all merged output data:
 - Reference collections maintaining object relationships
 - Global parameter (GP) branches for metadata
 
-#### StandaloneTimesliceMerger
+#### TimesliceMerger
 Main orchestration class:
 - Initializes and manages multiple DataSource instances
 - Coordinates timeslice generation and event merging
@@ -480,12 +480,12 @@ Main orchestration class:
 ## Development and Contributing
 
 ### Code Structure
-- `src/StandaloneTimesliceMerger.cc`: Core merging logic and orchestration
+- `src/TimesliceMerger.cc`: Core merging logic and orchestration
 - `src/DataSource.cc`: Input file management and data reading  
 - `src/timeslice_merger_main.cc`: Command line interface and configuration parsing
-- `include/StandaloneTimesliceMerger.h`: Main API and data structures
+- `include/TimesliceMerger.h`: Main API and data structures
 - `include/DataSource.h`: Input data source abstraction
-- `include/StandaloneMergerConfig.h`: Configuration structures
+- `include/MergerConfig.h`: Configuration structures
 
 ### Testing
 ```bash
