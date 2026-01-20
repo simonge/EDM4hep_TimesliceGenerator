@@ -1,5 +1,5 @@
 # Example configuration for the standalone podio timeslice merger
-output_file: merged_timeslices_10x275.root
+output_file: merged_timeslices_10x275.edm4hep.root
 max_events: 100
 time_slice_duration: 2000.0 # in ns
 bunch_crossing_period: 10.0 # in ns
@@ -7,14 +7,14 @@ introduce_offsets: true
 sources:
   - name: signal
     input_files:
-      - input3.root    
+      - input3.edm4hep.root    
     static_number_of_events: true
     static_events_per_timeslice: 1
     use_bunch_crossing: true
     generator_status_offset: 0
   - name: minbias
     input_files:
-      - input3.root    
+      - input3.edm4hep.root    
     static_number_of_events: false
     mean_event_frequency: 0.0005 # in GHz
     use_bunch_crossing: true
@@ -22,7 +22,7 @@ sources:
     repeat_on_eof: true
   - name: bethe_heitler
     input_files:
-      - input3.root    
+      - input3.edm4hep.root    
     static_number_of_events: false
     mean_event_frequency: 1.8 # in GHz # Check value
     use_bunch_crossing: true
@@ -30,7 +30,7 @@ sources:
     repeat_on_eof: true
   - name: hadron_beamgas
     input_files:
-      - input3.root
+      - input3.edm4hep.root
     static_number_of_events: false
     mean_event_frequency: 0.0000326 # in GHz
     use_bunch_crossing: true
@@ -42,7 +42,7 @@ sources:
     repeat_on_eof: true
   - name: electron_beamgas_bremsstrahlung
     input_files:
-      - input3.root
+      - input3.edm4hep.root
     static_number_of_events: false
     mean_event_frequency: 0.00317725 # in GHz
     use_bunch_crossing: true
@@ -54,7 +54,7 @@ sources:
     repeat_on_eof: true
   - name: electron_beamgas_coulomb
     input_files:
-      - input3.root
+      - input3.edm4hep.root
     static_number_of_events: false
     mean_event_frequency: 0.00002956 # in GHz
     use_bunch_crossing: true
@@ -66,7 +66,7 @@ sources:
     repeat_on_eof: true
   - name: electron_beamgas_touschek
     input_files:
-      - input3.root
+      - input3.edm4hep.root
     static_number_of_events: false
     mean_event_frequency: 0.0002335 # in GHz
     use_bunch_crossing: true
@@ -78,7 +78,7 @@ sources:
     repeat_on_eof: true
   - name: electron_synchrotron
     input_files:
-      - input3.root
+      - input3.edm4hep.root
     static_number_of_events: false
     mean_event_frequency: 36.608 # in GHz
     use_bunch_crossing: true
