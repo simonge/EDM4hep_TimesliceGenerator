@@ -1,4 +1,5 @@
 #include "TimesliceMerger.h"
+#include "EDM4hepOutputHandler.h"
 #include "CommandLineParser.h"
 #include <iostream>
 #include <exception>
@@ -8,8 +9,14 @@ int main(int argc, char* argv[]) {
         // Parse command-line arguments and YAML configuration
         MergerConfig config = CommandLineParser::parse(argc, argv);
         
-        // Run the merger
+        // Create the merger
         TimesliceMerger merger(config);
+        
+        // Create and set EDM4hep output handler
+        auto output_handler = std::make_unique<EDM4hepOutputHandler>();
+        merger.setOutputHandler(std::move(output_handler));
+        
+        // Run the merger
         merger.run();
         
         std::cout << "Successfully completed timeslice merging!" << std::endl;
