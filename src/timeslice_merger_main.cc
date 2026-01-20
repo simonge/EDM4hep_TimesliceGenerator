@@ -1,5 +1,5 @@
 #include "TimesliceMerger.h"
-#include "EDM4hepOutputHandler.h"
+#include "OutputHandler.h"
 #include "CommandLineParser.h"
 #include <iostream>
 #include <exception>
@@ -12,8 +12,8 @@ int main(int argc, char* argv[]) {
         // Create the merger
         TimesliceMerger merger(config);
         
-        // Create and set EDM4hep output handler
-        auto output_handler = std::make_unique<EDM4hepOutputHandler>();
+        // Create appropriate output handler based on output file extension
+        auto output_handler = OutputHandler::create(config.output_file);
         merger.setOutputHandler(std::move(output_handler));
         
         // Run the merger

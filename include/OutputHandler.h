@@ -58,4 +58,12 @@ public:
      * Get the output format name
      */
     virtual std::string getFormatName() const = 0;
+
+    /**
+     * Factory method to create appropriate output handler based on filename
+     * @param filename Output file path
+     * @return Unique pointer to appropriate OutputHandler implementation
+     * @throws std::runtime_error if format is not supported
+     */
+    static std::unique_ptr<OutputHandler> create(const std::string& filename);
 };
