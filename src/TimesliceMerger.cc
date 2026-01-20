@@ -1,10 +1,11 @@
 #include "TimesliceMerger.h"
+#include "EDM4hepDataSource.h"
 
 #include <iostream>
 #include <stdexcept>
 
 TimesliceMerger::TimesliceMerger(const MergerConfig& config)
-    : m_config(config), gen(rd()), events_generated(0) {}
+    : m_config(config), gen(rd()) {}
 
 void TimesliceMerger::setOutputHandler(std::unique_ptr<OutputHandler> handler) {
     output_handler_ = std::move(handler);
@@ -29,7 +30,7 @@ void TimesliceMerger::run() {
 
     std::cout << "Processing " << m_config.max_events << " timeslices..." << std::endl;
 
-    while (events_generated < m_config.max_events) {
+    for (size_t events_generated = 0; events_generated < m_config.max_events; ++events_generated) {
         // Update number of events needed per source
         if (!updateInputNEvents(data_sources_)) {
             std::cout << "Reached end of input data, stopping at " << events_generated
@@ -48,8 +49,6 @@ void TimesliceMerger::run() {
         // Write the timeslice
         output_handler_->writeTimeslice();
 
-        events_generated++;
-
         if (events_generated % 10 == 0) {
             std::cout << "Processed " << events_generated << " timeslices..." << std::endl;
         }
@@ -58,7 +57,7 @@ void TimesliceMerger::run() {
     // Finalize output
     output_handler_->finalize();
 
-    std::cout << "Generated " << events_generated << " timeslices" << std::endl;
+    // std::cout << "Generated " << events_generated << " timeslices" << std::endl;
     std::cout << "Output saved to: " << m_config.output_file << std::endl;
 }
 
@@ -66,9 +65,9 @@ std::vector<std::unique_ptr<DataSource>> TimesliceMerger::initializeDataSources(
     std::vector<std::unique_ptr<DataSource>> data_sources;
     data_sources.reserve(m_config.sources.size());
 
-    // Create DataSource objects
+    // Create EDM4hep DataSource objects (currently only EDM4hep format supported)
     for (size_t source_idx = 0; source_idx < m_config.sources.size(); ++source_idx) {
-        auto data_source = std::make_unique<DataSource>(m_config.sources[source_idx], source_idx);
+        auto data_source = std::make_unique<EDM4hepDataSource>(m_config.sources[source_idx], source_idx);
         data_sources.push_back(std::move(data_source));
     }
 

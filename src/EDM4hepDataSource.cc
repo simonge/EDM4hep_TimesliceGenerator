@@ -1,11 +1,11 @@
-#include "DataSource.h"
+#include "EDM4hepDataSource.h"
 #include <iostream>
 #include <algorithm>
 #include <cmath>
 #include <TBranch.h>
 #include <TObjArray.h>
 
-DataSource::DataSource(const SourceConfig& config, size_t source_index)
+EDM4hepDataSource::EDM4hepDataSource(const SourceConfig& config, size_t source_index)
     : config_(&config)
     , source_index_(source_index)
     , total_entries_(0)
@@ -18,16 +18,18 @@ DataSource::DataSource(const SourceConfig& config, size_t source_index)
     , gp_float_branch_(nullptr)
     , gp_double_branch_(nullptr)
     , gp_string_branch_(nullptr)
+    , current_time_offset_(0.0f)
+    , current_particle_index_offset_(0)
 {
 }
 
-DataSource::~DataSource() {
+EDM4hepDataSource::~EDM4hepDataSource() {
     cleanup();
 }
 
-void DataSource::initialize(const std::vector<std::string>& tracker_collections,
-                           const std::vector<std::string>& calo_collections,
-                           const std::vector<std::string>& gp_collections) {
+void EDM4hepDataSource::initialize(const std::vector<std::string>& tracker_collections,
+                                   const std::vector<std::string>& calo_collections,
+                                   const std::vector<std::string>& gp_collections) {
     // Store references to collection names
     tracker_collection_names_ = &tracker_collections;
     calo_collection_names_ = &calo_collections;
@@ -58,7 +60,7 @@ void DataSource::initialize(const std::vector<std::string>& tracker_collections,
             // Setup branch addresses
             setupBranches();
             
-            std::cout << "Successfully initialized source " << source_index_ << " (" << config_->name << ")" << std::endl;
+            std::cout << "Successfully initialized EDM4hep source " << source_index_ << " (" << config_->name << ")" << std::endl;
 
         } catch (const std::exception& e) {
             throw std::runtime_error("ERROR: Could not open input files for source " + 
@@ -67,14 +69,14 @@ void DataSource::initialize(const std::vector<std::string>& tracker_collections,
     }
 }
 
-bool DataSource::hasMoreEntries() const {
+bool EDM4hepDataSource::hasMoreEntries() const {
     if(config_->repeat_on_eof && total_entries_ > 0) {
         return true;
     }
     return (current_entry_index_ + entries_needed_) <= total_entries_;
 }
 
-bool DataSource::loadNextEvent() {
+bool EDM4hepDataSource::loadNextEvent() {
     if (current_entry_index_ >= total_entries_) {
         if(config_->repeat_on_eof) {
             current_entry_index_ = 0;
@@ -86,7 +88,8 @@ bool DataSource::loadNextEvent() {
     return true;
 }
 
-float DataSource::generateTimeOffset(float distance, float time_slice_duration, float bunch_crossing_period, std::mt19937& rng) const {
+float EDM4hepDataSource::generateTimeOffset(float distance, float time_slice_duration, 
+                                           float bunch_crossing_period, std::mt19937& rng) const {
     std::uniform_real_distribution<float> uniform(0.0f, time_slice_duration);
     float time_offset = uniform(rng);
     
@@ -112,13 +115,12 @@ float DataSource::generateTimeOffset(float distance, float time_slice_duration, 
     return time_offset;
 }
 
-void DataSource::loadEvent(size_t event_index) {
-    // Load the event data from the TChain
+void EDM4hepDataSource::loadEvent(size_t event_index) {
     chain_->GetEntry(event_index);
-    
 }
 
-std::vector<podio::ObjectID>& DataSource::processObjectID(const std::string& branch_name, size_t index_offset, int totalEventsConsumed) {
+std::vector<podio::ObjectID>& EDM4hepDataSource::processObjectID(const std::string& branch_name, 
+                                                                 size_t index_offset, int totalEventsConsumed) {
     
     //If first event and already merged, skip updating references
     if (totalEventsConsumed == 0 && config_->already_merged) {
@@ -133,9 +135,9 @@ std::vector<podio::ObjectID>& DataSource::processObjectID(const std::string& bra
     return *objectid_branches_[branch_name];
 }
 
-void DataSource::UpdateTimeOffset(float time_slice_duration,
-                                  float bunch_crossing_period,
-                                  std::mt19937& rng) {
+void EDM4hepDataSource::UpdateTimeOffset(float time_slice_duration,
+                                        float bunch_crossing_period,
+                                        std::mt19937& rng) {
     float distance = 0.0f;
     
     // Calculate time offset if not already merged
@@ -149,9 +151,9 @@ void DataSource::UpdateTimeOffset(float time_slice_duration,
     }
 }
 
-std::vector<edm4hep::MCParticleData>& DataSource::processMCParticles(size_t particle_parents_offset,
-                                                                     size_t particle_daughters_offset,
-                                                                     int totalEventsConsumed) {
+std::vector<edm4hep::MCParticleData>& EDM4hepDataSource::processMCParticles(size_t particle_parents_offset,
+                                                                            size_t particle_daughters_offset,
+                                                                            int totalEventsConsumed) {
 
     auto& particles = *mcparticle_branch_;
 
@@ -179,9 +181,9 @@ std::vector<edm4hep::MCParticleData>& DataSource::processMCParticles(size_t part
 }
 
 
-std::vector<edm4hep::SimTrackerHitData>& DataSource::processTrackerHits(const std::string& collection_name,
-                                                                       size_t particle_index_offset,
-                                                                       int totalEventsConsumed) {
+std::vector<edm4hep::SimTrackerHitData>& EDM4hepDataSource::processTrackerHits(const std::string& collection_name,
+                                                                              size_t particle_index_offset,
+                                                                              int totalEventsConsumed) {
                                                         
     if(totalEventsConsumed == 0 && config_->already_merged) {
         return *tracker_hit_branches_[collection_name];
@@ -198,9 +200,9 @@ std::vector<edm4hep::SimTrackerHitData>& DataSource::processTrackerHits(const st
 }
 
 
-std::vector<edm4hep::SimCalorimeterHitData>& DataSource::processCaloHits(const std::string& collection_name,
-                                                                        size_t contribution_index_offset,
-                                                                        int totalEventsConsumed) {
+std::vector<edm4hep::SimCalorimeterHitData>& EDM4hepDataSource::processCaloHits(const std::string& collection_name,
+                                                                               size_t contribution_index_offset,
+                                                                               int totalEventsConsumed) {
 
     if(totalEventsConsumed == 0 && config_->already_merged) {
         return *calo_hit_branches_[collection_name];
@@ -216,9 +218,9 @@ std::vector<edm4hep::SimCalorimeterHitData>& DataSource::processCaloHits(const s
     return hits; // Return reference to the branch data itself
 }
 
-std::vector<edm4hep::CaloHitContributionData>& DataSource::processCaloContributions(const std::string& collection_name,
-                                                                                   size_t particle_index_offset,
-                                                                                   int totalEventsConsumed) {
+std::vector<edm4hep::CaloHitContributionData>& EDM4hepDataSource::processCaloContributions(const std::string& collection_name,
+                                                                                          size_t particle_index_offset,
+                                                                                          int totalEventsConsumed) {
 
     auto& contribs = *calo_contrib_branches_[collection_name];
 
@@ -236,7 +238,7 @@ std::vector<edm4hep::CaloHitContributionData>& DataSource::processCaloContributi
     return contribs; // Return reference to the branch data itself
 }
 
-std::vector<edm4hep::EventHeaderData>& DataSource::processEventHeaders(const std::string& collection_name) {
+std::vector<edm4hep::EventHeaderData>& EDM4hepDataSource::processEventHeaders(const std::string& collection_name) {
     // Check if the collection exists in our event header branches
     if (event_header_branches_.find(collection_name) == event_header_branches_.end()) {
         // Collection not found, return empty vector
@@ -257,8 +259,8 @@ std::vector<edm4hep::EventHeaderData>& DataSource::processEventHeaders(const std
     return *headers;
 }
 
-void DataSource::setupBranches() {
-    std::cout << "=== Setting up branches for source " << source_index_ << " ===" << std::endl;
+void EDM4hepDataSource::setupBranches() {
+    std::cout << "=== Setting up EDM4hep branches for source " << source_index_ << " ===" << std::endl;
     
     setupMCParticleBranches();
     setupTrackerBranches();
@@ -266,10 +268,10 @@ void DataSource::setupBranches() {
     setupEventHeaderBranches();
     setupGPBranches();
     
-    std::cout << "=== Branch setup complete ===" << std::endl;
+    std::cout << "=== EDM4hep branch setup complete ===" << std::endl;
 }
 
-void DataSource::setupMCParticleBranches() {
+void EDM4hepDataSource::setupMCParticleBranches() {
     // Setup MCParticles branch
     mcparticle_branch_ = new std::vector<edm4hep::MCParticleData>();
     int result = chain_->SetBranchAddress("MCParticles", &mcparticle_branch_);
@@ -285,7 +287,7 @@ void DataSource::setupMCParticleBranches() {
     result = chain_->SetBranchAddress(children_branch_name.c_str(), &objectid_branches_[children_branch_name]);
 }
 
-void DataSource::setupTrackerBranches() {
+void EDM4hepDataSource::setupTrackerBranches() {
     for (const auto& coll_name : *tracker_collection_names_) {
         tracker_hit_branches_[coll_name] = new std::vector<edm4hep::SimTrackerHitData>();
         int result = chain_->SetBranchAddress(coll_name.c_str(), &tracker_hit_branches_[coll_name]);
@@ -297,7 +299,7 @@ void DataSource::setupTrackerBranches() {
     }
 }
 
-void DataSource::setupCalorimeterBranches() {
+void EDM4hepDataSource::setupCalorimeterBranches() {
     // Setup calorimeter hit branches
     for (const auto& coll_name : *calo_collection_names_) {
         calo_hit_branches_[coll_name] = new std::vector<edm4hep::SimCalorimeterHitData>();
@@ -319,7 +321,7 @@ void DataSource::setupCalorimeterBranches() {
     }
 }
 
-void DataSource::setupEventHeaderBranches() {
+void EDM4hepDataSource::setupEventHeaderBranches() {
     // Setup EventHeader if available
     std::vector<std::string> header_collections = {"EventHeader"};
     
@@ -331,16 +333,10 @@ void DataSource::setupEventHeaderBranches() {
     for (const auto& coll_name : header_collections) {
         event_header_branches_[coll_name] = new std::vector<edm4hep::EventHeaderData>();
         int result = chain_->SetBranchAddress(coll_name.c_str(), &event_header_branches_[coll_name]);
-        // Branch not available yet so returns 5
-        // if (result != 0) {
-        //     std::cout << "    ❌ Could not set branch address for " << coll_name << " (result: " << result << ")" << std::endl;
-        // } else {
-        //     std::cout << "    ✓ Successfully set up " << coll_name << std::endl;
-        // }
     }
 }
 
-void DataSource::setupGPBranches() {
+void EDM4hepDataSource::setupGPBranches() {
     // Initialize GP value branch pointers
     gp_int_branch_ = new std::vector<std::vector<int>>();
     gp_float_branch_ = new std::vector<std::vector<float>>();
@@ -360,33 +356,33 @@ void DataSource::setupGPBranches() {
     }
 }
 
-std::vector<std::string>& DataSource::processGPBranch(const std::string& branch_name) {
+std::vector<std::string>& EDM4hepDataSource::processGPBranch(const std::string& branch_name) {
     // GP key branches don't need any processing, just return the data as-is
     // They contain global parameter keys that should be copied unchanged
     return *gp_key_branches_[branch_name];
 }
 
-std::vector<std::vector<int>>& DataSource::processGPIntValues() {
+std::vector<std::vector<int>>& EDM4hepDataSource::processGPIntValues() {
     // GP int values don't need any processing, just return the data as-is
     return *gp_int_branch_;
 }
 
-std::vector<std::vector<float>>& DataSource::processGPFloatValues() {
+std::vector<std::vector<float>>& EDM4hepDataSource::processGPFloatValues() {
     // GP float values don't need any processing, just return the data as-is
     return *gp_float_branch_;
 }
 
-std::vector<std::vector<double>>& DataSource::processGPDoubleValues() {
+std::vector<std::vector<double>>& EDM4hepDataSource::processGPDoubleValues() {
     // GP double values don't need any processing, just return the data as-is
     return *gp_double_branch_;
 }
 
-std::vector<std::vector<std::string>>& DataSource::processGPStringValues() {
+std::vector<std::vector<std::string>>& EDM4hepDataSource::processGPStringValues() {
     // GP string values don't need any processing, just return the data as-is
     return *gp_string_branch_;
 }
 
-void DataSource::cleanup() {
+void EDM4hepDataSource::cleanup() {
     // Clean up dynamically allocated vectors
     delete mcparticle_branch_;
     
@@ -414,11 +410,10 @@ void DataSource::cleanup() {
     delete gp_float_branch_;
     delete gp_double_branch_;
     delete gp_string_branch_;
-    
 }
 
 
-float DataSource::calculateBeamDistance(const std::vector<edm4hep::MCParticleData>& particles) const {
+float EDM4hepDataSource::calculateBeamDistance(const std::vector<edm4hep::MCParticleData>& particles) const {
     float distance = 0.0f;
     
     // Get position of first particle with generatorStatus 1
@@ -438,8 +433,8 @@ float DataSource::calculateBeamDistance(const std::vector<edm4hep::MCParticleDat
     return distance;
 }
 
-void DataSource::printStatus() const {
-    std::cout << "=== DataSource Status ===" << std::endl;
+void EDM4hepDataSource::printStatus() const {
+    std::cout << "=== EDM4hepDataSource Status ===" << std::endl;
     std::cout << "Source: " << source_index_ << " (" << config_->name << ")" << std::endl;
     std::cout << "Total entries: " << total_entries_ << std::endl;
     std::cout << "Current entry: " << current_entry_index_ << std::endl;
@@ -452,5 +447,19 @@ void DataSource::printStatus() const {
     if (calo_collection_names_) {
         std::cout << "Calorimeter collections: " << calo_collection_names_->size() << std::endl;
     }
-    std::cout << "=========================" << std::endl;
+    std::cout << "================================" << std::endl;
+}
+
+std::string EDM4hepDataSource::getCorrespondingContributionCollection(const std::string& calo_collection_name) const {
+    // Add "Contributions" suffix to get the contribution collection name
+    return calo_collection_name + "Contributions";
+}
+
+std::string EDM4hepDataSource::getCorrespondingCaloCollection(const std::string& contrib_collection_name) const {
+    // Remove "Contributions" suffix if present
+    std::string base = contrib_collection_name;
+    if (base.length() > 13 && base.substr(base.length() - 13) == "Contributions") {
+        base = base.substr(0, base.length() - 13);
+    }
+    return base;
 }
