@@ -1,4 +1,4 @@
-#include "StandaloneTimesliceMerger.h"
+#include "TimesliceMerger.h"
 #include "CommandLineParser.h"
 #include <iostream>
 #include <exception>
@@ -9,7 +9,7 @@ int main(int argc, char* argv[]) {
         MergerConfig config = CommandLineParser::parse(argc, argv);
         
         // Run the merger
-        StandaloneTimesliceMerger merger(config);
+        TimesliceMerger merger(config);
         merger.run();
         
         std::cout << "Successfully completed timeslice merging!" << std::endl;

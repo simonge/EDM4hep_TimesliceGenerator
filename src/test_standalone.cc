@@ -1,4 +1,4 @@
-#include "StandaloneTimesliceMerger.h"
+#include "TimesliceMerger.h"
 #include <cassert>
 #include <iostream>
 
@@ -40,7 +40,7 @@ void testMergerCreation() {
     config.sources.push_back(source);
     
     try {
-        StandaloneTimesliceMerger merger(config);
+        TimesliceMerger merger(config);
         std::cout << "Merger creation test passed!" << std::endl;
     } catch (const std::exception& e) {
         std::cout << "Merger creation failed: " << e.what() << std::endl;

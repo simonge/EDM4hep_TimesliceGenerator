@@ -1,6 +1,6 @@
 #pragma once
 
-#include "StandaloneMergerConfig.h"
+#include "MergerConfig.h"
 #include "DataSource.h"
 #include <edm4hep/MCParticleData.h>
 #include <edm4hep/SimTrackerHitData.h>
@@ -50,9 +50,9 @@ struct MergedCollections {
     void clear();
 };
 
-class StandaloneTimesliceMerger {
+class TimesliceMerger {
 public:
-    StandaloneTimesliceMerger(const MergerConfig& config);
+    TimesliceMerger(const MergerConfig& config);
     
     void run();
 

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "StandaloneMergerConfig.h"
+#include "MergerConfig.h"
 #include <string>
 #include <vector>
 
