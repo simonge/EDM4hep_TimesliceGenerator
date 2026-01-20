@@ -27,6 +27,7 @@ include_directories(${ROOT_INCLUDE_DIRS})
 add_executable(timeslice_merger
     src/DataSource.cc
     src/TimesliceMerger.cc
+    src/EDM4hepOutputHandler.cc
     src/CommandLineParser.cc
     src/timeslice_merger_main.cc
 )
