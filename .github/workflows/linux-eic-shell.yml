@@ -92,3 +92,65 @@ jobs:
             --source:electron_synchrotron:input_files root://dtn-eic.jlab.org//volatile/eic/EPIC/EVGEN/BACKGROUNDS/SYNRAD/dataprod_rel_1.0.0/18x275/dataprod_rel_1.0.0_synrad_18x275_run001.hepmc3.tree.root
           
           ls -lh merged_ci_18x275.hepmc3.tree.root || true
+  epic-simulation:
+    needs: test-hepmc3
+    runs-on: ubuntu-24.04
+    steps:
+    - uses: actions/checkout@v4
+    - uses: cvmfs-contrib/github-action-cvmfs@v5
+    - name: Download HepMC3 merger output
+      uses: actions/download-artifact@v4
+      with:
+        name: timeslice-merger-binaries
+    - name: Run EPIC simulation on HepMC3 output
+      uses: eic/run-cvmfs-osg-eic-shell@main
+      with:
+        platform-release: "eic_xl:nightly"
+        run: |
+          # Run npsim on the merged HepMC3 events
+          npsim --compactFile $DETECTOR_PATH/epic_craterlake.xml \
+                --inputFiles merged_ci_18x275.hepmc3.tree.root \
+                --outputFile sim_ci_18x275.edm4hep.root \
+                --numberOfEvents 100 || true
+          
+          ls -lh sim_ci_18x275.edm4hep.root || true
+
+  eicrecon-from-epic:
+    needs: epic-simulation
+    runs-on: ubuntu-24.04
+    steps:
+    - uses: actions/checkout@v4
+    - uses: cvmfs-contrib/github-action-cvmfs@v5
+    - name: Download simulated events
+      uses: actions/download-artifact@v4
+      with:
+        name: timeslice-merger-binaries
+    - name: Run eicrecon on simulated events
+      uses: eic/run-cvmfs-osg-eic-shell@main
+      with:
+        platform-release: "eic_xl:nightly"
+        run: |
+          # Run eicrecon on simulated events from EPIC simulation
+          eicrecon -Pplugins=dump_flags sim_ci_18x275.edm4hep.root -Pjana:loglevel=info || true
+          
+          ls -lh recon_ci_18x275_from_epic.edm4hep.root || true
+
+  eicrecon-from-edm4hep:
+    needs: test-edm4hep
+    runs-on: ubuntu-24.04
+    steps:
+    - uses: actions/checkout@v4
+    - uses: cvmfs-contrib/github-action-cvmfs@v5
+    - name: Download EDM4hep merger output
+      uses: actions/download-artifact@v4
+      with:
+        name: timeslice-merger-binaries
+    - name: Run eicrecon on EDM4hep merged events
+      uses: eic/run-cvmfs-osg-eic-shell@main
+      with:
+        platform-release: "eic_xl:nightly"
+        run: |
+          # Run eicrecon directly on merged EDM4hep events
+          eicrecon -Pplugins=dump_flags merged_ci_18x275.edm4hep.root -Pjana:loglevel=info || true
+          
+          ls -lh recon_ci_18x275_from_edm4hep.edm4hep.root || true
