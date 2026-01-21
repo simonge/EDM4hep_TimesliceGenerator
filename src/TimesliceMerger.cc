@@ -1,8 +1,4 @@
 #include "TimesliceMerger.h"
-#include "EDM4hepDataSource.h"
-#ifdef HAVE_HEPMC3
-#include "HepMC3DataSource.h"
-#endif
 
 #include <iostream>
 #include <stdexcept>
@@ -10,8 +6,8 @@
 TimesliceMerger::TimesliceMerger(const MergerConfig& config)
     : m_config(config), gen(rd()) {}
 
-void TimesliceMerger::setOutputHandler(std::unique_ptr<OutputHandler> handler) {
-    output_handler_ = std::move(handler);
+void TimesliceMerger::setDataHandler(std::unique_ptr<DataHandler> handler) {
+    data_handler_ = std::move(handler);
 }
 
 void TimesliceMerger::run() {
@@ -21,15 +17,13 @@ void TimesliceMerger::run() {
     std::cout << "Max events: " << m_config.max_events << std::endl;
     std::cout << "Timeslice duration: " << m_config.time_slice_duration << std::endl;
 
-    if (!output_handler_) {
-        throw std::runtime_error("No output handler set - call setOutputHandler() before run()");
+    if (!data_handler_) {
+        throw std::runtime_error("No data handler set - call setDataHandler() before run()");
     }
 
-    // Initialize data sources
-    data_sources_ = initializeDataSources();
-
-    // Initialize output handler
-    output_handler_->initialize(m_config.output_file, data_sources_);
+    // Initialize data sources via the data handler
+    // The data handler creates appropriate data sources for its format
+    data_sources_ = data_handler_->initializeDataSources(m_config.output_file, m_config.sources);
 
     std::cout << "Processing " << m_config.max_events << " timeslices..." << std::endl;
 
@@ -42,15 +36,15 @@ void TimesliceMerger::run() {
         }
 
         // Prepare for new timeslice
-        output_handler_->prepareTimeslice();
+        data_handler_->prepareTimeslice();
 
         // Merge events from all sources
-        output_handler_->mergeEvents(
+        data_handler_->mergeEvents(
             data_sources_, events_generated, m_config.time_slice_duration,
             m_config.bunch_crossing_period, gen);
 
         // Write the timeslice
-        output_handler_->writeTimeslice();
+        data_handler_->writeTimeslice();
 
         if (events_generated % 10 == 0) {
             std::cout << "Processed " << events_generated << " timeslices..." << std::endl;
@@ -58,63 +52,9 @@ void TimesliceMerger::run() {
     }
 
     // Finalize output
-    output_handler_->finalize();
+    data_handler_->finalize();
 
-    // std::cout << "Generated " << events_generated << " timeslices" << std::endl;
     std::cout << "Output saved to: " << m_config.output_file << std::endl;
-}
-
-std::vector<std::unique_ptr<DataSource>> TimesliceMerger::initializeDataSources() {
-    std::vector<std::unique_ptr<DataSource>> data_sources;
-    data_sources.reserve(m_config.sources.size());
-
-    // Create DataSource objects based on file extension
-    for (size_t source_idx = 0; source_idx < m_config.sources.size(); ++source_idx) {
-        const auto& source_config = m_config.sources[source_idx];
-        
-        // Determine format from first input file
-        if (source_config.input_files.empty()) {
-            throw std::runtime_error("Source " + source_config.name + " has no input files");
-        }
-        
-        const std::string& first_file = source_config.input_files[0];
-        std::unique_ptr<DataSource> data_source;
-        
-        // Helper lambda to check file extension
-        auto hasExtension = [](const std::string& filename, const std::string& ext) {
-            if (filename.length() < ext.length()) return false;
-            return filename.compare(filename.length() - ext.length(), ext.length(), ext) == 0;
-        };
-        
-#ifdef HAVE_HEPMC3
-        // Check for HepMC3 format first (more specific extension)
-        if (hasExtension(first_file, ".hepmc3.tree.root")) {
-            data_source = std::make_unique<HepMC3DataSource>(source_config, source_idx);
-            std::cout << "Created HepMC3DataSource for: " << first_file << std::endl;
-        }
-        // Check for EDM4hep format
-        else
-#endif
-        if (hasExtension(first_file, ".edm4hep.root") || hasExtension(first_file, ".root")) {
-            data_source = std::make_unique<EDM4hepDataSource>(source_config, source_idx);
-            std::cout << "Created EDM4hepDataSource for: " << first_file << std::endl;
-        }
-        else {
-            std::string error_msg = "Cannot determine data source format for file: " + first_file + "\n"
-                "Supported formats:\n"
-                "  - .edm4hep.root (EDM4hep format)\n";
-#ifdef HAVE_HEPMC3
-            error_msg += "  - .hepmc3.tree.root (HepMC3 format)";
-#else
-            error_msg += "\nHepMC3 support not available (HepMC3 library not found during build)";
-#endif
-            throw std::runtime_error(error_msg);
-        }
-        
-        data_sources.push_back(std::move(data_source));
-    }
-
-    return data_sources;
 }
 
 bool TimesliceMerger::updateInputNEvents(std::vector<std::unique_ptr<DataSource>>& sources) {

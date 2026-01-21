@@ -1,6 +1,6 @@
 #pragma once
 
-#include "OutputHandler.h"
+#include "DataHandler.h"
 #include "EDM4hepDataSource.h"
 #include <edm4hep/MCParticleData.h>
 #include <edm4hep/SimTrackerHitData.h>
@@ -47,18 +47,20 @@ struct EDM4hepMergedCollections {
 };
 
 /**
- * @class EDM4hepOutputHandler
- * @brief Concrete implementation of OutputHandler for EDM4hep format
+ * @class EDM4hepDataHandler
+ * @brief Concrete implementation of DataHandler for EDM4hep format
  * 
- * Handles writing merged timeslice data in EDM4hep format using ROOT TTree.
+ * Handles both input (creating EDM4hepDataSource instances) and output
+ * (writing merged timeslice data) in EDM4hep format using ROOT TTree.
  */
-class EDM4hepOutputHandler : public OutputHandler {
+class EDM4hepDataHandler : public DataHandler {
 public:
-    EDM4hepOutputHandler() = default;
-    ~EDM4hepOutputHandler() override = default;
+    EDM4hepDataHandler() = default;
+    ~EDM4hepDataHandler() override = default;
 
-    void initialize(const std::string& filename, 
-                   const std::vector<std::unique_ptr<DataSource>>& sources) override;
+    std::vector<std::unique_ptr<DataSource>> initializeDataSources(
+        const std::string& filename,
+        const std::vector<SourceConfig>& source_configs) override;
     
     void prepareTimeslice() override;
     

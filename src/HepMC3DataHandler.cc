@@ -1,8 +1,65 @@
-#include "HepMC3OutputHandler.h"
+#include "HepMC3DataHandler.h"
 #include <iostream>
 #include <stdexcept>
 
-void HepMC3OutputHandler::initialize(const std::string& filename,
+std::vector<std::unique_ptr<DataSource>> HepMC3DataHandler::initializeDataSources(
+    const std::string& filename,
+    const std::vector<SourceConfig>& source_configs) {
+    
+    std::cout << "Initializing HepMC3 data handler for: " << filename << std::endl;
+    
+    std::vector<std::unique_ptr<DataSource>> data_sources;
+    data_sources.reserve(source_configs.size());
+    
+    // Create HepMC3DataSource objects for each source configuration
+    for (size_t source_idx = 0; source_idx < source_configs.size(); ++source_idx) {
+        const auto& source_config = source_configs[source_idx];
+        
+        // Determine format from first input file
+        if (source_config.input_files.empty()) {
+            throw std::runtime_error("Source " + source_config.name + " has no input files");
+        }
+        
+        const std::string& first_file = source_config.input_files[0];
+        
+        // Helper lambda to check file extension
+        auto hasExtension = [](const std::string& filename, const std::string& ext) {
+            if (filename.length() < ext.length()) return false;
+            return filename.compare(filename.length() - ext.length(), ext.length(), ext) == 0;
+        };
+        
+        // Check if this is HepMC3 format
+        if (!hasExtension(first_file, ".hepmc3.tree.root")) {
+            throw std::runtime_error(
+                "HepMC3DataHandler can only handle .hepmc3.tree.root files. "
+                "Got: " + first_file
+            );
+        }
+        
+        auto data_source = std::make_unique<HepMC3DataSource>(source_config, source_idx);
+        std::cout << "Created HepMC3DataSource for: " + first_file << std::endl;
+        data_sources.push_back(std::move(data_source));
+    }
+    
+    // Store pointers to HepMC3 sources for later use
+    hepmc3_sources_.clear();
+    hepmc3_sources_.reserve(data_sources.size());
+    for (auto& source : data_sources) {
+        hepmc3_sources_.push_back(dynamic_cast<HepMC3DataSource*>(source.get()));
+    }
+    
+    // Create HepMC3 writer
+    writer_ = std::make_shared<HepMC3::WriterRootTree>(filename);
+    if (!writer_) {
+        throw std::runtime_error("Failed to create HepMC3 writer for: " + filename);
+    }
+    
+    std::cout << "HepMC3 data handler initialized with " << hepmc3_sources_.size() << " sources" << std::endl;
+    
+    return data_sources;
+}
+
+void HepMC3DataHandler::initialize(const std::string& filename,
                                      const std::vector<std::unique_ptr<DataSource>>& sources) {
     std::cout << "Initializing HepMC3 output handler for: " << filename << std::endl;
     
@@ -12,7 +69,7 @@ void HepMC3OutputHandler::initialize(const std::string& filename,
         auto* hepmc3_source = dynamic_cast<HepMC3DataSource*>(source.get());
         if (!hepmc3_source) {
             throw std::runtime_error(
-                "HepMC3OutputHandler requires all sources to be HepMC3DataSource. "
+                "HepMC3DataHandler requires all sources to be HepMC3DataSource. "
                 "Source '" + source->getName() + "' is " + source->getFormatName()
             );
         }
@@ -28,7 +85,7 @@ void HepMC3OutputHandler::initialize(const std::string& filename,
     std::cout << "HepMC3 output handler initialized with " << hepmc3_sources_.size() << " sources" << std::endl;
 }
 
-void HepMC3OutputHandler::prepareTimeslice() {
+void HepMC3DataHandler::prepareTimeslice() {
     // Create a new empty event for this timeslice
     current_timeslice_ = std::make_unique<HepMC3::GenEvent>(
         HepMC3::Units::GEV,
@@ -36,7 +93,7 @@ void HepMC3OutputHandler::prepareTimeslice() {
     );
 }
 
-void HepMC3OutputHandler::mergeEvents(std::vector<std::unique_ptr<DataSource>>& sources,
+void HepMC3DataHandler::mergeEvents(std::vector<std::unique_ptr<DataSource>>& sources,
                                       size_t timeslice_number,
                                       float time_slice_duration,
                                       float bunch_crossing_period,
@@ -79,7 +136,7 @@ void HepMC3OutputHandler::mergeEvents(std::vector<std::unique_ptr<DataSource>>& 
     }
 }
 
-long HepMC3OutputHandler::insertHepMC3Event(const HepMC3::GenEvent& inevt,
+long HepMC3DataHandler::insertHepMC3Event(const HepMC3::GenEvent& inevt,
                                             std::unique_ptr<HepMC3::GenEvent>& hepSlice,
                                             double time,
                                             int baseStatus) {
@@ -143,7 +200,7 @@ long HepMC3OutputHandler::insertHepMC3Event(const HepMC3::GenEvent& inevt,
     return finalParticleCount;
 }
 
-void HepMC3OutputHandler::writeTimeslice() {
+void HepMC3DataHandler::writeTimeslice() {
     if (!current_timeslice_) {
         throw std::runtime_error("No timeslice to write - prepareTimeslice() not called?");
     }
@@ -158,7 +215,7 @@ void HepMC3OutputHandler::writeTimeslice() {
     current_timeslice_.reset();
 }
 
-void HepMC3OutputHandler::finalize() {
+void HepMC3DataHandler::finalize() {
     if (writer_) {
         writer_->close();
         writer_.reset();

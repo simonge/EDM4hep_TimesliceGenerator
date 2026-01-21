@@ -30,8 +30,8 @@ include_directories(${ROOT_INCLUDE_DIRS})
 add_executable(timeslice_merger
     src/DataSource.cc
     src/EDM4hepDataSource.cc
-    src/OutputHandler.cc
-    src/EDM4hepOutputHandler.cc
+    src/DataHandler.cc
+    src/EDM4hepDataHandler.cc
     src/TimesliceMerger.cc
     src/CommandLineParser.cc
     src/timeslice_merger_main.cc
@@ -42,7 +42,7 @@ if(HepMC3_FOUND)
     message(STATUS "HepMC3 found - enabling HepMC3 backend support")
     target_sources(timeslice_merger PRIVATE
         src/HepMC3DataSource.cc
-        src/HepMC3OutputHandler.cc
+        src/HepMC3DataHandler.cc
     )
     target_compile_definitions(timeslice_merger PRIVATE HAVE_HEPMC3)
 else()

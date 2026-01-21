@@ -1,11 +1,11 @@
-#include "OutputHandler.h"
-#include "EDM4hepOutputHandler.h"
+#include "DataHandler.h"
+#include "EDM4hepDataHandler.h"
 #ifdef HAVE_HEPMC3
-#include "HepMC3OutputHandler.h"
+#include "HepMC3DataHandler.h"
 #endif
 #include <stdexcept>
 
-std::unique_ptr<OutputHandler> OutputHandler::create(const std::string& filename) {
+std::unique_ptr<DataHandler> DataHandler::create(const std::string& filename) {
     // Helper lambda to check file extension
     auto hasExtension = [](const std::string& filename, const std::string& ext) {
         if (filename.length() < ext.length()) return false;
@@ -15,17 +15,17 @@ std::unique_ptr<OutputHandler> OutputHandler::create(const std::string& filename
 #ifdef HAVE_HEPMC3
     // Check if filename ends with .hepmc3.tree.root (more specific first)
     if (hasExtension(filename, ".hepmc3.tree.root")) {
-        return std::make_unique<HepMC3OutputHandler>();
+        return std::make_unique<HepMC3DataHandler>();
     }
 #endif
     
     // Check if filename ends with .edm4hep.root
     if (hasExtension(filename, ".edm4hep.root")) {
-        return std::make_unique<EDM4hepOutputHandler>();
+        return std::make_unique<EDM4hepDataHandler>();
     }
     
     // Unsupported format
-    std::string error_msg = "Unsupported output format: " + filename + "\n"
+    std::string error_msg = "Unsupported data format: " + filename + "\n"
         "Currently supported formats:\n"
         "  - Files ending with '.edm4hep.root' (e.g., output.edm4hep.root)\n";
 #ifdef HAVE_HEPMC3

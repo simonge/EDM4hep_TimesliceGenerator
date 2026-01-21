@@ -1,6 +1,6 @@
 #pragma once
 
-#include "OutputHandler.h"
+#include "DataHandler.h"
 #include "HepMC3DataSource.h"
 #include <HepMC3/WriterRootTree.h>
 #include <HepMC3/GenEvent.h>
@@ -9,19 +9,21 @@
 #include <string>
 
 /**
- * @class HepMC3OutputHandler
- * @brief Concrete implementation of OutputHandler for HepMC3 format
+ * @class HepMC3DataHandler
+ * @brief Concrete implementation of DataHandler for HepMC3 format
  * 
- * Handles writing merged timeslice data in HepMC3 format using ROOT tree format.
+ * Handles both input (creating HepMC3DataSource instances) and output
+ * (writing merged timeslice data) in HepMC3 format using ROOT tree format.
  * Merges multiple HepMC3 events into single timeslice events with time offsets applied.
  */
-class HepMC3OutputHandler : public OutputHandler {
+class HepMC3DataHandler : public DataHandler {
 public:
-    HepMC3OutputHandler() = default;
-    ~HepMC3OutputHandler() override = default;
+    HepMC3DataHandler() = default;
+    ~HepMC3DataHandler() override = default;
 
-    void initialize(const std::string& filename, 
-                   const std::vector<std::unique_ptr<DataSource>>& sources) override;
+    std::vector<std::unique_ptr<DataSource>> initializeDataSources(
+        const std::string& filename,
+        const std::vector<SourceConfig>& source_configs) override;
     
     void prepareTimeslice() override;
     

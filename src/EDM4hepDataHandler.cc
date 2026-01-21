@@ -1,4 +1,4 @@
-#include "EDM4hepOutputHandler.h"
+#include "EDM4hepDataHandler.h"
 #include <iostream>
 #include <algorithm>
 #include <stdexcept>
@@ -47,7 +47,79 @@ void EDM4hepMergedCollections::clear() {
     gp_string_values.clear();
 }
 
-void EDM4hepOutputHandler::initialize(const std::string& filename, 
+std::vector<std::unique_ptr<DataSource>> EDM4hepDataHandler::initializeDataSources(
+    const std::string& filename,
+    const std::vector<SourceConfig>& source_configs) {
+    
+    std::cout << "Initializing EDM4hep data handler for: " << filename << std::endl;
+    
+    std::vector<std::unique_ptr<DataSource>> data_sources;
+    data_sources.reserve(source_configs.size());
+    
+    // Create EDM4hepDataSource objects for each source configuration
+    for (size_t source_idx = 0; source_idx < source_configs.size(); ++source_idx) {
+        const auto& source_config = source_configs[source_idx];
+        
+        // Determine format from first input file
+        if (source_config.input_files.empty()) {
+            throw std::runtime_error("Source " + source_config.name + " has no input files");
+        }
+        
+        const std::string& first_file = source_config.input_files[0];
+        
+        // Helper lambda to check file extension
+        auto hasExtension = [](const std::string& filename, const std::string& ext) {
+            if (filename.length() < ext.length()) return false;
+            return filename.compare(filename.length() - ext.length(), ext.length(), ext) == 0;
+        };
+        
+        // Check if this is EDM4hep format
+        if (!hasExtension(first_file, ".edm4hep.root") && !hasExtension(first_file, ".root")) {
+            throw std::runtime_error(
+                "EDM4hepDataHandler can only handle .edm4hep.root or .root files. "
+                "Got: " + first_file
+            );
+        }
+        
+        auto data_source = std::make_unique<EDM4hepDataSource>(source_config, source_idx);
+        std::cout << "Created EDM4hepDataSource for: " << first_file << std::endl;
+        data_sources.push_back(std::move(data_source));
+    }
+    
+    // Store pointers to EDM4hep sources for later use
+    edm4hep_sources_.clear();
+    edm4hep_sources_.reserve(data_sources.size());
+    for (auto& source : data_sources) {
+        edm4hep_sources_.push_back(dynamic_cast<EDM4hepDataSource*>(source.get()));
+    }
+    
+    // Open output file
+    output_file_ = std::make_unique<TFile>(filename.c_str(), "RECREATE");
+    if (!output_file_ || output_file_->IsZombie()) {
+        throw std::runtime_error("Could not create output file: " + filename);
+    }
+    
+    // Set ROOT I/O optimizations
+    output_file_->SetCompressionLevel(1);
+    
+    // Create output tree
+    output_tree_ = new TTree("events", "Merged timeslices");
+    
+    // Discover collections from sources
+    discoverCollections(data_sources);
+    
+    // Setup output tree branches
+    setupOutputTree();
+    
+    // Copy metadata from first source
+    copyPodioMetadata(data_sources);
+    
+    std::cout << "EDM4hep data handler initialized successfully" << std::endl;
+    
+    return data_sources;
+}
+
+void EDM4hepDataHandler::initialize(const std::string& filename, 
                                       const std::vector<std::unique_ptr<DataSource>>& sources) {
     std::cout << "Initializing EDM4hep output handler for: " << filename << std::endl;
     
@@ -57,7 +129,7 @@ void EDM4hepOutputHandler::initialize(const std::string& filename,
     for (const auto& source : sources) {
         auto* edm4hep_source = dynamic_cast<EDM4hepDataSource*>(source.get());
         if (!edm4hep_source) {
-            throw std::runtime_error("EDM4hepOutputHandler requires all sources to be EDM4hepDataSource. "
+            throw std::runtime_error("EDM4hepDataHandler requires all sources to be EDM4hepDataSource. "
                                    "Found source with format: " + source->getFormatName());
         }
         edm4hep_sources_.push_back(edm4hep_source);
@@ -88,11 +160,11 @@ void EDM4hepOutputHandler::initialize(const std::string& filename,
     std::cout << "EDM4hep output handler initialized successfully" << std::endl;
 }
 
-void EDM4hepOutputHandler::prepareTimeslice() {
+void EDM4hepDataHandler::prepareTimeslice() {
     collections_.clear();
 }
 
-void EDM4hepOutputHandler::mergeEvents(std::vector<std::unique_ptr<DataSource>>& sources,
+void EDM4hepDataHandler::mergeEvents(std::vector<std::unique_ptr<DataSource>>& sources,
                                       size_t timeslice_number,
                                       float time_slice_duration,
                                       float bunch_crossing_period,
@@ -242,7 +314,7 @@ void EDM4hepOutputHandler::mergeEvents(std::vector<std::unique_ptr<DataSource>>&
     collections_.event_headers.push_back(header);
 }
 
-void EDM4hepOutputHandler::writeTimeslice() {
+void EDM4hepDataHandler::writeTimeslice() {
     if (!output_tree_) {
         throw std::runtime_error("Output tree not initialized");
     }
@@ -251,7 +323,7 @@ void EDM4hepOutputHandler::writeTimeslice() {
     std::cout << "=== Timeslice written ===" << std::endl;
 }
 
-void EDM4hepOutputHandler::finalize() {
+void EDM4hepDataHandler::finalize() {
     if (output_tree_) {
         output_tree_->Write();
     }
@@ -261,7 +333,7 @@ void EDM4hepOutputHandler::finalize() {
     std::cout << "EDM4hep output finalized" << std::endl;
 }
 
-void EDM4hepOutputHandler::setupOutputTree() {
+void EDM4hepDataHandler::setupOutputTree() {
     if (!output_tree_) {
         throw std::runtime_error("Cannot setup output tree - tree is null");
     }
@@ -306,7 +378,7 @@ void EDM4hepOutputHandler::setupOutputTree() {
     std::cout << "Total branches created: " << output_tree_->GetListOfBranches()->GetEntries() << std::endl;
 }
 
-void EDM4hepOutputHandler::discoverCollections(const std::vector<std::unique_ptr<DataSource>>& sources) {
+void EDM4hepDataHandler::discoverCollections(const std::vector<std::unique_ptr<DataSource>>& sources) {
     if (sources.empty() || sources[0]->getConfig().input_files.empty()) {
         std::cout << "Warning: No sources available for collection discovery" << std::endl;
         return;
@@ -333,7 +405,7 @@ void EDM4hepOutputHandler::discoverCollections(const std::vector<std::unique_ptr
     }
 }
 
-std::vector<std::string> EDM4hepOutputHandler::discoverCollectionNames(DataSource& source, const std::string& branch_pattern) {
+std::vector<std::string> EDM4hepDataHandler::discoverCollectionNames(DataSource& source, const std::string& branch_pattern) {
     std::vector<std::string> names;
     
     if (source.getConfig().input_files.empty()) {
@@ -373,7 +445,7 @@ std::vector<std::string> EDM4hepOutputHandler::discoverCollectionNames(DataSourc
     return names;
 }
 
-std::vector<std::string> EDM4hepOutputHandler::discoverGPBranches(DataSource& source) {
+std::vector<std::string> EDM4hepDataHandler::discoverGPBranches(DataSource& source) {
     std::vector<std::string> names;
     
     if (source.getConfig().input_files.empty()) {
@@ -407,7 +479,7 @@ std::vector<std::string> EDM4hepOutputHandler::discoverGPBranches(DataSource& so
     return names;
 }
 
-void EDM4hepOutputHandler::copyPodioMetadata(const std::vector<std::unique_ptr<DataSource>>& sources) {
+void EDM4hepDataHandler::copyPodioMetadata(const std::vector<std::unique_ptr<DataSource>>& sources) {
     if (sources.empty() || !output_file_) {
         return;
     }
@@ -444,7 +516,7 @@ void EDM4hepOutputHandler::copyPodioMetadata(const std::vector<std::unique_ptr<D
     source_file->Close();
 }
 
-void EDM4hepOutputHandler::copyAndUpdatePodioMetadataTree(TTree* source_metadata_tree, TFile* output_file) {
+void EDM4hepDataHandler::copyAndUpdatePodioMetadataTree(TTree* source_metadata_tree, TFile* output_file) {
     if (!source_metadata_tree || !output_file) {
         return;
     }
@@ -456,11 +528,11 @@ void EDM4hepOutputHandler::copyAndUpdatePodioMetadataTree(TTree* source_metadata
     }
 }
 
-std::string EDM4hepOutputHandler::getCorrespondingContributionCollection(const std::string& calo_collection_name) const {
+std::string EDM4hepDataHandler::getCorrespondingContributionCollection(const std::string& calo_collection_name) const {
     return calo_collection_name + "Contributions";
 }
 
-std::string EDM4hepOutputHandler::getCorrespondingCaloCollection(const std::string& contrib_collection_name) const {
+std::string EDM4hepDataHandler::getCorrespondingCaloCollection(const std::string& contrib_collection_name) const {
     std::string base = contrib_collection_name;
     if (base.length() > 13 && base.substr(base.length() - 13) == "Contributions") {
         base = base.substr(0, base.length() - 13);
