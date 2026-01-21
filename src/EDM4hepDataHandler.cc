@@ -266,10 +266,11 @@ void EDM4hepDataHandler::writeTimeslice() {
 }
 
 void EDM4hepDataHandler::finalize() {
-    if (output_tree_) {
-        output_tree_->Write();
-    }
     if (output_file_) {
+        output_file_->cd();
+        if (output_tree_) {
+            output_tree_->Write();
+        }
         output_file_->Close();
     }
     std::cout << "EDM4hep output finalized" << std::endl;
