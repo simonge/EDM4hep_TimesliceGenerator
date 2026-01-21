@@ -29,12 +29,6 @@ public:
     
     void prepareTimeslice() override;
     
-    void mergeEvents(std::vector<std::unique_ptr<DataSource>>& sources,
-                    size_t timeslice_number,
-                    float time_slice_duration,
-                    float bunch_crossing_period,
-                    std::mt19937& gen) override;
-    
     void writeTimeslice() override;
     
     void finalize() override;
@@ -48,11 +42,12 @@ private:
     // Store validated HepMC3 data sources (non-owning pointers)
     std::vector<HepMC3DataSource*> hepmc3_sources_;
     
-    size_t current_timeslice_number_ = 0;
-    
     // Speed of light constant: c = 299.792458 mm/ns
     // Used for converting time offsets (ns) to position offsets (mm) in HepMC3
     static constexpr double c_light = 299.792458;
+
+    // Format-specific event processing
+    void processEvent(DataSource& source) override;
 
     // Helper methods
     long insertHepMC3Event(const HepMC3::GenEvent& inevt,

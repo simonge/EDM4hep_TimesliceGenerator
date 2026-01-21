@@ -64,12 +64,6 @@ public:
     
     void prepareTimeslice() override;
     
-    void mergeEvents(std::vector<std::unique_ptr<DataSource>>& sources,
-                    size_t timeslice_number,
-                    float time_slice_duration,
-                    float bunch_crossing_period,
-                    std::mt19937& gen) override;
-    
     void writeTimeslice() override;
     
     void finalize() override;
@@ -88,8 +82,6 @@ private:
     std::vector<std::string> tracker_collection_names_;
     std::vector<std::string> calo_collection_names_;
     std::vector<std::string> gp_collection_names_;
-    
-    size_t current_timeslice_number_ = 0;
 
     // Helper methods
     void setupOutputTree();
@@ -100,4 +92,7 @@ private:
     void copyAndUpdatePodioMetadataTree(TTree* source_metadata_tree, TFile* output_file);
     std::string getCorrespondingContributionCollection(const std::string& calo_collection_name) const;
     std::string getCorrespondingCaloCollection(const std::string& contrib_collection_name) const;
+    
+    // Format-specific event processing
+    void processEvent(DataSource& source) override;
 };

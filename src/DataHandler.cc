@@ -5,6 +5,37 @@
 #endif
 #include <stdexcept>
 
+void DataHandler::mergeEvents(std::vector<std::unique_ptr<DataSource>>& sources,
+                              size_t timeslice_number,
+                              float time_slice_duration,
+                              float bunch_crossing_period,
+                              std::mt19937& gen) {
+    current_timeslice_number_ = timeslice_number;
+    
+    // Iterate over all sources
+    for (auto& source : sources) {
+        const auto& config = source->getConfig();
+        size_t entries_needed = source->getEntriesNeeded();
+        int events_consumed = 0;
+        
+        // Process each event from this source
+        for (size_t entry = 0; entry < entries_needed; ++entry) {
+            // Load and prepare the event
+            source->loadEvent(source->getCurrentEntryIndex());
+            source->UpdateTimeOffset(time_slice_duration, bunch_crossing_period, gen);
+            
+            // Call format-specific processing
+            processEvent(*source);
+            
+            source->setCurrentEntryIndex(source->getCurrentEntryIndex() + 1);
+            events_consumed++;
+        }
+        
+        std::cout << "Processed " << events_consumed << " events from source " 
+                  << config.name << std::endl;
+    }
+}
+
 std::unique_ptr<DataHandler> DataHandler::create(const std::string& filename) {
     // Helper lambda to check file extension
     auto hasExtension = [](const std::string& filename, const std::string& ext) {

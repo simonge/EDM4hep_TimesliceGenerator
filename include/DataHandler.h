@@ -44,10 +44,10 @@ public:
      * @param gen Random number generator
      */
     virtual void mergeEvents(std::vector<std::unique_ptr<DataSource>>& sources,
-                           size_t timeslice_number,
-                           float time_slice_duration,
-                           float bunch_crossing_period,
-                           std::mt19937& gen) = 0;
+                            size_t timeslice_number,
+                            float time_slice_duration,
+                            float bunch_crossing_period,
+                            std::mt19937& gen) final;
 
     /**
      * Write the completed timeslice to output
@@ -64,6 +64,17 @@ public:
      */
     virtual std::string getFormatName() const = 0;
 
+protected:
+    /**
+     * Process a single loaded event during merging
+     * Implemented by concrete handlers for format-specific logic
+     * Called after loadEvent and UpdateTimeOffset have been applied
+     */
+    virtual void processEvent(DataSource& source) = 0;
+    
+    size_t current_timeslice_number_ = 0;
+
+public:
     /**
      * Factory method to create appropriate data handler based on filename
      * @param filename Output file path

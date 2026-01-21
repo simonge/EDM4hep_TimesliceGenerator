@@ -67,47 +67,20 @@ void HepMC3DataHandler::prepareTimeslice() {
     );
 }
 
-void HepMC3DataHandler::mergeEvents(std::vector<std::unique_ptr<DataSource>>& sources,
-                                      size_t timeslice_number,
-                                      float time_slice_duration,
-                                      float bunch_crossing_period,
-                                      std::mt19937& gen) {
-    current_timeslice_number_ = timeslice_number;
-    
-    // Process each source
-    for (size_t source_idx = 0; source_idx < sources.size(); ++source_idx) {
-        auto& source = sources[source_idx];
-        auto* hepmc3_source = hepmc3_sources_[source_idx];
-        
-        const auto& config = source->getConfig();
-        size_t entries_needed = source->getEntriesNeeded();
-        
-        // Process each event from this source
-        for (size_t entry = 0; entry < entries_needed; ++entry) {
-            // Load the next event
-            if (!source->loadNextEvent()) {
-                std::cerr << "Warning: Failed to load event from source " << config.name << std::endl;
-                break;
-            }
-            
-            // Update time offset for this event
-            source->UpdateTimeOffset(time_slice_duration, bunch_crossing_period, gen);
-            
-            // Get the current event from the HepMC3 source
-            const auto& event = hepmc3_source->getCurrentEvent();
-            
-            // Convert time offset to HepMC units (mm using speed of light)
-            double time_offset_ns = source->getCurrentTimeOffset();
-            
-            // Insert the event into the merged timeslice
-            long particle_count = insertHepMC3Event(
-                event,
-                current_timeslice_,
-                time_offset_ns,
-                config.generator_status_offset
-            );
-        }
+void HepMC3DataHandler::processEvent(DataSource& source) {
+    auto* hepmc3_source = dynamic_cast<HepMC3DataSource*>(&source);
+    if (!hepmc3_source) {
+        throw std::runtime_error("HepMC3DataHandler: Expected HepMC3DataSource");
     }
+    
+    const auto& config = source.getConfig();
+    double time_offset_ns = source.getCurrentTimeOffset();
+    
+    // Get the current event from the HepMC3 source
+    const auto& event = hepmc3_source->getCurrentEvent();
+    
+    // Insert the event into the merged timeslice
+    insertHepMC3Event(event, current_timeslice_, time_offset_ns, config.generator_status_offset);
 }
 
 long HepMC3DataHandler::insertHepMC3Event(const HepMC3::GenEvent& inevt,
