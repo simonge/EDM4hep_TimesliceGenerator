@@ -1,5 +1,8 @@
 #include "TimesliceMerger.h"
 #include "EDM4hepDataSource.h"
+#ifdef HAVE_HEPMC3
+#include "HepMC3DataSource.h"
+#endif
 
 #include <iostream>
 #include <stdexcept>
@@ -65,9 +68,44 @@ std::vector<std::unique_ptr<DataSource>> TimesliceMerger::initializeDataSources(
     std::vector<std::unique_ptr<DataSource>> data_sources;
     data_sources.reserve(m_config.sources.size());
 
-    // Create EDM4hep DataSource objects (currently only EDM4hep format supported)
+    // Create DataSource objects based on file extension
     for (size_t source_idx = 0; source_idx < m_config.sources.size(); ++source_idx) {
-        auto data_source = std::make_unique<EDM4hepDataSource>(m_config.sources[source_idx], source_idx);
+        const auto& source_config = m_config.sources[source_idx];
+        
+        // Determine format from first input file
+        if (source_config.input_files.empty()) {
+            throw std::runtime_error("Source " + source_config.name + " has no input files");
+        }
+        
+        const std::string& first_file = source_config.input_files[0];
+        std::unique_ptr<DataSource> data_source;
+        
+#ifdef HAVE_HEPMC3
+        // Check for HepMC3 format
+        if (first_file.find(".hepmc3.tree.root") != std::string::npos) {
+            data_source = std::make_unique<HepMC3DataSource>(source_config, source_idx);
+            std::cout << "Created HepMC3DataSource for: " << first_file << std::endl;
+        }
+        // Check for EDM4hep format
+        else
+#endif
+        if (first_file.find(".edm4hep.root") != std::string::npos || 
+                 first_file.find(".root") != std::string::npos) {
+            data_source = std::make_unique<EDM4hepDataSource>(source_config, source_idx);
+            std::cout << "Created EDM4hepDataSource for: " << first_file << std::endl;
+        }
+        else {
+            std::string error_msg = "Cannot determine data source format for file: " + first_file + "\n"
+                "Supported formats:\n"
+                "  - .edm4hep.root (EDM4hep format)\n";
+#ifdef HAVE_HEPMC3
+            error_msg += "  - .hepmc3.tree.root (HepMC3 format)";
+#else
+            error_msg += "\nHepMC3 support not available (HepMC3 library not found during build)";
+#endif
+            throw std::runtime_error(error_msg);
+        }
+        
         data_sources.push_back(std::move(data_source));
     }
 

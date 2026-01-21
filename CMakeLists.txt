@@ -19,6 +19,9 @@ find_package(EDM4HEP REQUIRED)
 # Find yaml-cpp
 find_package(yaml-cpp REQUIRED)
 
+# Find HepMC3 (optional, for HepMC3 backend support)
+find_package(HepMC3 QUIET)
+
 # Include directories
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
 include_directories(${ROOT_INCLUDE_DIRS})
@@ -34,6 +37,18 @@ add_executable(timeslice_merger
     src/timeslice_merger_main.cc
 )
 
+# Conditionally add HepMC3 sources if HepMC3 is found
+if(HepMC3_FOUND)
+    message(STATUS "HepMC3 found - enabling HepMC3 backend support")
+    target_sources(timeslice_merger PRIVATE
+        src/HepMC3DataSource.cc
+        src/HepMC3OutputHandler.cc
+    )
+    target_compile_definitions(timeslice_merger PRIVATE HAVE_HEPMC3)
+else()
+    message(STATUS "HepMC3 not found - HepMC3 backend will not be available")
+endif()
+
 # Link against ROOT, PODIO and EDM4HEP
 target_link_libraries(timeslice_merger
     ${ROOT_LIBRARIES}
@@ -42,6 +57,11 @@ target_link_libraries(timeslice_merger
     EDM4HEP::edm4hepDict
     yaml-cpp
 )
+
+# Conditionally link HepMC3 if found
+if(HepMC3_FOUND)
+    target_link_libraries(timeslice_merger HepMC3::HepMC3)
+endif()
 
 # Create test executable for file format verification
 add_executable(test_file_format
