@@ -92,6 +92,7 @@ jobs:
             --source:electron_synchrotron:input_files root://dtn-eic.jlab.org//volatile/eic/EPIC/EVGEN/BACKGROUNDS/SYNRAD/dataprod_rel_1.0.0/18x275/dataprod_rel_1.0.0_synrad_18x275_run001.hepmc3.tree.root
           
           ls -lh merged_ci_18x275.hepmc3.tree.root || true
+
   epic-simulation:
     needs: test-hepmc3
     runs-on: ubuntu-24.04
@@ -107,6 +108,7 @@ jobs:
       with:
         platform-release: "eic_xl:nightly"
         run: |
+          source /opt/detector/epic-main/bin/thisepic.sh
           # Run npsim on the merged HepMC3 events
           npsim --compactFile $DETECTOR_PATH/epic_craterlake.xml \
                 --inputFiles merged_ci_18x275.hepmc3.tree.root \
@@ -130,6 +132,7 @@ jobs:
       with:
         platform-release: "eic_xl:nightly"
         run: |
+          source /opt/detector/epic-main/bin/thisepic.sh
           # Run eicrecon on simulated events from EPIC simulation
           eicrecon -Pplugins=dump_flags sim_ci_18x275.edm4hep.root -Pjana:loglevel=info || true
           
@@ -150,6 +153,7 @@ jobs:
       with:
         platform-release: "eic_xl:nightly"
         run: |
+          source /opt/detector/epic-main/bin/thisepic.sh
           # Run eicrecon directly on merged EDM4hep events
           eicrecon -Pplugins=dump_flags merged_ci_18x275.edm4hep.root -Pjana:loglevel=info || true
           
