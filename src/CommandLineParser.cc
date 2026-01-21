@@ -237,18 +237,21 @@ void CommandLineParser::mergeCliSources(MergerConfig& config, const std::vector<
     }
 }
 
-void CommandLineParser::validateConfiguration(const MergerConfig& config) {
-    // Check if we have any input files
-    bool has_input_files = false;
-    for (const auto& source : config.sources) {
-        if (!source.input_files.empty()) {
-            has_input_files = true;
-            break;
+void CommandLineParser::validateConfiguration(MergerConfig& config) {
+    // Remove sources with no input files and warn about them
+    auto it = config.sources.begin();
+    while (it != config.sources.end()) {
+        if (it->input_files.empty()) {
+            std::cerr << "Warning: Source '" << it->name << "' has no input files specified - removing from configuration" << std::endl;
+            it = config.sources.erase(it);
+        } else {
+            ++it;
         }
     }
     
-    if (!has_input_files) {
-        throw std::runtime_error("Error: No input files specified");
+    // After cleanup, ensure we have at least one valid source
+    if (config.sources.empty()) {
+        throw std::runtime_error("Error: No valid sources with input files specified");
     }
 }
 
