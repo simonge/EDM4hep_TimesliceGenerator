@@ -27,7 +27,8 @@ void TimesliceMerger::run() {
 
     std::cout << "Processing " << m_config.max_events << " timeslices..." << std::endl;
 
-    for (size_t events_generated = 0; events_generated < m_config.max_events; ++events_generated) {
+    size_t events_generated = 0;
+    for (; events_generated < m_config.max_events; ++events_generated) {
         // Update number of events needed per source
         if (!updateInputNEvents(data_sources_)) {
             std::cout << "Reached end of input data, stopping at " << events_generated
@@ -54,6 +55,7 @@ void TimesliceMerger::run() {
     // Finalize output
     data_handler_->finalize();
 
+    std::cout << "Merging complete. Total timeslices processed: " << events_generated << std::endl;
     std::cout << "Output saved to: " << m_config.output_file << std::endl;
 }
 
