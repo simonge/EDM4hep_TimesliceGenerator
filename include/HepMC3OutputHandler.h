@@ -46,8 +46,9 @@ private:
     
     size_t current_timeslice_number_ = 0;
     
-    // Speed of light constant for time-to-position conversion
-    static constexpr double c_light = 299.792458; // mm/ns
+    // Speed of light constant: c = 299.792458 mm/ns
+    // Used for converting time offsets (ns) to position offsets (mm) in HepMC3
+    static constexpr double c_light = 299.792458;
 
     // Helper methods
     long insertHepMC3Event(const HepMC3::GenEvent& inevt,

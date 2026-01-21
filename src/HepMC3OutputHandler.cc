@@ -109,17 +109,29 @@ long HepMC3OutputHandler::insertHepMC3Event(const HepMC3::GenEvent& inevt,
         p1->set_generated_mass(particle->generated_mass());
         particles.push_back(p1);
         
-        // Attach particle to production vertex
+        // Attach particle to production vertex with bounds checking
         if (particle->production_vertex() && particle->production_vertex()->id() < 0) {
             int production_vertex = particle->production_vertex()->id();
-            vertices[abs(production_vertex) - 1]->add_particle_out(p1);
-            hepSlice->add_particle(p1);
+            size_t vertex_index = abs(production_vertex) - 1;
+            if (vertex_index < vertices.size()) {
+                vertices[vertex_index]->add_particle_out(p1);
+                hepSlice->add_particle(p1);
+            } else {
+                std::cerr << "Warning: Invalid production vertex index " << vertex_index 
+                          << " (vertices size: " << vertices.size() << ")" << std::endl;
+            }
         }
         
-        // Attach particle to end vertex if it has one
+        // Attach particle to end vertex if it has one with bounds checking
         if (particle->end_vertex()) {
             int end_vertex = particle->end_vertex()->id();
-            vertices.at(abs(end_vertex) - 1)->add_particle_in(p1);
+            size_t vertex_index = abs(end_vertex) - 1;
+            if (vertex_index < vertices.size()) {
+                vertices[vertex_index]->add_particle_in(p1);
+            } else {
+                std::cerr << "Warning: Invalid end vertex index " << vertex_index 
+                          << " (vertices size: " << vertices.size() << ")" << std::endl;
+            }
         }
     }
 

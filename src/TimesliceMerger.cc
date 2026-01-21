@@ -80,17 +80,22 @@ std::vector<std::unique_ptr<DataSource>> TimesliceMerger::initializeDataSources(
         const std::string& first_file = source_config.input_files[0];
         std::unique_ptr<DataSource> data_source;
         
+        // Helper lambda to check file extension
+        auto hasExtension = [](const std::string& filename, const std::string& ext) {
+            if (filename.length() < ext.length()) return false;
+            return filename.compare(filename.length() - ext.length(), ext.length(), ext) == 0;
+        };
+        
 #ifdef HAVE_HEPMC3
-        // Check for HepMC3 format
-        if (first_file.find(".hepmc3.tree.root") != std::string::npos) {
+        // Check for HepMC3 format first (more specific extension)
+        if (hasExtension(first_file, ".hepmc3.tree.root")) {
             data_source = std::make_unique<HepMC3DataSource>(source_config, source_idx);
             std::cout << "Created HepMC3DataSource for: " << first_file << std::endl;
         }
         // Check for EDM4hep format
         else
 #endif
-        if (first_file.find(".edm4hep.root") != std::string::npos || 
-                 first_file.find(".root") != std::string::npos) {
+        if (hasExtension(first_file, ".edm4hep.root") || hasExtension(first_file, ".root")) {
             data_source = std::make_unique<EDM4hepDataSource>(source_config, source_idx);
             std::cout << "Created EDM4hepDataSource for: " << first_file << std::endl;
         }
