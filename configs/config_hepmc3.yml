@@ -1,0 +1,32 @@
+# Example configuration for HepMC3 merger
+# This demonstrates how to use HepMC3 input files with the timeslice merger
+
+output_file: merged_hepmc3.hepmc3.tree.root
+max_events: 100
+time_slice_duration: 2000.0  # nanoseconds
+bunch_crossing_period: 10.0
+introduce_offsets: true
+
+sources:
+  - input_files:
+      - signal.hepmc3.tree.root
+    name: signal
+    static_number_of_events: false
+    mean_event_frequency: 0.0  # 0 means exactly one signal event per timeslice
+    use_bunch_crossing: false
+    attach_to_beam: false
+    beam_angle: 0.0
+    beam_speed: 299792.458
+    beam_spread: 0.0
+    generator_status_offset: 0
+    already_merged: false
+    tree_name: events
+    
+  - input_files:
+      - background.hepmc3.tree.root
+    name: background
+    static_number_of_events: true
+    static_events_per_timeslice: 2
+    use_bunch_crossing: true
+    generator_status_offset: 1000
+    already_merged: false
