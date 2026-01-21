@@ -37,33 +37,16 @@ void HepMC3DataSource::openInputFiles() {
     
     std::cout << "Opening HepMC3 file: " << input_file << std::endl;
     
-    // Use HepMC3 factory to create reader
-    reader_ = HepMC3::deduce_reader(input_file);
+    // Create ReaderRootTree explicitly for ROOT tree format
+    reader_ = std::make_shared<HepMC3::ReaderRootTree>(input_file);
     if (!reader_) {
         throw std::runtime_error("Failed to open HepMC3 file: " + input_file);
     }
-    
-    // Count total entries by reading through the file
-    // Note: HepMC3 doesn't provide a direct way to get event count
-    // We need to read through the file once
-    std::cout << "Counting events in HepMC3 file..." << std::endl;
-    total_entries_ = 0;
-    HepMC3::GenEvent temp_event;
-    while (!reader_->failed()) {
-        if (!reader_->read_event(temp_event)) {
-            break;
-        }
-        total_entries_++;
-    }
+
+    // Get entry count directly from TTree
+    total_entries_ = reader_->m_tree->GetEntries();
     
     std::cout << "Found " << total_entries_ << " events in HepMC3 file" << std::endl;
-    
-    // Close and reopen to reset position
-    reader_->close();
-    reader_ = HepMC3::deduce_reader(input_file);
-    if (!reader_) {
-        throw std::runtime_error("Failed to reopen HepMC3 file: " + input_file);
-    }
     
     current_entry_index_ = 0;
 }

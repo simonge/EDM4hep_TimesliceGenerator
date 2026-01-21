@@ -4,6 +4,8 @@
 #include "HepMC3DataSource.h"
 #include <HepMC3/WriterRootTree.h>
 #include <HepMC3/GenEvent.h>
+#include <HepMC3/GenVertex.h>
+#include <HepMC3/GenParticle.h>
 #include <memory>
 #include <vector>
 #include <string>

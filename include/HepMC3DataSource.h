@@ -2,8 +2,10 @@
 
 #include "DataSource.h"
 #include "MergerConfig.h"
-#include <HepMC3/ReaderFactory.h>
+#include <HepMC3/ReaderRootTree.h>
 #include <HepMC3/GenEvent.h>
+#include <HepMC3/GenVertex.h>
+#include <HepMC3/GenParticle.h>
 #include <memory>
 #include <vector>
 #include <string>
@@ -38,7 +40,7 @@ public:
 
 private:
     // HepMC3 reader and state
-    std::shared_ptr<HepMC3::Reader> reader_;
+    std::shared_ptr<HepMC3::ReaderRootTree> reader_;
     
     // Current event
     HepMC3::GenEvent current_event_;
