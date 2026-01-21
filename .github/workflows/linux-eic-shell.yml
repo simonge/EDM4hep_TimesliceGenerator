@@ -26,5 +26,4 @@ jobs:
         platform-release: "eic_xl:nightly"
         run: |
           # Build the project
-          cmake -B build -S . -DCMAKE_INSTALL_PREFIX=install
-          cmake --build build --target install
+          ./make.sh
