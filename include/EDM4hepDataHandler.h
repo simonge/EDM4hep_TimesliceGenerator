@@ -1,6 +1,6 @@
 #pragma once
 
-#include "OutputHandler.h"
+#include "DataHandler.h"
 #include "EDM4hepDataSource.h"
 #include <edm4hep/MCParticleData.h>
 #include <edm4hep/SimTrackerHitData.h>
@@ -47,26 +47,22 @@ struct EDM4hepMergedCollections {
 };
 
 /**
- * @class EDM4hepOutputHandler
- * @brief Concrete implementation of OutputHandler for EDM4hep format
+ * @class EDM4hepDataHandler
+ * @brief Concrete implementation of DataHandler for EDM4hep format
  * 
- * Handles writing merged timeslice data in EDM4hep format using ROOT TTree.
+ * Handles both input (creating EDM4hepDataSource instances) and output
+ * (writing merged timeslice data) in EDM4hep format using ROOT TTree.
  */
-class EDM4hepOutputHandler : public OutputHandler {
+class EDM4hepDataHandler : public DataHandler {
 public:
-    EDM4hepOutputHandler() = default;
-    ~EDM4hepOutputHandler() override = default;
+    EDM4hepDataHandler() = default;
+    ~EDM4hepDataHandler() override = default;
 
-    void initialize(const std::string& filename, 
-                   const std::vector<std::unique_ptr<DataSource>>& sources) override;
+    std::vector<std::unique_ptr<DataSource>> initializeDataSources(
+        const std::string& filename,
+        const std::vector<SourceConfig>& source_configs) override;
     
     void prepareTimeslice() override;
-    
-    void mergeEvents(std::vector<std::unique_ptr<DataSource>>& sources,
-                    size_t timeslice_number,
-                    float time_slice_duration,
-                    float bunch_crossing_period,
-                    std::mt19937& gen) override;
     
     void writeTimeslice() override;
     
@@ -86,8 +82,6 @@ private:
     std::vector<std::string> tracker_collection_names_;
     std::vector<std::string> calo_collection_names_;
     std::vector<std::string> gp_collection_names_;
-    
-    size_t current_timeslice_number_ = 0;
 
     // Helper methods
     void setupOutputTree();
@@ -98,4 +92,7 @@ private:
     void copyAndUpdatePodioMetadataTree(TTree* source_metadata_tree, TFile* output_file);
     std::string getCorrespondingContributionCollection(const std::string& calo_collection_name) const;
     std::string getCorrespondingCaloCollection(const std::string& contrib_collection_name) const;
+    
+    // Format-specific event processing
+    void processEvent(DataSource& source) override;
 };

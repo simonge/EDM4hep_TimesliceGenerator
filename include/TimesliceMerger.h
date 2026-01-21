@@ -2,7 +2,7 @@
 
 #include "MergerConfig.h"
 #include "DataSource.h"
-#include "OutputHandler.h"
+#include "DataHandler.h"
 #include <random>
 #include <vector>
 #include <string>
@@ -10,22 +10,22 @@
 
 /**
  * @class TimesliceMerger
- * @brief Core timeslice merging engine independent of output format
+ * @brief Core timeslice merging engine independent of data format
  * 
  * This class orchestrates the merging of events from multiple sources into timeslices.
  * It handles frequency sampling, timing relationships, and event selection, but delegates
- * the actual output writing to an OutputHandler implementation. This allows the same
- * merging logic to be used with different output formats (EDM4hep, HepMC3, etc.).
+ * the actual data I/O to a DataHandler implementation. This allows the same merging logic
+ * to be used with different formats (EDM4hep, HepMC3, etc.).
  */
 class TimesliceMerger {
 public:
     TimesliceMerger(const MergerConfig& config);
     
     /**
-     * Set the output handler for writing merged data
-     * @param handler Unique pointer to an OutputHandler implementation
+     * Set the data handler for managing input and output
+     * @param handler Unique pointer to a DataHandler implementation
      */
-    void setOutputHandler(std::unique_ptr<OutputHandler> handler);
+    void setDataHandler(std::unique_ptr<DataHandler> handler);
     
     /**
      * Run the merging process
@@ -39,13 +39,12 @@ private:
     std::random_device rd;
     std::mt19937 gen;
 
-    // Data sources
+    // Data sources (managed by data handler)
     std::vector<std::unique_ptr<DataSource>> data_sources_;
     
-    // Output handler (format-specific)
-    std::unique_ptr<OutputHandler> output_handler_;
+    // Data handler (format-specific)
+    std::unique_ptr<DataHandler> data_handler_;
 
     // Core functionality methods
-    std::vector<std::unique_ptr<DataSource>> initializeDataSources();
     bool updateInputNEvents(std::vector<std::unique_ptr<DataSource>>& sources);
 };

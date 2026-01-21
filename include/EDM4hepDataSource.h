@@ -34,14 +34,6 @@ public:
     
     // Data access
     bool hasMoreEntries() const override;
-    size_t getTotalEntries() const override { return total_entries_; }
-    size_t getCurrentEntryIndex() const override { return current_entry_index_; }
-    void setCurrentEntryIndex(size_t index) override { current_entry_index_ = index; }
-    float getCurrentTimeOffset() const override { return current_time_offset_; }
-
-    // Event management
-    void setEntriesNeeded(size_t entries) override { entries_needed_ = entries; }
-    size_t getEntriesNeeded() const override { return entries_needed_; }
     bool loadNextEvent() override;
     
     // Event loading
@@ -75,26 +67,14 @@ public:
     // Event header processing
     std::vector<edm4hep::EventHeaderData>& processEventHeaders(const std::string& collection_name);
     
-    // Configuration access
-    const SourceConfig& getConfig() const override { return *config_; }
-    const std::string& getName() const override { return config_->name; }
-    size_t getSourceIndex() const override { return source_index_; }
-    
     // Status and diagnostics
     void printStatus() const override;
     bool isInitialized() const override { return chain_ != nullptr; }
     std::string getFormatName() const override { return "EDM4hep"; }
 
 private:
-    // Configuration
-    const SourceConfig* config_;
-    size_t source_index_;
-    
     // ROOT chain and state
     std::unique_ptr<TChain> chain_;
-    size_t total_entries_;
-    size_t current_entry_index_;
-    size_t entries_needed_;
     
     // Collection names (references to shared data)
     const std::vector<std::string>* tracker_collection_names_;

@@ -1,5 +1,5 @@
 #include "TimesliceMerger.h"
-#include "OutputHandler.h"
+#include "DataHandler.h"
 #include "CommandLineParser.h"
 #include <iostream>
 #include <exception>
@@ -12,9 +12,9 @@ int main(int argc, char* argv[]) {
         // Create the merger
         TimesliceMerger merger(config);
         
-        // Create appropriate output handler based on output file extension
-        auto output_handler = OutputHandler::create(config.output_file);
-        merger.setOutputHandler(std::move(output_handler));
+        // Create appropriate data handler based on output file extension
+        auto data_handler = DataHandler::create(config.output_file);
+        merger.setDataHandler(std::move(data_handler));
         
         // Run the merger
         merger.run();

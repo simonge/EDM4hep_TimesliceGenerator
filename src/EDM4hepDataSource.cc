@@ -6,12 +6,7 @@
 #include <TObjArray.h>
 
 EDM4hepDataSource::EDM4hepDataSource(const SourceConfig& config, size_t source_index)
-    : config_(&config)
-    , source_index_(source_index)
-    , total_entries_(0)
-    , current_entry_index_(0)
-    , entries_needed_(1)
-    , tracker_collection_names_(nullptr)
+    : tracker_collection_names_(nullptr)
     , calo_collection_names_(nullptr)
     , mcparticle_branch_(nullptr)
     , gp_int_branch_(nullptr)
@@ -20,6 +15,11 @@ EDM4hepDataSource::EDM4hepDataSource(const SourceConfig& config, size_t source_i
     , gp_string_branch_(nullptr)
     , current_particle_index_offset_(0)
 {
+    config_ = &config;
+    source_index_ = source_index;
+    total_entries_ = 0;
+    current_entry_index_ = 0;
+    entries_needed_ = 1;
 }
 
 EDM4hepDataSource::~EDM4hepDataSource() {

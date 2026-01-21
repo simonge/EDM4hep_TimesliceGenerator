@@ -11,11 +11,16 @@ Sources can either be individual events, or an already merged source allowing st
 
 ## Prerequisites
 
-- **PODIO library and headers** - Required for data I/O operations
+- **PODIO library and headers** - Required for EDM4hep data I/O operations
 - **EDM4HEP library and headers** - Required for the EDM4HEP data model
+- **HepMC3 library and headers** - Optional, required for HepMC3 format support
 - **yaml-cpp library** - Required for configuration file support
 - **CMake 3.16 or later** - Required for building
 - **C++20 compatible compiler** - Required for compilation
+
+### Optional Dependencies
+
+- **HepMC3**: If available, enables support for `.hepmc3.tree.root` format files. If not found during build, only EDM4hep format will be supported.
 
 ## Building
 
@@ -307,6 +312,29 @@ Use a YAML configuration file for complex setups:
 ./install/bin/timeslice_merger --config config.yml
 ```
 
+#### Using HepMC3 Files
+
+Process HepMC3 format files (requires HepMC3 library):
+```bash
+# HepMC3 configuration file
+./install/bin/timeslice_merger --config configs/config_hepmc3.yml
+
+# Direct command line with HepMC3 files
+./install/bin/timeslice_merger \
+  -o output.hepmc3.tree.root \
+  --source:signal:input_files signal.hepmc3.tree.root \
+  --source:bg:input_files background.hepmc3.tree.root \
+  --source:bg:static_events true \
+  --source:bg:status_offset 1000
+```
+
+**Note**: The output format is automatically determined by the file extension:
+- `.edm4hep.root` → EDM4hep format output
+- `.hepmc3.tree.root` → HepMC3 format output
+```bash
+./install/bin/timeslice_merger --config config.yml
+```
+
 #### Mixed Configuration and Command Line
 
 Use configuration file but override specific parameters:
@@ -363,19 +391,36 @@ Process already-merged timeslice files:
 
 ## Output Format
 
+The application supports multiple output formats based on the file extension:
+
+### EDM4hep Format (`.edm4hep.root`)
 The output ROOT file contains:
 - **Tree Name**: `timeslices`
 - **Collections**: All input collections with time adjustments applied
 - **Format**: Standard Podio ROOT format compatible with EDM4HEP readers
 - **Additional Data**: Preserved metadata and collection relationships
 
+### HepMC3 Format (`.hepmc3.tree.root`)
+The output ROOT file contains:
+- **Format**: HepMC3 ROOT tree format
+- **Events**: Merged GenEvent objects with time offsets applied to vertices
+- **Particles**: All particles with generator status offsets applied
+- **Compatibility**: Compatible with HepMC3 readers and analysis tools
+
 ### Supported Collection Types
 
+#### EDM4hep Format
 The merger processes the following EDM4HEP collection types:
 - **MCParticle**: Time and generator status updates
 - **SimTrackerHit**: Time updates and particle reference mapping
 - **SimCalorimeterHit**: Time updates and contribution processing
 - **CaloHitContribution**: Time updates with proper particle references
+
+#### HepMC3 Format
+The merger processes HepMC3 GenEvent objects:
+- **GenVertex**: Time offsets applied to vertex positions
+- **GenParticle**: Generator status offsets applied to particles
+- **Event Structure**: Preserved particle-vertex relationships
 
 ## Technical Implementation
 
