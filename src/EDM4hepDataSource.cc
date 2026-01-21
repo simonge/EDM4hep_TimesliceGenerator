@@ -18,7 +18,6 @@ EDM4hepDataSource::EDM4hepDataSource(const SourceConfig& config, size_t source_i
     , gp_float_branch_(nullptr)
     , gp_double_branch_(nullptr)
     , gp_string_branch_(nullptr)
-    , current_time_offset_(0.0f)
     , current_particle_index_offset_(0)
 {
 }
@@ -88,33 +87,6 @@ bool EDM4hepDataSource::loadNextEvent() {
     return true;
 }
 
-float EDM4hepDataSource::generateTimeOffset(float distance, float time_slice_duration, 
-                                           float bunch_crossing_period, std::mt19937& rng) const {
-    std::uniform_real_distribution<float> uniform(0.0f, time_slice_duration);
-    float time_offset = uniform(rng);
-    
-    if (!config_->already_merged) {
-        // Apply bunch crossing if enabled
-        if (config_->use_bunch_crossing) {
-            time_offset = std::floor(time_offset / bunch_crossing_period) * bunch_crossing_period;
-        }
-        
-        // Apply beam effects if enabled
-        if (config_->attach_to_beam) {
-            // Add time offset based on distance along beam
-            time_offset += distance / config_->beam_speed;
-            
-            // Add Gaussian spread if specified
-            if (config_->beam_spread > 0.0f) {
-                std::normal_distribution<float> spread_dist(0.0f, config_->beam_spread);
-                time_offset += spread_dist(rng);
-            }
-        }
-    }
-    
-    return time_offset;
-}
-
 void EDM4hepDataSource::loadEvent(size_t event_index) {
     chain_->GetEntry(event_index);
 }
@@ -133,22 +105,6 @@ std::vector<podio::ObjectID>& EDM4hepDataSource::processObjectID(const std::stri
     }
 
     return *objectid_branches_[branch_name];
-}
-
-void EDM4hepDataSource::UpdateTimeOffset(float time_slice_duration,
-                                        float bunch_crossing_period,
-                                        std::mt19937& rng) {
-    float distance = 0.0f;
-    
-    // Calculate time offset if not already merged
-    if (!config_->already_merged && mcparticle_branch_ && !mcparticle_branch_->empty()) {
-        if (config_->attach_to_beam) {
-            distance = calculateBeamDistance(*mcparticle_branch_);
-        }
-        current_time_offset_ = generateTimeOffset(distance, time_slice_duration, bunch_crossing_period, rng);
-    } else {
-        current_time_offset_ = 0.0f;
-    }
 }
 
 std::vector<edm4hep::MCParticleData>& EDM4hepDataSource::processMCParticles(size_t particle_parents_offset,
@@ -413,24 +369,29 @@ void EDM4hepDataSource::cleanup() {
 }
 
 
-float EDM4hepDataSource::calculateBeamDistance(const std::vector<edm4hep::MCParticleData>& particles) const {
-    float distance = 0.0f;
+DataSource::VertexPosition EDM4hepDataSource::getBeamVertexPosition() const {
+    VertexPosition vertex{0.0f, 0.0f, 0.0f};
+    
+    // Check if we have particle data
+    if (!mcparticle_branch_ || mcparticle_branch_->empty()) {
+        return vertex;
+    }
     
     // Get position of first particle with generatorStatus 1
     try {
-        for (const auto& particle : particles) {
+        for (const auto& particle : *mcparticle_branch_) {
             if (particle.generatorStatus == 1) {
-                // Distance is dot product of position vector relative to rotation around y of beam relative to z-axis
-                distance = particle.vertex.z * std::cos(config_->beam_angle) + 
-                          particle.vertex.x * std::sin(config_->beam_angle);
+                vertex.x = particle.vertex.x;
+                vertex.y = particle.vertex.y;
+                vertex.z = particle.vertex.z;
                 break;
             }
         }
     } catch (const std::exception& e) {
-        std::cout << "Warning: Could not access MCParticles for beam attachment: " << e.what() << std::endl;
+        std::cout << "Warning: Could not access MCParticles for beam vertex: " << e.what() << std::endl;
     }
     
-    return distance;
+    return vertex;
 }
 
 void EDM4hepDataSource::printStatus() const {

@@ -44,14 +44,8 @@ public:
     size_t getEntriesNeeded() const override { return entries_needed_; }
     bool loadNextEvent() override;
     
-    // Time offset generation
-    float generateTimeOffset(float distance, float time_slice_duration, 
-                            float bunch_crossing_period, std::mt19937& rng) const override;
-    
-    // Event loading and time offset update
+    // Event loading
     void loadEvent(size_t event_index) override;
-    void UpdateTimeOffset(float time_slice_duration, float bunch_crossing_period, 
-                         std::mt19937& rng) override;
 
     // Data processing methods for EDM4hep format
     std::vector<edm4hep::MCParticleData>& processMCParticles(size_t particle_parents_offset,
@@ -125,7 +119,6 @@ private:
     std::vector<std::vector<std::string>>* gp_string_branch_;
 
     // Current event processing state
-    float current_time_offset_;
     size_t current_particle_index_offset_;
     
     // Private helper methods
@@ -137,8 +130,8 @@ private:
     void setupGPBranches();
     void cleanup();
     
-    // Helper methods for physics calculations
-    float calculateBeamDistance(const std::vector<edm4hep::MCParticleData>& particles) const;
+    // Format-specific vertex extraction from EDM4hep MCParticles (overrides base class)
+    VertexPosition getBeamVertexPosition() const override;
     
     // Helper methods for collection name mapping
     std::string getCorrespondingContributionCollection(const std::string& calo_collection_name) const;

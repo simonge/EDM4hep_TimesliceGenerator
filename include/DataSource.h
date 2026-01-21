@@ -35,14 +35,10 @@ public:
     virtual size_t getEntriesNeeded() const = 0;
     virtual bool loadNextEvent() = 0;
     
-    // Time offset generation
-    virtual float generateTimeOffset(float distance, float time_slice_duration, 
-                                    float bunch_crossing_period, std::mt19937& rng) const = 0;
-    
     // Event loading and time offset update
     virtual void loadEvent(size_t event_index) = 0;
-    virtual void UpdateTimeOffset(float time_slice_duration, float bunch_crossing_period, 
-                                 std::mt19937& rng) = 0;
+    void UpdateTimeOffset(float time_slice_duration, float bunch_crossing_period, 
+                         std::mt19937& rng);
     
     // Configuration access
     virtual const SourceConfig& getConfig() const = 0;
@@ -55,4 +51,25 @@ public:
     
     // Format-specific getters (to be implemented by concrete classes)
     virtual std::string getFormatName() const = 0;
+
+protected:
+    // Time offset state (shared across implementations)
+    float current_time_offset_ = 0.0f;
+    
+    // Structure to hold vertex position
+    struct VertexPosition {
+        float x = 0.0f;
+        float y = 0.0f;
+        float z = 0.0f;
+    };
+    
+    // Format-specific vertex extraction (must be implemented by derived classes)
+    virtual VertexPosition getBeamVertexPosition() const = 0;
+    
+    // Shared beam distance calculation using vertex and beam angle
+    float calculateBeamDistance() const;
+    
+    // Shared time offset generation logic
+    float generateTimeOffset(float distance, float time_slice_duration, 
+                            float bunch_crossing_period, std::mt19937& rng) const;
 };
