@@ -142,9 +142,6 @@ void EDM4hepDataHandler::initialize(const std::string& filename,
         throw std::runtime_error("Could not create output file: " + filename);
     }
     
-    // Set ROOT I/O optimizations
-    output_file_->SetCompressionLevel(1);
-    
     // Create output tree
     output_tree_ = new TTree("events", "Merged timeslices");
     
