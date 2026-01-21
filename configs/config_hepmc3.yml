@@ -9,7 +9,7 @@ introduce_offsets: true
 
 sources:
   - input_files:
-      - signal.hepmc3.tree.root
+      - input.hepmc3.tree.root
     name: signal
     static_number_of_events: false
     mean_event_frequency: 0.0  # 0 means exactly one signal event per timeslice
@@ -23,7 +23,7 @@ sources:
     tree_name: events
     
   - input_files:
-      - background.hepmc3.tree.root
+      - input.hepmc3.tree.root
     name: background
     static_number_of_events: true
     static_events_per_timeslice: 2
