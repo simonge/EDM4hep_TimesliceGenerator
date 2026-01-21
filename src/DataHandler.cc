@@ -12,6 +12,7 @@ void DataHandler::mergeEvents(std::vector<std::unique_ptr<DataSource>>& sources,
                               std::mt19937& gen) {
     current_timeslice_number_ = timeslice_number;
     
+    size_t total_events_consumed = 0;
     // Iterate over all sources
     for (auto& source : sources) {
         const auto& config = source->getConfig();
@@ -30,10 +31,14 @@ void DataHandler::mergeEvents(std::vector<std::unique_ptr<DataSource>>& sources,
             source->setCurrentEntryIndex(source->getCurrentEntryIndex() + 1);
             events_consumed++;
         }
+        total_events_consumed += events_consumed;
         
         std::cout << "Processed " << events_consumed << " events from source " 
                   << config.name << std::endl;
     }
+
+    std::cout << "Total events consumed in timeslice " << timeslice_number 
+              << ": " << total_events_consumed << std::endl;
 }
 
 std::unique_ptr<DataHandler> DataHandler::create(const std::string& filename) {

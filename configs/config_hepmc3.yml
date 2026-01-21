@@ -12,15 +12,10 @@ sources:
       - input.hepmc3.tree.root
     name: signal
     static_number_of_events: false
-    mean_event_frequency: 0.0  # 0 means exactly one signal event per timeslice
-    use_bunch_crossing: false
+    mean_event_frequency: .01 #GHz
+    use_bunch_crossing: true
     attach_to_beam: false
-    beam_angle: 0.0
-    beam_speed: 299792.458
-    beam_spread: 0.0
     generator_status_offset: 0
-    already_merged: false
-    tree_name: events
     
   - input_files:
       - input.hepmc3.tree.root
