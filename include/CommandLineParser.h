@@ -74,10 +74,11 @@ private:
 
     /**
      * Validate the final configuration has required input files
-     * @param config MergerConfig to validate
-     * @throws std::runtime_error if no input files are found
+     * Removes sources with no input files and warns about them
+     * @param config MergerConfig to validate (modified in place)
+     * @throws std::runtime_error if no valid sources remain
      */
-    static void validateConfiguration(const MergerConfig& config);
+    static void validateConfiguration(MergerConfig& config);
 
     /**
      * Print the parsed configuration to console
