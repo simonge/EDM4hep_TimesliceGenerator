@@ -46,6 +46,8 @@ jobs:
       uses: actions/download-artifact@v4
       with:
         name: timeslice-merger-binaries
+    - name: Fix binary permissions
+      run: chmod +x install/bin/timeslice_merger
     - name: EDM4hep merging from XRootD
       uses: eic/run-cvmfs-osg-eic-shell@main
       with:
@@ -71,6 +73,8 @@ jobs:
       uses: actions/download-artifact@v4
       with:
         name: timeslice-merger-binaries
+    - name: Fix binary permissions
+      run: chmod +x install/bin/timeslice_merger
     - name: HepMC3 merging from XRootD
       uses: eic/run-cvmfs-osg-eic-shell@main
       with:
