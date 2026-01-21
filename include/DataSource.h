@@ -1,136 +1,75 @@
 #pragma once
 
 #include "MergerConfig.h"
-#include <edm4hep/MCParticleData.h>
-#include <edm4hep/SimTrackerHitData.h>
-#include <edm4hep/SimCalorimeterHitData.h>
-#include <edm4hep/CaloHitContributionData.h>
-#include <edm4hep/EventHeaderData.h>
-#include <podio/ObjectID.h>
-#include <TChain.h>
 #include <memory>
-#include <unordered_map>
 #include <vector>
 #include <string>
 #include <random>
 
+/**
+ * @class DataSource
+ * @brief Abstract base class for input data sources with pluggable format support
+ * 
+ * This abstract class defines the interface for reading event data from various
+ * input formats (EDM4hep, HepMC3, etc.). Concrete implementations handle
+ * format-specific logic while the merger remains format-agnostic.
+ */
 class DataSource {
 public:
-    DataSource(const SourceConfig& config, size_t source_index);
-    ~DataSource();
+    virtual ~DataSource() = default;
     
     // Initialization
-    void initialize(const std::vector<std::string>& tracker_collections,
-                   const std::vector<std::string>& calo_collections,
-                   const std::vector<std::string>& gp_collections);
+    virtual void initialize(const std::vector<std::string>& tracker_collections,
+                           const std::vector<std::string>& calo_collections,
+                           const std::vector<std::string>& gp_collections) = 0;
     
     // Data access
-    bool hasMoreEntries() const;
-    size_t getTotalEntries() const { return total_entries_; }
-    size_t getCurrentEntryIndex() const { return current_entry_index_; }
-    void setCurrentEntryIndex(size_t index) { current_entry_index_ = index; }
-    float getCurrentTimeOffset() const { return current_time_offset_; }
+    virtual bool hasMoreEntries() const = 0;
+    virtual size_t getTotalEntries() const = 0;
+    virtual size_t getCurrentEntryIndex() const = 0;
+    virtual void setCurrentEntryIndex(size_t index) = 0;
+    virtual float getCurrentTimeOffset() const = 0;
 
     // Event management
-    void setEntriesNeeded(size_t entries) { entries_needed_ = entries; }
-    size_t getEntriesNeeded() const { return entries_needed_; }
-    bool loadNextEvent();
+    virtual void setEntriesNeeded(size_t entries) = 0;
+    virtual size_t getEntriesNeeded() const = 0;
+    virtual bool loadNextEvent() = 0;
     
-    // Time offset generation
-    float generateTimeOffset(float distance, float time_slice_duration, float bunch_crossing_period, std::mt19937& rng) const;
-    
-    // New typed data merging methods
-    void loadEvent(size_t event_index);
-    
-    void UpdateTimeOffset(float time_slice_duration, float bunch_crossing_period, std::mt19937& rng);
-
-    std::vector<edm4hep::MCParticleData>& processMCParticles(size_t particle_parents_offset,
-                                                             size_t particle_daughters_offset,
-                                                             int totalEventsConsumed);
-    
-    std::vector<podio::ObjectID>& processObjectID(const std::string& collection_name, size_t index_offset, int totalEventsConsumed);
-    
-    std::vector<edm4hep::SimTrackerHitData>& processTrackerHits(const std::string& collection_name,
-                                                              size_t particle_index_offset,
-                                                              int totalEventsConsumed);
-    
-    std::vector<edm4hep::SimCalorimeterHitData>& processCaloHits(const std::string& collection_name,
-                                                                size_t particle_index_offset,
-                                                                int totalEventsConsumed);
-    std::vector<edm4hep::CaloHitContributionData>& processCaloContributions(const std::string& collection_name,
-                                                                           size_t particle_index_offset,
-                                                                           int totalEventsConsumed);
-
-    std::vector<std::string>& processGPBranch(const std::string& branch_name);
-    std::vector<std::vector<int>>& processGPIntValues();
-    std::vector<std::vector<float>>& processGPFloatValues();
-    std::vector<std::vector<double>>& processGPDoubleValues();
-    std::vector<std::vector<std::string>>& processGPStringValues();
-    
-    // Event header processing methods
-    std::vector<edm4hep::EventHeaderData>& processEventHeaders(const std::string& collection_name);
-    
-
+    // Event loading and time offset update
+    virtual void loadEvent(size_t event_index) = 0;
+    void UpdateTimeOffset(float time_slice_duration, float bunch_crossing_period, 
+                         std::mt19937& rng);
     
     // Configuration access
-    const SourceConfig& getConfig() const { return *config_; }
-    const std::string& getName() const { return config_->name; }
-    size_t getSourceIndex() const { return source_index_; }
+    virtual const SourceConfig& getConfig() const = 0;
+    virtual const std::string& getName() const = 0;
+    virtual size_t getSourceIndex() const = 0;
     
     // Status and diagnostics
-    void printStatus() const;
-    bool isInitialized() const { return chain_ != nullptr; }
+    virtual void printStatus() const = 0;
+    virtual bool isInitialized() const = 0;
+    
+    // Format-specific getters (to be implemented by concrete classes)
+    virtual std::string getFormatName() const = 0;
 
-private:
-    // Configuration
-    const SourceConfig* config_;
-    size_t source_index_;
+protected:
+    // Time offset state (shared across implementations)
+    float current_time_offset_ = 0.0f;
     
-    // ROOT chain and state
-    std::unique_ptr<TChain> chain_;
-    size_t total_entries_;
-    size_t current_entry_index_;
-    size_t entries_needed_;
+    // Structure to hold vertex position
+    struct VertexPosition {
+        float x = 0.0f;
+        float y = 0.0f;
+        float z = 0.0f;
+    };
     
-    // Collection names (references to shared data)
-    const std::vector<std::string>* tracker_collection_names_;
-    const std::vector<std::string>* calo_collection_names_;
-    const std::vector<std::string>* gp_collection_names_;
+    // Format-specific vertex extraction (must be implemented by derived classes)
+    virtual VertexPosition getBeamVertexPosition() const = 0;
     
-    // Branch pointers for reading data as vectors
-    std::vector<edm4hep::MCParticleData>* mcparticle_branch_;
-    std::unordered_map<std::string, std::vector<edm4hep::SimTrackerHitData>*> tracker_hit_branches_;
-    std::unordered_map<std::string, std::vector<edm4hep::SimCalorimeterHitData>*> calo_hit_branches_;
-    std::unordered_map<std::string, std::vector<edm4hep::CaloHitContributionData>*> calo_contrib_branches_;
-    std::unordered_map<std::string, std::vector<edm4hep::EventHeaderData>*> event_header_branches_;
+    // Shared beam distance calculation using vertex and beam angle
+    float calculateBeamDistance() const;
     
-    // Branch pointers for reading ObjectID references - consolidated into single map
-    std::unordered_map<std::string, std::vector<podio::ObjectID>*> objectid_branches_;
-    
-    // Branch pointers for reading GP (Global Parameter) branches
-    std::unordered_map<std::string, std::vector<std::string>*> gp_key_branches_;
-    std::vector<std::vector<int>>* gp_int_branch_;
-    std::vector<std::vector<float>>* gp_float_branch_;
-    std::vector<std::vector<double>>* gp_double_branch_;
-    std::vector<std::vector<std::string>>* gp_string_branch_;
-
-    // Current event processing state
-    float current_time_offset_;
-    size_t current_particle_index_offset_;
-    
-    // Private helper methods
-    void setupBranches();
-    void setupMCParticleBranches();
-    void setupTrackerBranches();
-    void setupCalorimeterBranches();
-    void setupEventHeaderBranches();
-    void setupGPBranches();
-    void cleanup();
-    
-    // Helper methods for physics calculations
-    float calculateBeamDistance(const std::vector<edm4hep::MCParticleData>& particles) const;
-    
-    // Helper methods for collection name mapping
-    std::string getCorrespondingContributionCollection(const std::string& calo_collection_name) const;
-    std::string getCorrespondingCaloCollection(const std::string& contrib_collection_name) const;
+    // Shared time offset generation logic
+    float generateTimeOffset(float distance, float time_slice_duration, 
+                            float bunch_crossing_period, std::mt19937& rng) const;
 };

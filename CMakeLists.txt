@@ -26,8 +26,10 @@ include_directories(${ROOT_INCLUDE_DIRS})
 # Create the standalone executable
 add_executable(timeslice_merger
     src/DataSource.cc
-    src/TimesliceMerger.cc
+    src/EDM4hepDataSource.cc
+    src/OutputHandler.cc
     src/EDM4hepOutputHandler.cc
+    src/TimesliceMerger.cc
     src/CommandLineParser.cc
     src/timeslice_merger_main.cc
 )

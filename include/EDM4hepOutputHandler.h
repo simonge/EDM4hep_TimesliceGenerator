@@ -1,6 +1,7 @@
 #pragma once
 
 #include "OutputHandler.h"
+#include "EDM4hepDataSource.h"
 #include <edm4hep/MCParticleData.h>
 #include <edm4hep/SimTrackerHitData.h>
 #include <edm4hep/SimCalorimeterHitData.h>
@@ -77,6 +78,9 @@ private:
     std::unique_ptr<TFile> output_file_;
     TTree* output_tree_ = nullptr;
     EDM4hepMergedCollections collections_;
+    
+    // Store validated EDM4hep data sources (non-owning pointers)
+    std::vector<EDM4hepDataSource*> edm4hep_sources_;
     
     // Collection names discovered from sources
     std::vector<std::string> tracker_collection_names_;

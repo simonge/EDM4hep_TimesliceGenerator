@@ -39,9 +39,6 @@ private:
     std::random_device rd;
     std::mt19937 gen;
 
-    // State variables
-    size_t events_generated;
-
     // Data sources
     std::vector<std::unique_ptr<DataSource>> data_sources_;
     

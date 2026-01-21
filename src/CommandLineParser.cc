@@ -10,7 +10,7 @@ void CommandLineParser::printUsage(const char* program_name) {
     std::cout << "Usage: " << program_name << " [options] input_file1 [input_file2 ...]\n"
               << "\nGeneral Options:\n"
               << "  --config FILE                YAML config file\n"
-              << "  -o, --output FILE           Output file name (default: merged_timeslices.root)\n"
+              << "  -o, --output FILE           Output file name (default: merged_timeslices.edm4hep.root)\n"
               << "  -n, --nevents N             Maximum number of timeslices to generate (default: 100)\n"
               << "  -d, --duration TIME         Timeslice duration in ns (default: 20.0)\n"
               << "  -p, --bunch-period PERIOD   Bunch crossing period in ns (default: 10.0)\n"
@@ -48,9 +48,9 @@ void CommandLineParser::printUsage(const char* program_name) {
               << "                              Repeat source when EOF reached (true/false)\n"
               << "\nExamples:\n"
               << "  # Create signal source with specific files and frequency\n"
-              << "  " << program_name << " --source:signal:input_files signal1.root,signal2.root --source:signal:frequency 0.5\n"
+              << "  " << program_name << " --source:signal:input_files signal1.edm4hep.root,signal2.edm4hep.root --source:signal:frequency 0.5\n"
               << "  # Create background source with static events\n"
-              << "  " << program_name << " --source:bg:input_files bg.root --source:bg:static_events true --source:bg:events_per_slice 2\n";
+              << "  " << program_name << " --source:bg:input_files bg.edm4hep.root --source:bg:static_events true --source:bg:events_per_slice 2\n";
 }
 
 bool CommandLineParser::parseBool(const std::string& value) {

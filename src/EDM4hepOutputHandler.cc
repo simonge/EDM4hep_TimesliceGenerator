@@ -1,6 +1,7 @@
 #include "EDM4hepOutputHandler.h"
 #include <iostream>
 #include <algorithm>
+#include <stdexcept>
 #include <TBranch.h>
 #include <TObjArray.h>
 #include <TChain.h>
@@ -50,6 +51,19 @@ void EDM4hepOutputHandler::initialize(const std::string& filename,
                                       const std::vector<std::unique_ptr<DataSource>>& sources) {
     std::cout << "Initializing EDM4hep output handler for: " << filename << std::endl;
     
+    // Validate and cast all sources to EDM4hepDataSource
+    edm4hep_sources_.clear();
+    edm4hep_sources_.reserve(sources.size());
+    for (const auto& source : sources) {
+        auto* edm4hep_source = dynamic_cast<EDM4hepDataSource*>(source.get());
+        if (!edm4hep_source) {
+            throw std::runtime_error("EDM4hepOutputHandler requires all sources to be EDM4hepDataSource. "
+                                   "Found source with format: " + source->getFormatName());
+        }
+        edm4hep_sources_.push_back(edm4hep_source);
+    }
+    std::cout << "Validated " << edm4hep_sources_.size() << " EDM4hep data sources" << std::endl;
+    
     // Open output file
     output_file_ = std::make_unique<TFile>(filename.c_str(), "RECREATE");
     if (!output_file_ || output_file_->IsZombie()) {
@@ -86,38 +100,38 @@ void EDM4hepOutputHandler::mergeEvents(std::vector<std::unique_ptr<DataSource>>&
     current_timeslice_number_ = timeslice_number;
     int totalEventsConsumed = 0;
 
-    // Loop over sources and read needed events
-    for(auto& data_source : sources) {
-        const auto& config = data_source->getConfig();
+    // Loop over EDM4hep sources and read needed events
+    for(auto* edm4hep_source : edm4hep_sources_) {
+        const auto& config = edm4hep_source->getConfig();
         int sourceEventsConsumed = 0;
 
-        for (size_t i = 0; i < data_source->getEntriesNeeded(); ++i) {
+        for (size_t i = 0; i < edm4hep_source->getEntriesNeeded(); ++i) {
             // Calculate particle index offset for this event
             size_t particle_index_offset   = collections_.mcparticles.size();
             size_t particle_parents_offset = collections_.mcparticle_parents_refs.size();
             size_t particle_daughters_offset = collections_.mcparticle_daughters_refs.size();
 
             // Load the event data from this source
-            data_source->loadEvent(data_source->getCurrentEntryIndex());
+            edm4hep_source->loadEvent(edm4hep_source->getCurrentEntryIndex());
 
             // Generate time offset for this event
-            data_source->UpdateTimeOffset(time_slice_duration, bunch_crossing_period, gen);
+            edm4hep_source->UpdateTimeOffset(time_slice_duration, bunch_crossing_period, gen);
             
             // Process MCParticles - use move semantics to avoid copying
-            auto& processed_particles = data_source->processMCParticles(particle_parents_offset, particle_daughters_offset, totalEventsConsumed);
+            auto& processed_particles = edm4hep_source->processMCParticles(particle_parents_offset, particle_daughters_offset, totalEventsConsumed);
             collections_.mcparticles.insert(collections_.mcparticles.end(), 
                                                   std::make_move_iterator(processed_particles.begin()), 
                                                   std::make_move_iterator(processed_particles.end()));
             
             // Process MCParticle references - use move semantics
             std::string parent_ref_branch_name = "_MCParticles_parents";
-            auto& processed_parents = data_source->processObjectID(parent_ref_branch_name, particle_index_offset,totalEventsConsumed);
+            auto& processed_parents = edm4hep_source->processObjectID(parent_ref_branch_name, particle_index_offset,totalEventsConsumed);
             collections_.mcparticle_parents_refs.insert(collections_.mcparticle_parents_refs.end(),
                                                               std::make_move_iterator(processed_parents.begin()), 
                                                               std::make_move_iterator(processed_parents.end()));
 
             std::string daughters_ref_branch_name = "_MCParticles_daughters";
-            auto& processed_daughters = data_source->processObjectID(daughters_ref_branch_name, particle_index_offset,totalEventsConsumed);
+            auto& processed_daughters = edm4hep_source->processObjectID(daughters_ref_branch_name, particle_index_offset,totalEventsConsumed);
             collections_.mcparticle_daughters_refs.insert(collections_.mcparticle_daughters_refs.end(),
                                                                std::make_move_iterator(processed_daughters.begin()), 
                                                                std::make_move_iterator(processed_daughters.end()));
@@ -127,15 +141,15 @@ void EDM4hepOutputHandler::mergeEvents(std::vector<std::unique_ptr<DataSource>>&
                 // Create a SubEventHeader for this source/event combination
                 edm4hep::EventHeaderData sub_header;
                 sub_header.eventNumber = totalEventsConsumed;
-                sub_header.runNumber = data_source->getSourceIndex();
+                sub_header.runNumber = edm4hep_source->getSourceIndex();
                 sub_header.timeStamp = particle_index_offset;
-                sub_header.weight = data_source->getCurrentTimeOffset();
+                sub_header.weight = edm4hep_source->getCurrentTimeOffset();
 
                 collections_.sub_event_headers.push_back(sub_header);
                 collections_.sub_event_header_weights.push_back(sub_header.weight);
             } else {
                 // For already merged sources, process existing SubEventHeaders if available
-                auto& existing_sub_headers = data_source->processEventHeaders("SubEventHeaders");
+                auto& existing_sub_headers = edm4hep_source->processEventHeaders("SubEventHeaders");
                 for (auto& sub_header : existing_sub_headers) {
                     float original_offset = sub_header.weight;
                     sub_header.weight += static_cast<float>(particle_index_offset);
@@ -146,13 +160,13 @@ void EDM4hepOutputHandler::mergeEvents(std::vector<std::unique_ptr<DataSource>>&
             
             // Process tracker hits
             for (const auto& name : tracker_collection_names_) {
-                auto& processed_hits = data_source->processTrackerHits(name, particle_index_offset,totalEventsConsumed);
+                auto& processed_hits = edm4hep_source->processTrackerHits(name, particle_index_offset,totalEventsConsumed);
                 collections_.tracker_hits[name].insert(collections_.tracker_hits[name].end(),
                                                              std::make_move_iterator(processed_hits.begin()), 
                                                              std::make_move_iterator(processed_hits.end()));
 
                 std::string ref_branch_name = "_" + name + "_particle";
-                auto& processed_refs = data_source->processObjectID(ref_branch_name, particle_index_offset,totalEventsConsumed);
+                auto& processed_refs = edm4hep_source->processObjectID(ref_branch_name, particle_index_offset,totalEventsConsumed);
                 collections_.tracker_hit_particle_refs[name].insert(collections_.tracker_hit_particle_refs[name].end(),
                                                                           std::make_move_iterator(processed_refs.begin()), 
                                                                           std::make_move_iterator(processed_refs.end()));
@@ -162,26 +176,26 @@ void EDM4hepOutputHandler::mergeEvents(std::vector<std::unique_ptr<DataSource>>&
             for (const auto& name : calo_collection_names_) {
                 size_t existing_contrib_size = collections_.calo_contributions[name].size();
 
-                auto& processed_hits = data_source->processCaloHits(name, existing_contrib_size,totalEventsConsumed);
+                auto& processed_hits = edm4hep_source->processCaloHits(name, existing_contrib_size,totalEventsConsumed);
                 collections_.calo_hits[name].insert(collections_.calo_hits[name].end(),
                                                           std::make_move_iterator(processed_hits.begin()), 
                                                           std::make_move_iterator(processed_hits.end()));
                 
                 std::string ref_branch_name = "_" + name + "_contributions";
-                auto& processed_contrib_refs = data_source->processObjectID(ref_branch_name, existing_contrib_size,totalEventsConsumed);
+                auto& processed_contrib_refs = edm4hep_source->processObjectID(ref_branch_name, existing_contrib_size,totalEventsConsumed);
                 collections_.calo_hit_contributions_refs[name].insert(collections_.calo_hit_contributions_refs[name].end(),
                                                                             std::make_move_iterator(processed_contrib_refs.begin()), 
                                                                             std::make_move_iterator(processed_contrib_refs.end()));
                 
                 // Process contributions
                 std::string contrib_branch_name = name + "Contributions";
-                auto& processed_contribs = data_source->processCaloContributions(contrib_branch_name, particle_index_offset,totalEventsConsumed);
+                auto& processed_contribs = edm4hep_source->processCaloContributions(contrib_branch_name, particle_index_offset,totalEventsConsumed);
                 collections_.calo_contributions[name].insert(collections_.calo_contributions[name].end(),
                                                                    std::make_move_iterator(processed_contribs.begin()), 
                                                                    std::make_move_iterator(processed_contribs.end()));
                 
                 std::string ref_branch_name_contrib = "_" + contrib_branch_name + "_particle";
-                auto& processed_contrib_particle_refs = data_source->processObjectID(ref_branch_name_contrib, particle_index_offset,totalEventsConsumed);
+                auto& processed_contrib_particle_refs = edm4hep_source->processObjectID(ref_branch_name_contrib, particle_index_offset,totalEventsConsumed);
                 collections_.calo_contrib_particle_refs[name].insert(collections_.calo_contrib_particle_refs[name].end(),
                                                                            std::make_move_iterator(processed_contrib_particle_refs.begin()), 
                                                                            std::make_move_iterator(processed_contrib_particle_refs.end()));
@@ -189,35 +203,35 @@ void EDM4hepOutputHandler::mergeEvents(std::vector<std::unique_ptr<DataSource>>&
             
             // Process GP (Global Parameter) branches
             for (const auto& name : gp_collection_names_) {
-                auto& gp_keys = data_source->processGPBranch(name);
+                auto& gp_keys = edm4hep_source->processGPBranch(name);
                 collections_.gp_key_branches[name].insert(collections_.gp_key_branches[name].end(),
                                                                     std::make_move_iterator(gp_keys.begin()), std::make_move_iterator(gp_keys.end()));
             }
 
             // Process GP value branches
-            auto& gp_int_values = data_source->processGPIntValues();
+            auto& gp_int_values = edm4hep_source->processGPIntValues();
             collections_.gp_int_values.insert(collections_.gp_int_values.end(),
                 std::make_move_iterator(gp_int_values.begin()), std::make_move_iterator(gp_int_values.end()));
 
-            auto& gp_float_values = data_source->processGPFloatValues();
+            auto& gp_float_values = edm4hep_source->processGPFloatValues();
             collections_.gp_float_values.insert(collections_.gp_float_values.end(),
                 std::make_move_iterator(gp_float_values.begin()), std::make_move_iterator(gp_float_values.end()));
 
-            auto& gp_double_values = data_source->processGPDoubleValues();
+            auto& gp_double_values = edm4hep_source->processGPDoubleValues();
             collections_.gp_double_values.insert(collections_.gp_double_values.end(),
                 std::make_move_iterator(gp_double_values.begin()), std::make_move_iterator(gp_double_values.end()));
 
-            auto& gp_string_values = data_source->processGPStringValues();
+            auto& gp_string_values = edm4hep_source->processGPStringValues();
             collections_.gp_string_values.insert(collections_.gp_string_values.end(),
                 std::make_move_iterator(gp_string_values.begin()), std::make_move_iterator(gp_string_values.end()));
 
-            data_source->setCurrentEntryIndex(data_source->getCurrentEntryIndex() + 1);
+            edm4hep_source->setCurrentEntryIndex(edm4hep_source->getCurrentEntryIndex() + 1);
             sourceEventsConsumed++;
             totalEventsConsumed++;
         }
 
         std::cout << "Merged " << sourceEventsConsumed << " events, totalling " 
-                  << data_source->getCurrentEntryIndex() << " from source " << config.name << std::endl;
+                  << edm4hep_source->getCurrentEntryIndex() << " from source " << config.name << std::endl;
     }
 
     // Create main timeslice header
@@ -314,8 +328,8 @@ void EDM4hepOutputHandler::discoverCollections(const std::vector<std::unique_ptr
     std::cout << std::endl;
     
     // Initialize all data sources with discovered collection names
-    for (const auto& data_source : sources) {
-        const_cast<DataSource&>(*data_source).initialize(tracker_collection_names_, calo_collection_names_, gp_collection_names_);
+    for (const auto& edm4hep_source : sources) {
+        const_cast<DataSource&>(*edm4hep_source).initialize(tracker_collection_names_, calo_collection_names_, gp_collection_names_);
     }
 }
 

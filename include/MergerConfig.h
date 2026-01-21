@@ -12,7 +12,7 @@ struct MergerConfig {
     std::vector<struct SourceConfig> sources;
 
     // Input/output configuration
-    std::string output_file{"merged_timeslices.root"};
+    std::string output_file{"merged_timeslices.edm4hep.root"};
     size_t max_events{100};
     bool   merge_particles{false};
 };
