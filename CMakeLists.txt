@@ -61,6 +61,10 @@ target_link_libraries(timeslice_merger
 # Conditionally link HepMC3 if found
 if(HepMC3_FOUND)
     target_link_libraries(timeslice_merger HepMC3::HepMC3)
+    # WriterRootTree lives in the optional rootIO component
+    if(TARGET HepMC3::rootIO)
+        target_link_libraries(timeslice_merger HepMC3::rootIO)
+    endif()
 endif()
 
 # Create test executable for file format verification

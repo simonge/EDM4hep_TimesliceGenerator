@@ -59,32 +59,6 @@ std::vector<std::unique_ptr<DataSource>> HepMC3DataHandler::initializeDataSource
     return data_sources;
 }
 
-void HepMC3DataHandler::initialize(const std::string& filename,
-                                     const std::vector<std::unique_ptr<DataSource>>& sources) {
-    std::cout << "Initializing HepMC3 output handler for: " << filename << std::endl;
-    
-    // Validate and cast sources to HepMC3DataSource
-    hepmc3_sources_.clear();
-    for (const auto& source : sources) {
-        auto* hepmc3_source = dynamic_cast<HepMC3DataSource*>(source.get());
-        if (!hepmc3_source) {
-            throw std::runtime_error(
-                "HepMC3DataHandler requires all sources to be HepMC3DataSource. "
-                "Source '" + source->getName() + "' is " + source->getFormatName()
-            );
-        }
-        hepmc3_sources_.push_back(hepmc3_source);
-    }
-    
-    // Create HepMC3 writer
-    writer_ = std::make_shared<HepMC3::WriterRootTree>(filename);
-    if (!writer_) {
-        throw std::runtime_error("Failed to create HepMC3 writer for: " + filename);
-    }
-    
-    std::cout << "HepMC3 output handler initialized with " << hepmc3_sources_.size() << " sources" << std::endl;
-}
-
 void HepMC3DataHandler::prepareTimeslice() {
     // Create a new empty event for this timeslice
     current_timeslice_ = std::make_unique<HepMC3::GenEvent>(

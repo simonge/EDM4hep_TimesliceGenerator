@@ -119,44 +119,6 @@ std::vector<std::unique_ptr<DataSource>> EDM4hepDataHandler::initializeDataSourc
     return data_sources;
 }
 
-void EDM4hepDataHandler::initialize(const std::string& filename, 
-                                      const std::vector<std::unique_ptr<DataSource>>& sources) {
-    std::cout << "Initializing EDM4hep output handler for: " << filename << std::endl;
-    
-    // Validate and cast all sources to EDM4hepDataSource
-    edm4hep_sources_.clear();
-    edm4hep_sources_.reserve(sources.size());
-    for (const auto& source : sources) {
-        auto* edm4hep_source = dynamic_cast<EDM4hepDataSource*>(source.get());
-        if (!edm4hep_source) {
-            throw std::runtime_error("EDM4hepDataHandler requires all sources to be EDM4hepDataSource. "
-                                   "Found source with format: " + source->getFormatName());
-        }
-        edm4hep_sources_.push_back(edm4hep_source);
-    }
-    std::cout << "Validated " << edm4hep_sources_.size() << " EDM4hep data sources" << std::endl;
-    
-    // Open output file
-    output_file_ = std::make_unique<TFile>(filename.c_str(), "RECREATE");
-    if (!output_file_ || output_file_->IsZombie()) {
-        throw std::runtime_error("Could not create output file: " + filename);
-    }
-    
-    // Create output tree
-    output_tree_ = new TTree("events", "Merged timeslices");
-    
-    // Discover collections from sources
-    discoverCollections(sources);
-    
-    // Setup output tree branches
-    setupOutputTree();
-    
-    // Copy metadata from first source
-    copyPodioMetadata(sources);
-    
-    std::cout << "EDM4hep output handler initialized successfully" << std::endl;
-}
-
 void EDM4hepDataHandler::prepareTimeslice() {
     collections_.clear();
 }
