@@ -18,10 +18,12 @@ class DataSource {
 public:
     virtual ~DataSource() = default;
     
-    // Initialization
+    // Initialization - optional for formats that don't need collection names
     virtual void initialize(const std::vector<std::string>& tracker_collections,
                            const std::vector<std::string>& calo_collections,
-                           const std::vector<std::string>& gp_collections) = 0;
+                           const std::vector<std::string>& gp_collections) {
+        // Default implementation does nothing - override if needed
+    }
     
     // Data access
     virtual bool hasMoreEntries() const = 0;

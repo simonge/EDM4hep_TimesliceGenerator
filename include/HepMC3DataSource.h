@@ -21,11 +21,6 @@ public:
     HepMC3DataSource(const SourceConfig& config, size_t source_index);
     ~HepMC3DataSource();
     
-    // Initialization
-    void initialize(const std::vector<std::string>& tracker_collections,
-                   const std::vector<std::string>& calo_collections,
-                   const std::vector<std::string>& gp_collections) override;
-    
     // Data access
     bool hasMoreEntries() const override;
     bool loadNextEvent() override;

@@ -15,16 +15,6 @@ HepMC3DataSource::~HepMC3DataSource() {
     cleanup();
 }
 
-void HepMC3DataSource::initialize(const std::vector<std::string>& tracker_collections,
-                                  const std::vector<std::string>& calo_collections,
-                                  const std::vector<std::string>& gp_collections) {
-    // HepMC3 doesn't use collection names like EDM4hep
-    // Just verify the reader is ready
-    if (!reader_) {
-        throw std::runtime_error("HepMC3 reader not initialized");
-    }
-}
-
 void HepMC3DataSource::openInputFiles() {
     if (config_->input_files.empty()) {
         throw std::runtime_error("No input files specified for source: " + config_->name);
