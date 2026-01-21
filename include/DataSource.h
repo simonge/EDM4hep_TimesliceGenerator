@@ -25,14 +25,14 @@ public:
     
     // Data access
     virtual bool hasMoreEntries() const = 0;
-    virtual size_t getTotalEntries() const = 0;
-    virtual size_t getCurrentEntryIndex() const = 0;
-    virtual void setCurrentEntryIndex(size_t index) = 0;
-    virtual float getCurrentTimeOffset() const = 0;
+    size_t getTotalEntries() const { return total_entries_; }
+    size_t getCurrentEntryIndex() const { return current_entry_index_; }
+    void setCurrentEntryIndex(size_t index) { current_entry_index_ = index; }
+    float getCurrentTimeOffset() const { return current_time_offset_; }
 
     // Event management
-    virtual void setEntriesNeeded(size_t entries) = 0;
-    virtual size_t getEntriesNeeded() const = 0;
+    void setEntriesNeeded(size_t entries) { entries_needed_ = entries; }
+    size_t getEntriesNeeded() const { return entries_needed_; }
     virtual bool loadNextEvent() = 0;
     
     // Event loading and time offset update
@@ -41,9 +41,9 @@ public:
                          std::mt19937& rng);
     
     // Configuration access
-    virtual const SourceConfig& getConfig() const = 0;
-    virtual const std::string& getName() const = 0;
-    virtual size_t getSourceIndex() const = 0;
+    const SourceConfig& getConfig() const { return *config_; }
+    const std::string& getName() const { return config_->name; }
+    size_t getSourceIndex() const { return source_index_; }
     
     // Status and diagnostics
     virtual void printStatus() const = 0;
@@ -53,6 +53,15 @@ public:
     virtual std::string getFormatName() const = 0;
 
 protected:
+    // Configuration (shared across implementations)
+    const SourceConfig* config_ = nullptr;
+    size_t source_index_ = 0;
+    
+    // State variables (shared across implementations)
+    size_t total_entries_ = 0;
+    size_t current_entry_index_ = 0;
+    size_t entries_needed_ = 0;
+    
     // Time offset state (shared across implementations)
     float current_time_offset_ = 0.0f;
     

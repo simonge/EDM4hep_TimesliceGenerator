@@ -2,12 +2,12 @@
 #include <iostream>
 #include <stdexcept>
 
-HepMC3DataSource::HepMC3DataSource(const SourceConfig& config, size_t source_index)
-    : config_(&config),
-      source_index_(source_index),
-      total_entries_(0),
-      current_entry_index_(0),
-      entries_needed_(0) {
+HepMC3DataSource::HepMC3DataSource(const SourceConfig& config, size_t source_index) {
+    config_ = &config;
+    source_index_ = source_index;
+    total_entries_ = 0;
+    current_entry_index_ = 0;
+    entries_needed_ = 0;
     openInputFiles();
 }
 
