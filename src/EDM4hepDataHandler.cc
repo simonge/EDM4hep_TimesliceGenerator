@@ -271,6 +271,9 @@ void EDM4hepDataHandler::finalize() {
         if (output_tree_) {
             output_tree_->Write();
         }
+        
+        // Write all other objects (metadata trees) that are in memory
+        output_file_->Write(nullptr, TObject::kOverwrite);
         output_file_->Close();
     }
     std::cout << "EDM4hep output finalized" << std::endl;
@@ -424,17 +427,21 @@ std::vector<std::string> EDM4hepDataHandler::discoverGPBranches(DataSource& sour
 
 void EDM4hepDataHandler::copyPodioMetadata(const std::vector<std::unique_ptr<DataSource>>& sources) {
     if (sources.empty() || !output_file_) {
+        std::cout << "Warning: Cannot copy PODIO metadata - no sources or output file" << std::endl;
         return;
     }
     
     const auto& first_source = sources[0];
     if (first_source->getConfig().input_files.empty()) {
+        std::cout << "Warning: Cannot copy PODIO metadata - no input files in first source" << std::endl;
         return;
     }
     
     std::string first_file = first_source->getConfig().input_files[0];
-    auto source_file = std::make_unique<TFile>(first_file.c_str(), "READ");
+    std::cout << "Copying PODIO metadata from: " << first_file << std::endl;
+    auto source_file = std::unique_ptr<TFile>{TFile::Open(first_file.c_str(), "READ")};
     if (!source_file || source_file->IsZombie()) {
+        std::cout << "Warning: Cannot open source file for metadata: " << first_file << std::endl;
         return;
     }
     
@@ -445,12 +452,14 @@ void EDM4hepDataHandler::copyPodioMetadata(const std::vector<std::unique_ptr<Dat
     for (const auto& tree_name : metadata_trees) {
         TTree* metadata_tree = dynamic_cast<TTree*>(source_file->Get(tree_name.c_str()));
         if (metadata_tree) {
+            std::cout << "Found metadata tree: " << tree_name << std::endl;
             if (tree_name == "podio_metadata") {
                 copyAndUpdatePodioMetadataTree(metadata_tree, output_file_.get());
             } else {
                 TTree* output_metadata = metadata_tree->CloneTree(-1, "fast");
                 if (output_metadata) {
-                    output_metadata->Write();
+                    output_metadata->SetDirectory(output_file_.get());
+                    std::cout << "Successfully cloned metadata tree: " << tree_name << std::endl;
                 }
             }
         }
@@ -461,13 +470,16 @@ void EDM4hepDataHandler::copyPodioMetadata(const std::vector<std::unique_ptr<Dat
 
 void EDM4hepDataHandler::copyAndUpdatePodioMetadataTree(TTree* source_metadata_tree, TFile* output_file) {
     if (!source_metadata_tree || !output_file) {
+        std::cout << "Warning: Cannot copy podio_metadata tree - null pointer" << std::endl;
         return;
     }
     
     TTree* output_metadata = source_metadata_tree->CloneTree(-1, "fast");
     if (output_metadata) {
-        output_metadata->Write();
-        std::cout << "Successfully copied podio_metadata tree" << std::endl;
+        output_metadata->SetDirectory(output_file);
+        std::cout << "Successfully copied podio_metadata tree with " << output_metadata->GetEntries() << " entries" << std::endl;
+    } else {
+        std::cout << "Warning: Failed to clone podio_metadata tree" << std::endl;
     }
 }
 

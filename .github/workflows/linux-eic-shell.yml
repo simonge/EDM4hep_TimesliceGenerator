@@ -61,7 +61,13 @@ jobs:
             --source:electron_beamgas_coulomb:input_files root://dtn-eic.jlab.org//volatile/eic/EPIC/FULL/25.12.0/epic_craterlake/BACKGROUNDS/BEAMGAS/electron/coulomb/EIC_ESR_Xsuite/dataprod_rel_1.0.1/18x275/10000Ahr/MachineRuntime50s/dataprod_rel_1.0.1_electron_coulomb_18x275_10000Ahr.0000.edm4hep.root \
             --source:electron_beamgas_touschek:input_files root://dtn-eic.jlab.org//volatile/eic/EPIC/FULL/25.12.0/epic_craterlake/BACKGROUNDS/BEAMGAS/electron/touschek/EIC_ESR_Xsuite/dataprod_rel_1.0.1/18x275/10000Ahr/MachineRuntime50s/dataprod_rel_1.0.1_electron_touschek_18x275_10000Ahr.0000.edm4hep.root
           
-          ls -lh merged_ci_18x275.edm4hep.root || true
+          ls -lh merged_ci_18x275.edm4hep.root
+    - name: Upload EDM4hep merger output
+      uses: actions/upload-artifact@v4
+      with:
+        name: edm4hep-merged
+        path: merged_ci_18x275.edm4hep.root
+        retention-days: 1
 
   test-hepmc3:
     needs: build
@@ -91,4 +97,102 @@ jobs:
             --source:electron_beamgas_touschek:input_files root://dtn-eic.jlab.org//volatile/eic/EPIC/EVGEN/BACKGROUNDS/BEAMGAS/electron/touschek/EIC_ESR_Xsuite/dataprod_rel_1.0.1/18x275/10000Ahr/MachineRuntime50s/dataprod_rel_1.0.1_electron_touschek_18x275_10000Ahr.hepmc3.tree.root \
             --source:electron_synchrotron:input_files root://dtn-eic.jlab.org//volatile/eic/EPIC/EVGEN/BACKGROUNDS/SYNRAD/dataprod_rel_1.0.0/18x275/dataprod_rel_1.0.0_synrad_18x275_run001.hepmc3.tree.root
           
-          ls -lh merged_ci_18x275.hepmc3.tree.root || true
+          ls -lh merged_ci_18x275.hepmc3.tree.root
+    - name: Upload HepMC3 merger output
+      uses: actions/upload-artifact@v4
+      with:
+        name: hepmc3-merged
+        path: merged_ci_18x275.hepmc3.tree.root
+        retention-days: 1
+
+  epic-simulation:
+    needs: test-hepmc3
+    runs-on: ubuntu-24.04
+    steps:
+    - uses: actions/checkout@v4
+    - uses: cvmfs-contrib/github-action-cvmfs@v5
+    - name: Download build binaries
+      uses: actions/download-artifact@v4
+      with:
+        name: timeslice-merger-binaries
+    - name: Download HepMC3 events
+      uses: actions/download-artifact@v4
+      with:
+        name: hepmc3-merged
+    - name: Run EPIC simulation on HepMC3 output
+      uses: eic/run-cvmfs-osg-eic-shell@main
+      with:
+        platform-release: "eic_xl:nightly"
+        run: |
+          source /opt/detector/epic-main/bin/thisepic.sh
+          # Run npsim on the merged HepMC3 events
+          npsim --compactFile $DETECTOR_PATH/epic_craterlake.xml \
+                --inputFiles merged_ci_18x275.hepmc3.tree.root \
+                --outputFile sim_ci_18x275.edm4hep.root \
+                --numberOfEvents 100
+          
+          ls -lh sim_ci_18x275.edm4hep.root
+    - name: Upload simulated events
+      uses: actions/upload-artifact@v4
+      with:
+        name: epic-simulated
+        path: sim_ci_18x275.edm4hep.root
+        retention-days: 1
+
+  eicrecon-from-epic:
+    needs: epic-simulation
+    runs-on: ubuntu-24.04
+    steps:
+    - uses: actions/checkout@v4
+    - uses: cvmfs-contrib/github-action-cvmfs@v5
+    - name: Download build binaries
+      uses: actions/download-artifact@v4
+      with:
+        name: timeslice-merger-binaries
+    - name: Download EPIC simulated events
+      uses: actions/download-artifact@v4
+      with:
+        name: epic-simulated
+    - name: Run eicrecon on simulated events
+      uses: eic/run-cvmfs-osg-eic-shell@main
+      with:
+        platform-release: "eic_xl:nightly"
+        run: |
+          source /opt/detector/epic-main/bin/thisepic.sh
+          # Run eicrecon on simulated events from EPIC simulation
+          eicrecon -Pplugins=dump_flags sim_ci_18x275.edm4hep.root -Pjana:loglevel=info -Ppodio:output_file=recon_ci_18x275_from_epic.edm4hep.root
+          
+          ls -lh recon_ci_18x275_from_epic.edm4hep.root 2>/dev/null || echo "Warning: eicrecon output not found"
+
+  eicrecon-from-edm4hep:
+    needs: test-edm4hep
+    runs-on: ubuntu-24.04
+    steps:
+    - uses: actions/checkout@v4
+    - uses: cvmfs-contrib/github-action-cvmfs@v5
+    - name: Download build binaries
+      uses: actions/download-artifact@v4
+      with:
+        name: timeslice-merger-binaries
+    - name: Download EDM4hep merged events
+      uses: actions/download-artifact@v4
+      with:
+        name: edm4hep-merged
+    - name: Verify file exists
+      run: |
+        pwd
+        ls -lh
+        ls -lh merged_ci_18x275.edm4hep.root
+        file merged_ci_18x275.edm4hep.root
+    - name: Run eicrecon on EDM4hep merged events
+      uses: eic/run-cvmfs-osg-eic-shell@main
+      with:
+        platform-release: "eic_xl:nightly"
+        run: |
+          source /opt/detector/epic-main/bin/thisepic.sh
+          # Verify file exists
+          ls -lh merged_ci_18x275.edm4hep.root
+          # Run eicrecon directly on merged EDM4hep events
+          eicrecon -Pplugins=dump_flags merged_ci_18x275.edm4hep.root -Pjana:loglevel=info -Ppodio:output_file=recon_ci_18x275_from_edm4hep.edm4hep.root
+          
+          ls -lh recon_ci_18x275_from_edm4hep.edm4hep.root 2>/dev/null || echo "Warning: eicrecon output not found"
