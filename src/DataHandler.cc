@@ -1,5 +1,6 @@
 #include "DataHandler.h"
 #include "EDM4hepDataHandler.h"
+#include "PodioFrameZipperDataHandler.h"
 #ifdef HAVE_HEPMC3
 #include "HepMC3DataHandler.h"
 #endif
@@ -55,6 +56,11 @@ std::unique_ptr<DataHandler> DataHandler::create(const std::string& filename) {
     }
 #endif
     
+    // Check if filename ends with .podio.root - use PodioFrameZipperDataHandler
+    if (hasExtension(filename, ".podio.root")) {
+        return std::make_unique<PodioFrameZipperDataHandler>();
+    }
+    
     // Check if filename ends with .edm4hep.root
     if (hasExtension(filename, ".edm4hep.root")) {
         return std::make_unique<EDM4hepDataHandler>();
@@ -63,6 +69,7 @@ std::unique_ptr<DataHandler> DataHandler::create(const std::string& filename) {
     // Unsupported format
     std::string error_msg = "Unsupported data format: " + filename + "\n"
         "Currently supported formats:\n"
+        "  - Files ending with '.podio.root' (e.g., output.podio.root) - Uses PodioFrameZipper for efficient merging\n"
         "  - Files ending with '.edm4hep.root' (e.g., output.edm4hep.root)\n";
 #ifdef HAVE_HEPMC3
     error_msg += "  - Files ending with '.hepmc3.tree.root' (e.g., output.hepmc3.tree.root)";

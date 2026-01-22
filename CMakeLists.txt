@@ -32,6 +32,7 @@ add_executable(timeslice_merger
     src/EDM4hepDataSource.cc
     src/DataHandler.cc
     src/EDM4hepDataHandler.cc
+    src/PodioFrameZipperDataHandler.cc
     src/TimesliceMerger.cc
     src/CommandLineParser.cc
     src/timeslice_merger_main.cc
