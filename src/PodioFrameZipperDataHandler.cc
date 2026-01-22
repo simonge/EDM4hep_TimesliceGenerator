@@ -237,11 +237,16 @@ void PodioFrameZipperDataHandler::processEvent(DataSource& source) {
     // Store collection size before merging for contribution offset calculation
     merged_data_.collection_sizes["MCParticles"] = mcparticle_offset;
     
-    // Merge MCParticles
+    // Merge MCParticles (two-pass approach to handle forward references)
     if (frame.get("MCParticles") != nullptr) {
         const auto& source_particles = frame.get<edm4hep::MCParticleCollection>("MCParticles");
         
+        // First pass: Copy all POD data
+        std::vector<size_t> new_particle_indices;
         for (const auto& particle : source_particles) {
+            size_t new_idx = merged_data_.mcparticles->size();
+            new_particle_indices.push_back(new_idx);
+            
             auto merged_particle = merged_data_.mcparticles->create();
             
             // Copy all POD data
@@ -257,25 +262,21 @@ void PodioFrameZipperDataHandler::processEvent(DataSource& source) {
             merged_particle.setMomentumAtEndpoint(particle.getMomentumAtEndpoint());
             merged_particle.setSpin(particle.getSpin());
             merged_particle.setColorFlow(particle.getColorFlow());
+        }
+        
+        // Second pass: Set references with proper offsetting
+        for (size_t i = 0; i < source_particles.size(); ++i) {
+            const auto& particle = source_particles[i];
+            auto& merged_particle = (*merged_data_.mcparticles)[new_particle_indices[i]];
             
             // Copy and offset parent references
             for (const auto& parent : particle.getParents()) {
                 if (parent.isAvailable()) {
                     // Find the index of the parent in the source collection
-                    size_t parent_idx = 0;
-                    bool found = false;
-                    for (size_t i = 0; i < source_particles.size(); ++i) {
-                        if (source_particles[i].id() == parent.id()) {
-                            parent_idx = i;
-                            found = true;
+                    for (size_t j = 0; j < source_particles.size(); ++j) {
+                        if (source_particles[j].id() == parent.id()) {
+                            merged_particle.addToParents((*merged_data_.mcparticles)[new_particle_indices[j]]);
                             break;
-                        }
-                    }
-                    if (found) {
-                        // Offset the index by the current collection size
-                        size_t offset_idx = mcparticle_offset + parent_idx;
-                        if (offset_idx < merged_data_.mcparticles->size()) {
-                            merged_particle.addToParents((*merged_data_.mcparticles)[offset_idx]);
                         }
                     }
                 }
@@ -284,19 +285,10 @@ void PodioFrameZipperDataHandler::processEvent(DataSource& source) {
             // Copy and offset daughter references
             for (const auto& daughter : particle.getDaughters()) {
                 if (daughter.isAvailable()) {
-                    size_t daughter_idx = 0;
-                    bool found = false;
-                    for (size_t i = 0; i < source_particles.size(); ++i) {
-                        if (source_particles[i].id() == daughter.id()) {
-                            daughter_idx = i;
-                            found = true;
+                    for (size_t j = 0; j < source_particles.size(); ++j) {
+                        if (source_particles[j].id() == daughter.id()) {
+                            merged_particle.addToDaughters((*merged_data_.mcparticles)[new_particle_indices[j]]);
                             break;
-                        }
-                    }
-                    if (found) {
-                        size_t offset_idx = mcparticle_offset + daughter_idx;
-                        if (offset_idx < merged_data_.mcparticles->size()) {
-                            merged_particle.addToDaughters((*merged_data_.mcparticles)[offset_idx]);
                         }
                     }
                 }
@@ -493,8 +485,21 @@ void PodioFrameZipperDataHandler::writeTimeslice() {
     
     std::cout << "=== Timeslice " << current_timeslice_number_ << " written ===" << std::endl;
     
-    // Re-initialize collections for next timeslice
+    // Re-initialize all collections for next timeslice
     merged_data_.initialize();
+    
+    // Re-create dynamic collections
+    for (const auto& tracker_name : tracker_collection_names_) {
+        merged_data_.tracker_hits[tracker_name] = 
+            std::make_unique<edm4hep::SimTrackerHitCollection>();
+    }
+    
+    for (const auto& calo_name : calo_collection_names_) {
+        merged_data_.calo_hits[calo_name] = 
+            std::make_unique<edm4hep::SimCalorimeterHitCollection>();
+        merged_data_.calo_contributions[calo_name] = 
+            std::make_unique<edm4hep::CaloHitContributionCollection>();
+    }
 }
 
 void PodioFrameZipperDataHandler::finalize() {
