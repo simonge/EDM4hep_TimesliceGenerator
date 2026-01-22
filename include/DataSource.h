@@ -39,7 +39,7 @@ public:
     
     // Event loading and time offset update
     virtual void loadEvent(size_t event_index) = 0;
-    void UpdateTimeOffset(float time_slice_duration, float bunch_crossing_period, 
+    void UpdateTimeOffset(float timeframe_duration, float bunch_crossing_period, 
                          std::mt19937& rng);
     
     // Configuration access
@@ -81,6 +81,6 @@ protected:
     float calculateBeamDistance() const;
     
     // Shared time offset generation logic
-    float generateTimeOffset(float distance, float time_slice_duration, 
+    float generateTimeOffset(float distance, float timeframe_duration, 
                             float bunch_crossing_period, std::mt19937& rng) const;
 };

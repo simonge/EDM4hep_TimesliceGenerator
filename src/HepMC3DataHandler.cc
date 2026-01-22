@@ -59,9 +59,9 @@ std::vector<std::unique_ptr<DataSource>> HepMC3DataHandler::initializeDataSource
     return data_sources;
 }
 
-void HepMC3DataHandler::prepareTimeslice() {
-    // Create a new empty event for this timeslice
-    current_timeslice_ = std::make_unique<HepMC3::GenEvent>(
+void HepMC3DataHandler::prepareTimeframe() {
+    // Create a new empty event for this timeframe
+    current_timeframe_ = std::make_unique<HepMC3::GenEvent>(
         HepMC3::Units::GEV,
         HepMC3::Units::MM
     );
@@ -79,12 +79,12 @@ void HepMC3DataHandler::processEvent(DataSource& source) {
     // Get the current event from the HepMC3 source
     const auto& event = hepmc3_source->getCurrentEvent();
     
-    // Insert the event into the merged timeslice
-    insertHepMC3Event(event, current_timeslice_, time_offset_ns, config.generator_status_offset);
+    // Insert the event into the merged timeframe
+    insertHepMC3Event(event, current_timeframe_, time_offset_ns, config.generator_status_offset);
 }
 
 long HepMC3DataHandler::insertHepMC3Event(const HepMC3::GenEvent& inevt,
-                                            std::unique_ptr<HepMC3::GenEvent>& hepSlice,
+                                            std::unique_ptr<HepMC3::GenEvent>& hepframe,
                                             double time,
                                             int baseStatus) {
     // Convert time in nanoseconds to HepMC position units (mm)
@@ -119,7 +119,7 @@ long HepMC3DataHandler::insertHepMC3Event(const HepMC3::GenEvent& inevt,
             size_t vertex_index = abs(production_vertex) - 1;
             if (vertex_index < vertices.size()) {
                 vertices[vertex_index]->add_particle_out(p1);
-                hepSlice->add_particle(p1);
+                hepframe->add_particle(p1);
             } else {
                 std::cerr << "Warning: Invalid production vertex index " << vertex_index 
                           << " (vertices size: " << vertices.size() << ")" << std::endl;
@@ -141,25 +141,25 @@ long HepMC3DataHandler::insertHepMC3Event(const HepMC3::GenEvent& inevt,
 
     // Add all vertices to the merged event
     for (auto& vertex : vertices) {
-        hepSlice->add_vertex(vertex);
+        hepframe->add_vertex(vertex);
     }
     
     return finalParticleCount;
 }
 
-void HepMC3DataHandler::writeTimeslice() {
-    if (!current_timeslice_) {
-        throw std::runtime_error("No timeslice to write - prepareTimeslice() not called?");
+void HepMC3DataHandler::writeTimeframe() {
+    if (!current_timeframe_) {
+        throw std::runtime_error("No timeframe to write - prepareTimeframe() not called?");
     }
     
     // Set event number
-    current_timeslice_->set_event_number(current_timeslice_number_);
+    current_timeframe_->set_event_number(current_timeframe_number_);
     
     // Write the event
-    writer_->write_event(*current_timeslice_);
+    writer_->write_event(*current_timeframe_);
     
-    // Clear the timeslice
-    current_timeslice_.reset();
+    // Clear the timeframe
+    current_timeframe_.reset();
 }
 
 void HepMC3DataHandler::finalize() {

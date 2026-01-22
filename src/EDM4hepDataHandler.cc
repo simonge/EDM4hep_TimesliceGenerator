@@ -103,7 +103,7 @@ std::vector<std::unique_ptr<DataSource>> EDM4hepDataHandler::initializeDataSourc
     output_file_->SetCompressionLevel(1);
     
     // Create output tree
-    output_tree_ = new TTree("events", "Merged timeslices");
+    output_tree_ = new TTree("events", "Merged timeframes");
     
     // Discover collections from sources
     discoverCollections(data_sources);
@@ -119,7 +119,7 @@ std::vector<std::unique_ptr<DataSource>> EDM4hepDataHandler::initializeDataSourc
     return data_sources;
 }
 
-void EDM4hepDataHandler::prepareTimeslice() {
+void EDM4hepDataHandler::prepareTimeframe() {
     collections_.clear();
 }
 
@@ -249,20 +249,20 @@ void EDM4hepDataHandler::processEvent(DataSource& source) {
     totalEventsConsumed++;
 }
 
-void EDM4hepDataHandler::writeTimeslice() {
+void EDM4hepDataHandler::writeTimeframe() {
     if (!output_tree_) {
         throw std::runtime_error("Output tree not initialized");
     }
     
-    // Create main timeslice header
+    // Create main timeframe header
     edm4hep::EventHeaderData header;
-    header.eventNumber = current_timeslice_number_;
+    header.eventNumber = current_timeframe_number_;
     header.runNumber = 0;
-    header.timeStamp = current_timeslice_number_;
+    header.timeStamp = current_timeframe_number_;
     collections_.event_headers.push_back(header);
     
     output_tree_->Fill();
-    std::cout << "=== Timeslice written ===" << std::endl;
+    std::cout << "=== Timeframe written ===" << std::endl;
 }
 
 void EDM4hepDataHandler::finalize() {

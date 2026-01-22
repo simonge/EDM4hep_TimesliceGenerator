@@ -14,7 +14,7 @@
  * Each concrete implementation handles the format-specific details of:
  * - Creating appropriate DataSource instances for input
  * - Reading and merging events
- * - Writing merged timeslice data to output files
+ * - Writing merged timeframe data to output files
  */
 class DataHandler {
 public:
@@ -31,28 +31,28 @@ public:
         const std::vector<SourceConfig>& source_configs) = 0;
 
     /**
-     * Prepare for a new timeslice (clear buffers, etc.)
+     * Prepare for a new timeframe (clear buffers, etc.)
      */
-    virtual void prepareTimeslice() = 0;
+    virtual void prepareTimeframe() = 0;
 
     /**
-     * Process and merge events from all sources into the current timeslice
+     * Process and merge events from all sources into the current timeframe
      * @param sources Vector of data sources
-     * @param timeslice_number Current timeslice number
-     * @param time_slice_duration Duration of the timeslice in ns
+     * @param timeframe_number Current timeframe number
+     * @param timeframe_duration Duration of the timeframe in ns
      * @param bunch_crossing_period Bunch crossing period in ns
      * @param gen Random number generator
      */
     virtual void mergeEvents(std::vector<std::unique_ptr<DataSource>>& sources,
-                            size_t timeslice_number,
-                            float time_slice_duration,
+                            size_t timeframe_number,
+                            float timeframe_duration,
                             float bunch_crossing_period,
                             std::mt19937& gen) final;
 
     /**
-     * Write the completed timeslice to output
+     * Write the completed timeframe to output
      */
-    virtual void writeTimeslice() = 0;
+    virtual void writeTimeframe() = 0;
 
     /**
      * Finalize and close the output file
@@ -72,7 +72,7 @@ protected:
      */
     virtual void processEvent(DataSource& source) = 0;
     
-    size_t current_timeslice_number_ = 0;
+    size_t current_timeframe_number_ = 0;
 
 public:
     /**

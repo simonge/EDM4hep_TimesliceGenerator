@@ -1,8 +1,8 @@
 #!/bin/bash
 
-# Build script for Podio-based timeslice merger
+# Build script for timeframe builder
 
-echo "=== Building Timeslice Merger ==="
+echo "=== Building Timeframe Builder ==="
 
 # Create build directory
 mkdir -p build
@@ -21,11 +21,11 @@ cd ..
 
 echo "Build complete!"
 echo ""
-echo "To run the timeslice merger:"
-echo "  ./install/bin/timeslice_merger [options] input_file1 [input_file2 ...]"
+echo "To run the timeframe merger:"
+echo "  ./install/bin/timeframe_merger [options] input_file1 [input_file2 ...]"
 echo ""
 echo "Example usage:"
-echo "  ./install/bin/timeslice_merger -n 10 -d 1000.0 -s -e 2 input.root"
+echo "  ./install/bin/timeframe_merger -n 10 -d 1000.0 -s -e 2 input.root"
 echo ""
 echo "For help:"
-echo "  ./install/bin/timeslice_merger -h"
+echo "  ./install/bin/timeframe_merger -h"

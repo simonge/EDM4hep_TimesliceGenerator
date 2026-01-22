@@ -1,4 +1,4 @@
-#include "TimesliceMerger.h"
+#include "TimeframeBuilder.h"
 #include "DataHandler.h"
 #include "CommandLineParser.h"
 #include <iostream>
@@ -10,7 +10,7 @@ int main(int argc, char* argv[]) {
         MergerConfig config = CommandLineParser::parse(argc, argv);
         
         // Create the merger
-        TimesliceMerger merger(config);
+        TimeframeBuilder merger(config);
         
         // Create appropriate data handler based on output file extension
         auto data_handler = DataHandler::create(config.output_file);
@@ -19,7 +19,7 @@ int main(int argc, char* argv[]) {
         // Run the merger
         merger.run();
         
-        std::cout << "Successfully completed timeslice merging!" << std::endl;
+        std::cout << "Successfully completed timeframe merging!" << std::endl;
         return 0;
     } catch (const std::exception& e) {
         std::cerr << "Error: " << e.what() << std::endl;

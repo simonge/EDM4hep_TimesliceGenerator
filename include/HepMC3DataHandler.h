@@ -15,8 +15,8 @@
  * @brief Concrete implementation of DataHandler for HepMC3 format
  * 
  * Handles both input (creating HepMC3DataSource instances) and output
- * (writing merged timeslice data) in HepMC3 format using ROOT tree format.
- * Merges multiple HepMC3 events into single timeslice events with time offsets applied.
+ * (writing merged timeframe data) in HepMC3 format using ROOT tree format.
+ * Merges multiple HepMC3 events into single timeframe events with time offsets applied.
  */
 class HepMC3DataHandler : public DataHandler {
 public:
@@ -27,9 +27,9 @@ public:
         const std::string& filename,
         const std::vector<SourceConfig>& source_configs) override;
     
-    void prepareTimeslice() override;
+    void prepareTimeframe() override;
     
-    void writeTimeslice() override;
+    void writeTimeframe() override;
     
     void finalize() override;
     
@@ -37,7 +37,7 @@ public:
 
 private:
     std::shared_ptr<HepMC3::WriterRootTree> writer_;
-    std::unique_ptr<HepMC3::GenEvent> current_timeslice_;
+    std::unique_ptr<HepMC3::GenEvent> current_timeframe_;
     
     // Store validated HepMC3 data sources (non-owning pointers)
     std::vector<HepMC3DataSource*> hepmc3_sources_;
@@ -51,7 +51,7 @@ private:
 
     // Helper methods
     long insertHepMC3Event(const HepMC3::GenEvent& inevt,
-                          std::unique_ptr<HepMC3::GenEvent>& hepSlice,
+                          std::unique_ptr<HepMC3::GenEvent>& hepframe,
                           double time,
                           int baseStatus);
 };

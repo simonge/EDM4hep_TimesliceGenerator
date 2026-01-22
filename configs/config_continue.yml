@@ -1,12 +1,12 @@
-# Example configuration for the standalone podio timeslice merger
-output_file: merged_timeslices2.root
+# Example configuration for merging pre-merged events using the timeframe builder
+output_file: merged_timeframes2.root
 max_events: 100
-time_slice_duration: 200.0
+timeframe_duration: 200.0
 bunch_crossing_period: 10.0
 introduce_offsets: true
 sources:
   - input_files:
-      - merged_timeslices.root
+      - merged_timeframes.root
     name: background
     static_number_of_events: false
     mean_event_frequency: 0.1
@@ -17,6 +17,6 @@ sources:
       - input3.root
     name: signal
     static_number_of_events: true
-    static_events_per_timeslice: 1
+    static_events_per_timeframe: 1
     use_bunch_crossing: true
     generator_status_offset: 5000

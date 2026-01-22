@@ -30,7 +30,7 @@ jobs:
     - name: Upload build artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: timeslice-merger-binaries
+        name: timeframe-builder-binaries
         path: |
           install/
           configs/
@@ -45,16 +45,16 @@ jobs:
     - name: Download build artifacts
       uses: actions/download-artifact@v4
       with:
-        name: timeslice-merger-binaries
+        name: timeframe-builder-binaries
     - name: Fix binary permissions
-      run: chmod +x install/bin/timeslice_merger
+      run: chmod +x install/bin/timeframe_builder
     - name: EDM4hep merging from XRootD
       uses: eic/run-cvmfs-osg-eic-shell@main
       with:
         platform-release: "eic_xl:nightly"
         run: |
           # EDM4hep smoke test using built binary
-          ./install/bin/timeslice_merger --config configs/config_ci.yml \
+          ./install/bin/timeframe_builder --config configs/config_ci.yml \
             --output merged_ci_18x275.edm4hep.root \
             --source:signal:input_files root://dtn-eic.jlab.org//volatile/eic/EPIC/FULL/25.12.0/epic_craterlake/DIS/NC/18x275/minQ2=1000/pythia8NCDIS_18x275_minQ2=1000_beamEffects_xAngle=-0.025_hiDiv_1.0074.edm4hep.root \
             --source:hadron_beamgas:input_files root://dtn-eic.jlab.org//volatile/eic/EPIC/FULL/25.12.0/epic_craterlake/BACKGROUNDS/BEAMGAS/proton/pythia8.306-1.0/275GeV/pythia8.306-1.0_ProtonBeamGas_275GeV_run001.0000.edm4hep.root \
@@ -78,16 +78,16 @@ jobs:
     - name: Download build artifacts
       uses: actions/download-artifact@v4
       with:
-        name: timeslice-merger-binaries
+        name: timeframe-builder-binaries
     - name: Fix binary permissions
-      run: chmod +x install/bin/timeslice_merger
+      run: chmod +x install/bin/timeframe_builder
     - name: HepMC3 merging from XRootD
       uses: eic/run-cvmfs-osg-eic-shell@main
       with:
         platform-release: "eic_xl:nightly"
         run: |
           # HepMC3 smoke test using built binary
-          ./install/bin/timeslice_merger --config configs/config_ci.yml \
+          ./install/bin/timeframe_builder --config configs/config_ci.yml \
             --output merged_ci_18x275.hepmc3.tree.root \
             --source:signal:input_files root://dtn-eic.jlab.org//volatile/eic/EPIC/EVGEN/DIS/NC/18x275/minQ2=1000/pythia8NCDIS_18x275_minQ2=1000_beamEffects_xAngle=-0.025_hiDiv_1.hepmc3.tree.root \
             --source:minbias:input_files root://dtn-eic.jlab.org//volatile/eic/EPIC/EVGEN/SIDIS/pythia6-eic/1.0.0/18x275/q2_0to1/pythia_ep_noradcor_18x275_q2_0.000000001_1.0_run1.ab.hepmc3.tree.root \
@@ -114,7 +114,7 @@ jobs:
     - name: Download build binaries
       uses: actions/download-artifact@v4
       with:
-        name: timeslice-merger-binaries
+        name: timeframe-builder-binaries
     - name: Download HepMC3 events
       uses: actions/download-artifact@v4
       with:
@@ -148,7 +148,7 @@ jobs:
     - name: Download build binaries
       uses: actions/download-artifact@v4
       with:
-        name: timeslice-merger-binaries
+        name: timeframe-builder-binaries
     - name: Download EPIC simulated events
       uses: actions/download-artifact@v4
       with:
@@ -173,7 +173,7 @@ jobs:
     - name: Download build binaries
       uses: actions/download-artifact@v4
       with:
-        name: timeslice-merger-binaries
+        name: timeframe-builder-binaries
     - name: Download EDM4hep merged events
       uses: actions/download-artifact@v4
       with:
