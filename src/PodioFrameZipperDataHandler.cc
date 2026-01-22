@@ -318,6 +318,12 @@ void PodioFrameZipperDataHandler::processEvent(DataSource& source) {
         }
     }
     
+    // Get MCParticles collection once for reuse in hit processing
+    const edm4hep::MCParticleCollection* source_particles_ptr = nullptr;
+    if (frame.get("MCParticles") != nullptr) {
+        source_particles_ptr = &frame.get<edm4hep::MCParticleCollection>("MCParticles");
+    }
+    
     // Merge tracker hits
     for (const auto& tracker_name : tracker_collection_names_) {
         if (frame.get(tracker_name) != nullptr) {
@@ -339,18 +345,15 @@ void PodioFrameZipperDataHandler::processEvent(DataSource& source) {
                 
                 // Copy and offset particle reference
                 auto particle_ref = hit.getParticle();
-                if (particle_ref.isAvailable()) {
-                    // Find index in source collection
-                    if (frame.get("MCParticles") != nullptr) {
-                        const auto& source_particles = frame.get<edm4hep::MCParticleCollection>("MCParticles");
-                        for (size_t i = 0; i < source_particles.size(); ++i) {
-                            if (source_particles[i].id() == particle_ref.id()) {
-                                size_t offset_idx = mcparticle_offset + i;
-                                if (offset_idx < merged_data_.mcparticles->size()) {
-                                    merged_hit.setParticle((*merged_data_.mcparticles)[offset_idx]);
-                                }
-                                break;
+                if (particle_ref.isAvailable() && source_particles_ptr != nullptr) {
+                    const auto& source_particles = *source_particles_ptr;
+                    for (size_t i = 0; i < source_particles.size(); ++i) {
+                        if (source_particles[i].id() == particle_ref.id()) {
+                            size_t offset_idx = mcparticle_offset + i;
+                            if (offset_idx < merged_data_.mcparticles->size()) {
+                                merged_hit.setParticle((*merged_data_.mcparticles)[offset_idx]);
                             }
+                            break;
                         }
                     }
                 }
@@ -367,8 +370,10 @@ void PodioFrameZipperDataHandler::processEvent(DataSource& source) {
                                 merged_data_.calo_contributions[calo_name]->size() : 0;
         
         // First merge contributions
+        const edm4hep::CaloHitContributionCollection* source_contribs_ptr = nullptr;
         if (frame.get(contrib_name) != nullptr) {
-            const auto& source_contribs = frame.get<edm4hep::CaloHitContributionCollection>(contrib_name);
+            source_contribs_ptr = &frame.get<edm4hep::CaloHitContributionCollection>(contrib_name);
+            const auto& source_contribs = *source_contribs_ptr;
             
             auto& merged_contribs = merged_data_.calo_contributions[calo_name];
             
@@ -382,17 +387,15 @@ void PodioFrameZipperDataHandler::processEvent(DataSource& source) {
                 
                 // Copy and offset particle reference
                 auto particle_ref = contrib.getParticle();
-                if (particle_ref.isAvailable()) {
-                    if (frame.get("MCParticles") != nullptr) {
-                        const auto& source_particles = frame.get<edm4hep::MCParticleCollection>("MCParticles");
-                        for (size_t i = 0; i < source_particles.size(); ++i) {
-                            if (source_particles[i].id() == particle_ref.id()) {
-                                size_t offset_idx = mcparticle_offset + i;
-                                if (offset_idx < merged_data_.mcparticles->size()) {
-                                    merged_contrib.setParticle((*merged_data_.mcparticles)[offset_idx]);
-                                }
-                                break;
+                if (particle_ref.isAvailable() && source_particles_ptr != nullptr) {
+                    const auto& source_particles = *source_particles_ptr;
+                    for (size_t i = 0; i < source_particles.size(); ++i) {
+                        if (source_particles[i].id() == particle_ref.id()) {
+                            size_t offset_idx = mcparticle_offset + i;
+                            if (offset_idx < merged_data_.mcparticles->size()) {
+                                merged_contrib.setParticle((*merged_data_.mcparticles)[offset_idx]);
                             }
+                            break;
                         }
                     }
                 }
@@ -413,18 +416,25 @@ void PodioFrameZipperDataHandler::processEvent(DataSource& source) {
                 merged_hit.setPosition(hit.getPosition());
                 
                 // Copy and offset contribution references
-                for (const auto& contrib_ref : hit.getContributions()) {
-                    if (contrib_ref.isAvailable() && frame.get(contrib_name) != nullptr) {
-                        const auto& source_contribs = frame.get<edm4hep::CaloHitContributionCollection>(contrib_name);
-                        for (size_t i = 0; i < source_contribs.size(); ++i) {
-                            if (source_contribs[i].id() == contrib_ref.id()) {
-                                size_t offset_idx = contrib_offset + i;
-                                auto& merged_contribs = merged_data_.calo_contributions[calo_name];
-                                if (offset_idx < merged_contribs->size()) {
-                                    merged_hit.addToContributions((*merged_contribs)[offset_idx]);
+                if (source_contribs_ptr != nullptr) {
+                    const auto& source_contribs = *source_contribs_ptr;
+                    for (const auto& contrib_ref : hit.getContributions()) {
+                        if (contrib_ref.isAvailable()) {
+                            for (size_t i = 0; i < source_contribs.size(); ++i) {
+                                if (source_contribs[i].id() == contrib_ref.id()) {
+                                    size_t offset_idx = contrib_offset + i;
+                                    auto& merged_contribs = merged_data_.calo_contributions[calo_name];
+                                    if (offset_idx < merged_contribs->size()) {
+                                        merged_hit.addToContributions((*merged_contribs)[offset_idx]);
+                                    }
+                                    break;
                                 }
-                                break;
                             }
+                        }
+                    }
+                }
+            }
+        }
                         }
                     }
                 }
@@ -440,11 +450,16 @@ void PodioFrameZipperDataHandler::mergeGenericParameters(const podio::Frame& fra
     // Generic parameters in podio are stored as frame parameters
     // This would use podio's Frame parameter API to merge GP values
     // For now, this is a simplified implementation - full GP handling would require:
-    // 1. Getting all parameter keys from the frame using frame.getAvailableCollections() or similar
+    // 1. Getting all parameter keys from the frame using frame.getGenericParameterKeys() or similar
     // 2. Extracting parameters by type (int, float, double, string)
     // 3. Merging them into merged_data_.gp_*_params maps
     // 4. Writing them back in writeTimeslice() using output_frame.putParameter()
     // This follows the pattern in EDM4hepDataHandler's GP handling
+    
+    // Note: Generic parameters are not currently merged in this implementation.
+    // If your input files contain important generic parameters, they will not be
+    // preserved in the output. This is a known limitation that can be addressed
+    // in a future update.
 }
 
 void PodioFrameZipperDataHandler::writeTimeslice() {
