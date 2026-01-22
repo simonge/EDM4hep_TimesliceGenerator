@@ -10,16 +10,16 @@ void CommandLineParser::printUsage(const char* program_name) {
     std::cout << "Usage: " << program_name << " [options] input_file1 [input_file2 ...]\n"
               << "\nGeneral Options:\n"
               << "  --config FILE                YAML config file\n"
-              << "  -o, --output FILE           Output file name (default: merged_timeslices.edm4hep.root)\n"
-              << "  -n, --nevents N             Maximum number of timeslices to generate (default: 100)\n"
-              << "  -d, --duration TIME         Timeslice duration in ns (default: 20.0)\n"
+              << "  -o, --output FILE           Output file name (default: merged_timeframes.edm4hep.root)\n"
+              << "  -n, --nevents N             Maximum number of timeframes to generate (default: 100)\n"
+              << "  -d, --duration TIME         Timeframe duration in ns (default: 20.0)\n"
               << "  -p, --bunch-period PERIOD   Bunch crossing period in ns (default: 10.0)\n"
               << "  -h, --help                  Show this help message\n"
               << "\nDefault Source Options (backward compatibility):\n"
               << "  -f, --frequency FREQ        Mean event frequency (events/ns) (default: 1.0)\n"
               << "  -b, --use-bunch-crossing    Enable bunch crossing logic\n"
-              << "  -s, --static-events         Use static number of events per timeslice\n"
-              << "  -e, --events-per-slice N    Static events per timeslice (default: 1)\n"
+              << "  -s, --static-events         Use static number of events per timeframe\n"
+              << "  -e, --events-per-frame N    Static events per timeframe (default: 1)\n"
               << "  --beam-attachment           Enable beam attachment with Gaussian smearing\n"
               << "  --beam-speed SPEED          Beam speed in m/ns (default: 0.299792458)\n"
               << "  --beam-spread SPREAD        Beam spread for Gaussian smearing (default: 0.0)\n"
@@ -32,8 +32,8 @@ void CommandLineParser::printUsage(const char* program_name) {
               << "                              Mean event frequency for source\n"
               << "  --source:NAME:static_events BOOL\n"
               << "                              Use static events (true/false)\n"
-              << "  --source:NAME:events_per_slice N\n"
-              << "                              Static events per timeslice\n"
+              << "  --source:NAME:events_per_frame N\n"
+              << "                              Static events per timeframe\n"
               << "  --source:NAME:bunch_crossing BOOL\n"
               << "                              Enable bunch crossing (true/false)\n"
               << "  --source:NAME:beam_attachment BOOL\n"
@@ -50,7 +50,7 @@ void CommandLineParser::printUsage(const char* program_name) {
               << "  # Create signal source with specific files and frequency\n"
               << "  " << program_name << " --source:signal:input_files signal1.edm4hep.root,signal2.edm4hep.root --source:signal:frequency 0.5\n"
               << "  # Create background source with static events\n"
-              << "  " << program_name << " --source:bg:input_files bg.edm4hep.root --source:bg:static_events true --source:bg:events_per_slice 2\n";
+              << "  " << program_name << " --source:bg:input_files bg.edm4hep.root --source:bg:static_events true --source:bg:events_per_frame 2\n";
 }
 
 bool CommandLineParser::parseBool(const std::string& value) {
@@ -118,8 +118,8 @@ bool CommandLineParser::handleSourceOption(std::vector<SourceConfig>& sources, c
         source->mean_event_frequency = std::stof(value);
     } else if (property == "static_events") {
         source->static_number_of_events = parseBool(value);
-    } else if (property == "events_per_slice") {
-        source->static_events_per_timeslice = std::stoul(value);
+    } else if (property == "events_per_frame") {
+        source->static_events_per_timeframe = std::stoul(value);
     } else if (property == "bunch_crossing") {
         source->use_bunch_crossing = parseBool(value);
     } else if (property == "beam_attachment") {
@@ -150,7 +150,7 @@ void CommandLineParser::loadYAMLConfig(const std::string& config_file, MergerCon
     YAML::Node yaml = YAML::LoadFile(config_file);
     if (yaml["output_file"]) config.output_file = yaml["output_file"].as<std::string>();
     if (yaml["max_events"]) config.max_events = yaml["max_events"].as<size_t>();
-    if (yaml["time_slice_duration"]) config.time_slice_duration = yaml["time_slice_duration"].as<float>();
+    if (yaml["timeframe_duration"]) config.timeframe_duration = yaml["timeframe_duration"].as<float>();
     if (yaml["bunch_crossing_period"]) config.bunch_crossing_period = yaml["bunch_crossing_period"].as<float>();
     if (yaml["introduce_offsets"]) config.introduce_offsets = yaml["introduce_offsets"].as<bool>();
     
@@ -166,7 +166,7 @@ void CommandLineParser::loadYAMLConfig(const std::string& config_file, MergerCon
             if (source_yaml["name"]) source.name = source_yaml["name"].as<std::string>();
             if (source_yaml["already_merged"]) source.already_merged = source_yaml["already_merged"].as<bool>();
             if (source_yaml["static_number_of_events"]) source.static_number_of_events = source_yaml["static_number_of_events"].as<bool>();
-            if (source_yaml["static_events_per_timeslice"]) source.static_events_per_timeslice = source_yaml["static_events_per_timeslice"].as<size_t>();
+            if (source_yaml["static_events_per_timeframe"]) source.static_events_per_timeframe = source_yaml["static_events_per_timeframe"].as<size_t>();
             if (source_yaml["mean_event_frequency"]) source.mean_event_frequency = source_yaml["mean_event_frequency"].as<float>();
             if (source_yaml["use_bunch_crossing"]) source.use_bunch_crossing = source_yaml["use_bunch_crossing"].as<bool>();
             if (source_yaml["attach_to_beam"]) source.attach_to_beam = source_yaml["attach_to_beam"].as<bool>();
@@ -196,8 +196,8 @@ void CommandLineParser::mergeCliSources(MergerConfig& config, const std::vector<
                 if (cli_source.static_number_of_events) {
                     existing_source.static_number_of_events = cli_source.static_number_of_events;
                 }
-                if (cli_source.static_events_per_timeslice != 1) {
-                    existing_source.static_events_per_timeslice = cli_source.static_events_per_timeslice;
+                if (cli_source.static_events_per_timeframe != 1) {
+                    existing_source.static_events_per_timeframe = cli_source.static_events_per_timeframe;
                 }
                 if (cli_source.use_bunch_crossing) {
                     existing_source.use_bunch_crossing = cli_source.use_bunch_crossing;
@@ -256,7 +256,7 @@ void CommandLineParser::validateConfiguration(MergerConfig& config) {
 }
 
 void CommandLineParser::printConfiguration(const MergerConfig& config) {
-    std::cout << "=== Timeslice Merger Configuration ===" << std::endl;
+    std::cout << "=== Timeframe Merger Configuration ===" << std::endl;
     std::cout << "Sources: " << config.sources.size() << std::endl;
     for (size_t i = 0; i < config.sources.size(); ++i) {
         const auto& source = config.sources[i];        
@@ -267,7 +267,7 @@ void CommandLineParser::printConfiguration(const MergerConfig& config) {
         std::cout << std::endl;
         std::cout << "  Name: " << source.name << std::endl;
         std::cout << "  Static number of events: " << (source.static_number_of_events ? "true" : "false") << std::endl;
-        std::cout << "  Events per timeslice: " << source.static_events_per_timeslice << std::endl;
+        std::cout << "  Events per timeframe: " << source.static_events_per_timeframe << std::endl;
         std::cout << "  Mean event frequency: " << source.mean_event_frequency << " events/ns" << std::endl;
         std::cout << "  Use bunch crossing: " << (source.use_bunch_crossing ? "true" : "false") << std::endl;
         std::cout << "  Beam attachment: " << (source.attach_to_beam ? "true" : "false") << std::endl;
@@ -278,7 +278,7 @@ void CommandLineParser::printConfiguration(const MergerConfig& config) {
     }
     std::cout << "Output file: " << config.output_file << std::endl;
     std::cout << "Max events: " << config.max_events << std::endl;
-    std::cout << "Timeslice duration: " << config.time_slice_duration << " ns" << std::endl;
+    std::cout << "Timeframe duration: " << config.timeframe_duration << " ns" << std::endl;
     std::cout << "Bunch crossing period: " << config.bunch_crossing_period << " ns" << std::endl;
     std::cout << "Introduce offsets: " << (config.introduce_offsets ? "true" : "false") << std::endl;
     std::cout << "================================================" << std::endl;
@@ -330,7 +330,7 @@ MergerConfig CommandLineParser::parse(int argc, char* argv[]) {
         {"bunch-period", required_argument, 0, 'p'},
         {"use-bunch-crossing", no_argument, 0, 'b'},
         {"static-events", no_argument, 0, 's'},
-        {"events-per-slice", required_argument, 0, 'e'},
+        {"events-per-frame", required_argument, 0, 'e'},
         {"beam-attachment", no_argument, 0, 1000},
         {"beam-speed", required_argument, 0, 1001},
         {"beam-spread", required_argument, 0, 1002},
@@ -354,7 +354,7 @@ MergerConfig CommandLineParser::parse(int argc, char* argv[]) {
                 config.max_events = std::stoul(optarg);
                 break;
             case 'd':
-                config.time_slice_duration = std::stof(optarg);
+                config.timeframe_duration = std::stof(optarg);
                 break;
             case 'f':
                 default_source.mean_event_frequency = std::stof(optarg);
@@ -369,7 +369,7 @@ MergerConfig CommandLineParser::parse(int argc, char* argv[]) {
                 default_source.static_number_of_events = true;
                 break;
             case 'e':
-                default_source.static_events_per_timeslice = std::stoul(optarg);
+                default_source.static_events_per_timeframe = std::stoul(optarg);
                 break;
             case 1000:
                 default_source.attach_to_beam = true;

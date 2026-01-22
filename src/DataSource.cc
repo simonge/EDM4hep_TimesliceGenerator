@@ -2,7 +2,7 @@
 #include "DataSource.h"
 #include <cmath>
 
-void DataSource::UpdateTimeOffset(float time_slice_duration,
+void DataSource::UpdateTimeOffset(float timeframe_duration,
                                   float bunch_crossing_period,
                                   std::mt19937& rng) {
     float distance = 0.0f;
@@ -12,14 +12,14 @@ void DataSource::UpdateTimeOffset(float time_slice_duration,
         distance = calculateBeamDistance();
     }
     
-    current_time_offset_ = generateTimeOffset(distance, time_slice_duration, bunch_crossing_period, rng);
+    current_time_offset_ = generateTimeOffset(distance, timeframe_duration, bunch_crossing_period, rng);
 }
 
-float DataSource::generateTimeOffset(float distance, float time_slice_duration, 
+float DataSource::generateTimeOffset(float distance, float timeframe_duration, 
                                      float bunch_crossing_period, std::mt19937& rng) const {
     const auto& config = getConfig();
     
-    std::uniform_real_distribution<float> uniform(0.0f, time_slice_duration);
+    std::uniform_real_distribution<float> uniform(0.0f, timeframe_duration);
     float time_offset = uniform(rng);
     
     if (!config.already_merged) {

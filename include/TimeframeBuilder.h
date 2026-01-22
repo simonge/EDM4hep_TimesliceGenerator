@@ -9,17 +9,17 @@
 #include <memory>
 
 /**
- * @class TimesliceMerger
- * @brief Core timeslice merging engine independent of data format
+ * @class TimeframeBuilder
+ * @brief Core timeframe merging engine independent of data format
  * 
- * This class orchestrates the merging of events from multiple sources into timeslices.
+ * This class orchestrates the merging of events from multiple sources into timeframes.
  * It handles frequency sampling, timing relationships, and event selection, but delegates
  * the actual data I/O to a DataHandler implementation. This allows the same merging logic
  * to be used with different formats (EDM4hep, HepMC3, etc.).
  */
-class TimesliceMerger {
+class TimeframeBuilder {
 public:
-    TimesliceMerger(const MergerConfig& config);
+    TimeframeBuilder(const MergerConfig& config);
     
     /**
      * Set the data handler for managing input and output

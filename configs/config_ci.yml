@@ -1,13 +1,13 @@
 ## XRootD edm4hep source configuration used in continuous integration testing
 
 max_events: 10
-time_slice_duration: 2000.0 # in ns
+timeframe_duration: 2000.0 # in ns
 bunch_crossing_period: 40.0 # in ns
 introduce_offsets: true
 sources:
   - name: signal
     static_number_of_events: true
-    static_events_per_timeslice: 1
+    static_events_per_timeframe: 1
     use_bunch_crossing: true
     generator_status_offset: 0
   - name: minbias

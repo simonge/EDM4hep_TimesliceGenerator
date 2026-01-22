@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(TimesliceMerger VERSION 1.0.0)
+project(TimeframeBuilder VERSION 1.0.0)
 
 # Set C++ standard
 set(CMAKE_CXX_STANDARD 20)
@@ -27,30 +27,30 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
 include_directories(${ROOT_INCLUDE_DIRS})
 
 # Create the standalone executable
-add_executable(timeslice_merger
+add_executable(timeframe_builder
     src/DataSource.cc
     src/EDM4hepDataSource.cc
     src/DataHandler.cc
     src/EDM4hepDataHandler.cc
-    src/TimesliceMerger.cc
+    src/TimeframeBuilder.cc
     src/CommandLineParser.cc
-    src/timeslice_merger_main.cc
+    src/timeframe_builder_main.cc
 )
 
 # Conditionally add HepMC3 sources if HepMC3 is found
 if(HepMC3_FOUND)
     message(STATUS "HepMC3 found - enabling HepMC3 backend support")
-    target_sources(timeslice_merger PRIVATE
+    target_sources(timeframe_builder PRIVATE
         src/HepMC3DataSource.cc
         src/HepMC3DataHandler.cc
     )
-    target_compile_definitions(timeslice_merger PRIVATE HAVE_HEPMC3)
+    target_compile_definitions(timeframe_builder PRIVATE HAVE_HEPMC3)
 else()
     message(STATUS "HepMC3 not found - HepMC3 backend will not be available")
 endif()
 
 # Link against ROOT, PODIO and EDM4HEP
-target_link_libraries(timeslice_merger
+target_link_libraries(timeframe_builder
     ${ROOT_LIBRARIES}
     podio::podioRootIO
     EDM4HEP::edm4hep
@@ -60,38 +60,15 @@ target_link_libraries(timeslice_merger
 
 # Conditionally link HepMC3 if found
 if(HepMC3_FOUND)
-    target_link_libraries(timeslice_merger HepMC3::HepMC3)
+    target_link_libraries(timeframe_builder HepMC3::HepMC3)
     # WriterRootTree lives in the optional rootIO component
     if(TARGET HepMC3::rootIO)
-        target_link_libraries(timeslice_merger HepMC3::rootIO)
+        target_link_libraries(timeframe_builder HepMC3::rootIO)
     endif()
 endif()
 
-# Create test executable for file format verification
-add_executable(test_file_format
-    src/test_file_format.cc
-)
-
-# Link against ROOT only for basic format test
-target_link_libraries(test_file_format
-    ${ROOT_LIBRARIES}
-)
-
-# Create Podio API test executable 
-add_executable(test_podio_format
-    src/test_podio_format.cc
-)
-
-# Link against ROOT, PODIO and EDM4HEP for Podio API test
-target_link_libraries(test_podio_format
-    ${ROOT_LIBRARIES}
-    podio::podioRootIO
-    EDM4HEP::edm4hep
-    EDM4HEP::edm4hepDict
-)
-
 # Add ROOT compilation flags
-#target_compile_definitions(timeslice_merger PRIVATE ${ROOT_CXX_FLAGS})
+#target_compile_definitions(timeframe_builder PRIVATE ${ROOT_CXX_FLAGS})
 
 # Set install prefix if not specified
 if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
@@ -99,4 +76,4 @@ if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
 endif()
 
 # Install the executables
-install(TARGETS timeslice_merger test_file_format test_podio_format DESTINATION bin)
+install(TARGETS timeframe_builder DESTINATION bin)

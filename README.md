@@ -1,6 +1,6 @@
-# EDM4hep event merger
+# Timeframe Builder
 
-An application for merging multiple events output by dd4hep into timeslices. All collections of particles and hits are zipped together while maintaining the references between collections.  
+An application for merging multiple events from hepmc3 root files or simulated edm4hep files into timeframes. All collections of particles and hits are zipped together while maintaining the references between collections.  
 
 This tool provides control over timing adjustments allowing optional shifting of the time from each event source based on:
 - Bunch crossing periods.
@@ -57,7 +57,7 @@ make install
 ### Basic Usage
 
 ```bash
-./install/bin/timeslice_merger [options] input_file1 [input_file2 ...]
+./install/bin/timeframe_builder [options] input_file1 [input_file2 ...]
 ```
 
 ### Command Line Options
@@ -67,15 +67,15 @@ make install
 |--------|-------------|---------|
 | `--config <file>` | YAML configuration file | (none) |
 | `input_files` | Input ROOT files containing events | (required) |
-| `-o, --output <file>` | Output ROOT file for timeslices | `merged_timeslices.root` |
-| `-n, --nevents <number>` | Maximum number of timeslices to generate | `100` |
+| `-o, --output <file>` | Output ROOT file for timeframes | `merged_timeframes.root` |
+| `-n, --nevents <number>` | Maximum number of timeframes to generate | `100` |
 
-#### Timeslice Configuration
+#### Timeframe Configuration
 | Option | Description | Default |
 |--------|-------------|---------|
-| `-d, --duration <ns>` | Timeslice duration in nanoseconds | `20.0` |
-| `-s, --static-events` | Use static number of events per timeslice (default source) | `false` |
-| `-e, --events-per-slice <number>` | Static events per timeslice (requires `-s`) | `1` |
+| `-d, --duration <ns>` | Timeframe duration in nanoseconds | `20.0` |
+| `-s, --static-events` | Use static number of events per timeframe (default source) | `false` |
+| `-e, --events-per-frame <number>` | Static events per timeframe (requires `-s`) | `1` |
 | `-f, --frequency <rate>` | Mean event frequency (events/ns) for default source | `1.0` |
 
 #### Source-Specific Configuration
@@ -85,7 +85,7 @@ make install
 | `--source:NAME:input_files FILE1,FILE2` | Comma-separated input files for the source |
 | `--source:NAME:frequency RATE` | Mean event frequency (events/ns) |
 | `--source:NAME:static_events BOOL` | Use static number of events (true/false) |
-| `--source:NAME:events_per_slice N` | Static events per timeslice |
+| `--source:NAME:events_per_frame N` | Static events per timeframe |
 | `--source:NAME:bunch_crossing BOOL` | Enable bunch crossing logic (true/false) |
 | `--source:NAME:beam_attachment BOOL` | Enable beam attachment (true/false) |
 | `--source:NAME:beam_speed SPEED` | Beam speed in ns/mm |
@@ -123,9 +123,9 @@ The application supports YAML configuration files that can be used independently
 
 ```yaml
 # Global merger configuration
-output_file: merged_timeslices.root
+output_file: merged_timeframes.root
 max_events: 100
-time_slice_duration: 200.0
+timeframe_duration: 200.0
 bunch_crossing_period: 10.0
 introduce_offsets: true
 
@@ -149,7 +149,7 @@ sources:
       - background.root
     name: background
     static_number_of_events: true
-    static_events_per_timeslice: 2
+    static_events_per_timeframe: 2
     use_bunch_crossing: true
     generator_status_offset: 1000
     already_merged: false
@@ -159,8 +159,8 @@ sources:
 
 #### Global Parameters
 - `output_file`: Output ROOT file name
-- `max_events`: Maximum number of timeslices to generate
-- `time_slice_duration`: Duration of each timeslice in nanoseconds
+- `max_events`: Maximum number of timeframes to generate
+- `timeframe_duration`: Duration of each timeframe in nanoseconds
 - `bunch_crossing_period`: Bunch crossing period for discretization
 - `introduce_offsets`: Whether to introduce random time offsets
 - `merge_particles`: Whether to merge particles (advanced feature)
@@ -168,9 +168,9 @@ sources:
 #### Source-Specific Parameters
 - `input_files`: List of input ROOT files for this source
 - `name`: Human-readable name for the source (e.g., "signal", "background")
-- `already_merged`: Set to `true` if input files are already timeslice files
-- `static_number_of_events`: Use fixed number of events per timeslice
-- `static_events_per_timeslice`: Number of events per timeslice (if static mode)
+- `already_merged`: Set to `true` if input files are already timeframe files
+- `static_number_of_events`: Use fixed number of events per timeframe
+- `static_events_per_timeframe`: Number of events per timeframe (if static mode)
 - `mean_event_frequency`: Mean event frequency in events/ns (if not static mode)
 - `use_bunch_crossing`: Enable bunch crossing time discretization
 - `attach_to_beam`: Enable beam attachment physics
@@ -187,31 +187,31 @@ Command-line arguments override YAML configuration values, allowing flexible usa
 ### Pattern 1: Config File with CLI Override
 ```bash
 # Use config.yml but override output file and number of events
-./install/bin/timeslice_merger --config config.yml -o different_output.root -n 500
+./install/bin/timeframe_builder --config config.yml -o different_output.root -n 500
 ```
 
 ### Pattern 2: Config File with Additional Input Files
 ```bash
 # Use config file and add more input files from command line
-./install/bin/timeslice_merger --config config.yml additional_input.root more_files.root
+./install/bin/timeframe_builder --config config.yml additional_input.root more_files.root
 ```
 
 ### Pattern 3: Minimal Config with CLI Parameters
 ```bash
 # Use config file for complex source setup, override timing parameters
-./install/bin/timeslice_merger --config multi_source.yml -d 1000.0 -p 25.0
+./install/bin/timeframe_builder --config multi_source.yml -d 1000.0 -p 25.0
 ```
 
 ### Pattern 4: Source-Specific CLI Configuration
 ```bash
 # Configure sources directly via command line
-./install/bin/timeslice_merger --source:signal:input_files signal1.root,signal2.root --source:signal:frequency 0.5 --source:bg:input_files bg.root --source:bg:static_events true
+./install/bin/timeframe_builder --source:signal:input_files signal1.root,signal2.root --source:signal:frequency 0.5 --source:bg:input_files bg.root --source:bg:static_events true
 ```
 
 ### Pattern 5: Override Specific Sources from Config
 ```bash
 # Use config file but override specific source configuration
-./install/bin/timeslice_merger --config config.yml --source:signal:input_files new_signal.root --source:signal:frequency 0.8
+./install/bin/timeframe_builder --config config.yml --source:signal:input_files new_signal.root --source:signal:frequency 0.8
 ```
 
 
@@ -223,28 +223,28 @@ Command-line arguments override YAML configuration values, allowing flexible usa
 
 Merge events using default settings:
 ```bash
-./install/bin/timeslice_merger input_events.root
+./install/bin/timeframe_builder input_events.root
 ```
 
 #### Static Event Count
 
-Create timeslices with exactly 3 events each:
+Create timeframes with exactly 3 events each:
 ```bash
-./install/bin/timeslice_merger -s -e 3 -n 50 input_events.root
+./install/bin/timeframe_builder -s -e 3 -n 50 input_events.root
 ```
 
 #### Bunch Crossing Mode
 
 Enable bunch crossing with 1000 ns period:
 ```bash
-./install/bin/timeslice_merger -b -p 1000.0 -d 20000.0 input_events.root
+./install/bin/timeframe_builder -b -p 1000.0 -d 20000.0 input_events.root
 ```
 
 #### Full Beam Physics
 
 Enable beam attachment with realistic parameters:
 ```bash
-./install/bin/timeslice_merger \
+./install/bin/timeframe_builder \
   --beam-attachment \
   --beam-spread 0.5 \
   --beam-speed 299792.458 \
@@ -256,9 +256,9 @@ Enable beam attachment with realistic parameters:
 
 Process large number of events with custom output:
 ```bash
-./install/bin/timeslice_merger \
+./install/bin/timeframe_builder \
   -n 10000 \
-  -o large_timeslices.root \
+  -o large_timeframes.root \
   --use-bunch-crossing \
   --bunch-period 2000.0 \
   input1.root input2.root input3.root
@@ -271,13 +271,13 @@ Process large number of events with custom output:
 Configure multiple sources with different properties:
 ```bash
 # Create signal and background sources with specific settings
-./install/bin/timeslice_merger \
+./install/bin/timeframe_builder \
   --source:signal:input_files signal1.root,signal2.root \
   --source:signal:frequency 0.5 \
   --source:signal:static_events false \
   --source:background:input_files bg1.root,bg2.root \
   --source:background:static_events true \
-  --source:background:events_per_slice 2 \
+  --source:background:events_per_frame 2 \
   --source:background:status_offset 1000
 ```
 
@@ -285,7 +285,7 @@ Configure multiple sources with different properties:
 
 Quick setup with signal and background:
 ```bash
-./install/bin/timeslice_merger \
+./install/bin/timeframe_builder \
   --source:signal:input_files signal.root \
   --source:bg:input_files background.root \
   --source:bg:static_events true
@@ -295,7 +295,7 @@ Quick setup with signal and background:
 
 Configure source with beam physics:
 ```bash
-./install/bin/timeslice_merger \
+./install/bin/timeframe_builder \
   --source:beam_events:input_files beam_data.root \
   --source:beam_events:beam_attachment true \
   --source:beam_events:beam_speed 299792.458 \
@@ -309,7 +309,7 @@ Configure source with beam physics:
 
 Use a YAML configuration file for complex setups:
 ```bash
-./install/bin/timeslice_merger --config config.yml
+./install/bin/timeframe_builder --config config.yml
 ```
 
 #### Using HepMC3 Files
@@ -317,10 +317,10 @@ Use a YAML configuration file for complex setups:
 Process HepMC3 format files (requires HepMC3 library):
 ```bash
 # HepMC3 configuration file
-./install/bin/timeslice_merger --config configs/config_hepmc3.yml
+./install/bin/timeframe_builder --config configs/config_hepmc3.yml
 
 # Direct command line with HepMC3 files
-./install/bin/timeslice_merger \
+./install/bin/timeframe_builder \
   -o output.hepmc3.tree.root \
   --source:signal:input_files signal.hepmc3.tree.root \
   --source:bg:input_files background.hepmc3.tree.root \
@@ -332,44 +332,44 @@ Process HepMC3 format files (requires HepMC3 library):
 - `.edm4hep.root` → EDM4hep format output
 - `.hepmc3.tree.root` → HepMC3 format output
 ```bash
-./install/bin/timeslice_merger --config config.yml
+./install/bin/timeframe_builder --config config.yml
 ```
 
 #### Mixed Configuration and Command Line
 
 Use configuration file but override specific parameters:
 ```bash
-# Override output file and number of timeslices
-./install/bin/timeslice_merger --config config.yml -o custom_output.root -n 500
+# Override output file and number of timeframes
+./install/bin/timeframe_builder --config config.yml -o custom_output.root -n 500
 
 # Add additional input files to those specified in config
-./install/bin/timeslice_merger --config config.yml extra_input.root
+./install/bin/timeframe_builder --config config.yml extra_input.root
 
 # Override timing parameters
-./install/bin/timeslice_merger --config config.yml -d 5000.0 -p 500.0
+./install/bin/timeframe_builder --config config.yml -d 5000.0 -p 500.0
 ```
 
-#### Working with Pre-merged Timeslices
+#### Working with Pre-merged Timeframes
 
-Process already-merged timeslice files:
+Process already-merged timeframe files:
 ```bash
 # Configuration file with already_merged: true
-./install/bin/timeslice_merger --config config_continue.yml
+./install/bin/timeframe_builder --config config_continue.yml
 ```
 
 ## Configuration Parameters Details
 
-### Timeslice Duration (`-d, --duration`)
+### Timeframe Duration (`-d, --duration`)
 - **Units**: nanoseconds
-- **Purpose**: Sets the total time span of each output timeslice
-- **Usage**: Larger values create longer timeslices with more temporal coverage
+- **Purpose**: Sets the total time span of each output timeframe
+- **Usage**: Larger values create longer timeframes with more temporal coverage
 - **Typical Values**: 10000-50000 ns for physics applications
 
 ### Event Accumulation Modes
 
 #### Static Mode (`-s, --static-events`)
-- Uses a fixed number of events per timeslice (set by `-e`)
-- Guarantees consistent event count across all timeslices
+- Uses a fixed number of events per timeframe (set by `-e`)
+- Guarantees consistent event count across all timeframes
 - Useful for systematic studies and detector calibration
 
 #### Poisson Mode (default)
@@ -395,7 +395,7 @@ The application supports multiple output formats based on the file extension:
 
 ### EDM4hep Format (`.edm4hep.root`)
 The output ROOT file contains:
-- **Tree Name**: `timeslices`
+- **Tree Name**: `timeframes`
 - **Collections**: All input collections with time adjustments applied
 - **Format**: Standard Podio ROOT format compatible with EDM4HEP readers
 - **Additional Data**: Preserved metadata and collection relationships
@@ -448,14 +448,14 @@ Organizes all merged output data:
 - Reference collections maintaining object relationships
 - Global parameter (GP) branches for metadata
 
-#### TimesliceMerger
+#### TimeframeBuilder
 Main orchestration class:
 - Initializes and manages multiple DataSource instances
-- Coordinates timeslice generation and event merging
+- Coordinates timeframe generation and event merging
 - Handles output file creation and metadata preservation
 
 ### Time Offset Generation
-1. **Random Distribution**: Uniform random offsets within timeslice duration
+1. **Random Distribution**: Uniform random offsets within timeframe duration
 2. **Bunch Crossing**: Optional discretization to bunch boundaries
 3. **Beam Physics**: Time-of-flight corrections for realistic timing
 
@@ -497,7 +497,7 @@ Main orchestration class:
 
 ### File Size Scaling
 - **Input**: Linear scaling with number of input events
-- **Output**: Depends on timeslice duration and event rate
+- **Output**: Depends on timeframe duration and event rate
 - **Memory**: Constant memory usage regardless of file size
 
 ### Processing Speed
@@ -520,15 +520,15 @@ Main orchestration class:
 ### Performance Issues
 1. **Slow Processing**: Check disk I/O speeds and file system type
 2. **Memory Usage**: Monitor with system tools (htop, top)
-3. **Output Size**: Verify timeslice parameters are reasonable
+3. **Output Size**: Verify timeframe parameters are reasonable
 
 ## Development and Contributing
 
 ### Code Structure
-- `src/TimesliceMerger.cc`: Core merging logic and orchestration
+- `src/TimeframeBuilder.cc`: Core merging logic and orchestration
 - `src/DataSource.cc`: Input file management and data reading  
-- `src/timeslice_merger_main.cc`: Command line interface and configuration parsing
-- `include/TimesliceMerger.h`: Main API and data structures
+- `src/timeframe_builder_main.cc`: Command line interface and configuration parsing
+- `include/TimeframeBuilder.h`: Main API and data structures
 - `include/DataSource.h`: Input data source abstraction
 - `include/MergerConfig.h`: Configuration structures
 
@@ -541,13 +541,13 @@ Main orchestration class:
 ./install/bin/test_standalone
 
 # Test with sample data
-./install/bin/timeslice_merger --config configs/config.yml
+./install/bin/timeframe_builder --config configs/config.yml
 ```
 
 ### Configuration Files
 Example configuration files are provided in the `configs/` directory:
 - `config.yml`: Basic multi-source configuration
-- `config_continue.yml`: Working with pre-merged timeslice files
+- `config_continue.yml`: Working with pre-merged timeframe files
 
 ## License
 

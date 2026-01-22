@@ -6,11 +6,11 @@
 #include <stdexcept>
 
 void DataHandler::mergeEvents(std::vector<std::unique_ptr<DataSource>>& sources,
-                              size_t timeslice_number,
-                              float time_slice_duration,
+                              size_t timeframe_number,
+                              float timeframe_duration,
                               float bunch_crossing_period,
                               std::mt19937& gen) {
-    current_timeslice_number_ = timeslice_number;
+    current_timeframe_number_ = timeframe_number;
     
     size_t total_events_consumed = 0;
     // Iterate over all sources
@@ -23,7 +23,7 @@ void DataHandler::mergeEvents(std::vector<std::unique_ptr<DataSource>>& sources,
         for (size_t entry = 0; entry < entries_needed; ++entry) {
             // Load and prepare the event
             source->loadEvent(source->getCurrentEntryIndex());
-            source->UpdateTimeOffset(time_slice_duration, bunch_crossing_period, gen);
+            source->UpdateTimeOffset(timeframe_duration, bunch_crossing_period, gen);
             
             // Call format-specific processing
             processEvent(*source);
@@ -37,7 +37,7 @@ void DataHandler::mergeEvents(std::vector<std::unique_ptr<DataSource>>& sources,
                   << config.name << std::endl;
     }
 
-    std::cout << "Total events consumed in timeslice " << timeslice_number 
+    std::cout << "Total events consumed in timeframe " << timeframe_number 
               << ": " << total_events_consumed << std::endl;
 }
 

@@ -51,7 +51,7 @@ struct EDM4hepMergedCollections {
  * @brief Concrete implementation of DataHandler for EDM4hep format
  * 
  * Handles both input (creating EDM4hepDataSource instances) and output
- * (writing merged timeslice data) in EDM4hep format using ROOT TTree.
+ * (writing merged timeframe data) in EDM4hep format using ROOT TTree.
  */
 class EDM4hepDataHandler : public DataHandler {
 public:
@@ -62,9 +62,9 @@ public:
         const std::string& filename,
         const std::vector<SourceConfig>& source_configs) override;
     
-    void prepareTimeslice() override;
+    void prepareTimeframe() override;
     
-    void writeTimeslice() override;
+    void writeTimeframe() override;
     
     void finalize() override;
     

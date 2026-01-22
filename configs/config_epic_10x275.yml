@@ -1,7 +1,7 @@
-# Example configuration for the standalone podio timeslice merger
-output_file: merged_timeslices_10x275.edm4hep.root
+# EIC ePIC timeframe builder for 10x275 beam settings
+output_file: merged_timeframes_10x275.edm4hep.root
 max_events: 100
-time_slice_duration: 2000.0 # in ns
+timeframe_duration: 2000.0 # in ns
 bunch_crossing_period: 10.0 # in ns
 introduce_offsets: true
 sources:
@@ -9,7 +9,7 @@ sources:
     input_files:
       - input3.edm4hep.root    
     static_number_of_events: true
-    static_events_per_timeslice: 1
+    static_events_per_timeframe: 1
     use_bunch_crossing: true
     generator_status_offset: 0
   - name: minbias

@@ -1,21 +1,21 @@
-#include "TimesliceMerger.h"
+#include "TimeframeBuilder.h"
 
 #include <iostream>
 #include <stdexcept>
 
-TimesliceMerger::TimesliceMerger(const MergerConfig& config)
+TimeframeBuilder::TimeframeBuilder(const MergerConfig& config)
     : m_config(config), gen(rd()) {}
 
-void TimesliceMerger::setDataHandler(std::unique_ptr<DataHandler> handler) {
+void TimeframeBuilder::setDataHandler(std::unique_ptr<DataHandler> handler) {
     data_handler_ = std::move(handler);
 }
 
-void TimesliceMerger::run() {
-    std::cout << "Starting timeslice merger..." << std::endl;
+void TimeframeBuilder::run() {
+    std::cout << "Starting timeframe builder..." << std::endl;
     std::cout << "Sources: " << m_config.sources.size() << std::endl;
     std::cout << "Output file: " << m_config.output_file << std::endl;
     std::cout << "Max events: " << m_config.max_events << std::endl;
-    std::cout << "Timeslice duration: " << m_config.time_slice_duration << std::endl;
+    std::cout << "Timeframe duration: " << m_config.timeframe_duration << std::endl;
 
     if (!data_handler_) {
         throw std::runtime_error("No data handler set - call setDataHandler() before run()");
@@ -25,54 +25,54 @@ void TimesliceMerger::run() {
     // The data handler creates appropriate data sources for its format
     data_sources_ = data_handler_->initializeDataSources(m_config.output_file, m_config.sources);
 
-    std::cout << "Processing " << m_config.max_events << " timeslices..." << std::endl;
+    std::cout << "Processing " << m_config.max_events << " timeframes..." << std::endl;
 
     size_t events_generated = 0;
     for (; events_generated < m_config.max_events; ++events_generated) {
         // Update number of events needed per source
         if (!updateInputNEvents(data_sources_)) {
             std::cout << "Reached end of input data, stopping at " << events_generated
-                      << " timeslices" << std::endl;
+                      << " timeframes" << std::endl;
             break;
         }
 
-        // Prepare for new timeslice
-        data_handler_->prepareTimeslice();
+        // Prepare for new timeframe
+        data_handler_->prepareTimeframe();
 
         // Merge events from all sources
         data_handler_->mergeEvents(
-            data_sources_, events_generated, m_config.time_slice_duration,
+            data_sources_, events_generated, m_config.timeframe_duration,
             m_config.bunch_crossing_period, gen);
 
-        // Write the timeslice
-        data_handler_->writeTimeslice();
+        // Write the timeframe
+        data_handler_->writeTimeframe();
 
         if (events_generated % 10 == 0) {
-            std::cout << "Processed " << events_generated << " timeslices..." << std::endl;
+            std::cout << "Processed " << events_generated << " timeframes..." << std::endl;
         }
     }
 
     // Finalize output
     data_handler_->finalize();
 
-    std::cout << "Merging complete. Total timeslices processed: " << events_generated << std::endl;
+    std::cout << "Merging complete. Total timeframes processed: " << events_generated << std::endl;
     std::cout << "Output saved to: " << m_config.output_file << std::endl;
 }
 
-bool TimesliceMerger::updateInputNEvents(std::vector<std::unique_ptr<DataSource>>& sources) {
+bool TimeframeBuilder::updateInputNEvents(std::vector<std::unique_ptr<DataSource>>& sources) {
     for (auto& data_source : sources) {
         const auto& config = data_source->getConfig();
 
         // Generate new number of events needed for this source
         if (config.already_merged) {
-            // Already merged sources should only contribute 1 event (which is already a full timeslice)
+            // Already merged sources should only contribute 1 event (which is already a full timeframe)
             data_source->setEntriesNeeded(1);
         } else if (config.static_number_of_events) {
-            data_source->setEntriesNeeded(config.static_events_per_timeslice);
+            data_source->setEntriesNeeded(config.static_events_per_timeframe);
         } else {
             // Use Poisson for this source
             float mean_freq = config.mean_event_frequency;
-            std::poisson_distribution<> poisson_dist(m_config.time_slice_duration * mean_freq);
+            std::poisson_distribution<> poisson_dist(m_config.timeframe_duration * mean_freq);
             size_t n = poisson_dist(gen);
             data_source->setEntriesNeeded(n);
         }
