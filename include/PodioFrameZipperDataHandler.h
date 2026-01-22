@@ -114,13 +114,6 @@ private:
     // Helper methods
     void openReaders(const std::vector<SourceConfig>& source_configs);
     void discoverCollections();
-    void mergeCollectionFromFrame(const podio::Frame& frame, 
-                                   const std::string& collection_name,
-                                   size_t mcparticle_offset);
-    void applyTimeOffset(edm4hep::MCParticle& particle, float time_offset);
-    void applyTimeOffset(edm4hep::SimTrackerHit& hit, float time_offset);
-    void applyTimeOffset(edm4hep::SimCalorimeterHit& hit, float time_offset);
-    void offsetObjectID(podio::ObjectID& obj_id, size_t offset);
     
     // Generic parameter merging
     void mergeGenericParameters(const podio::Frame& frame);

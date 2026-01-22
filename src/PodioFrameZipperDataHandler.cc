@@ -437,11 +437,14 @@ void PodioFrameZipperDataHandler::processEvent(DataSource& source) {
 }
 
 void PodioFrameZipperDataHandler::mergeGenericParameters(const podio::Frame& frame) {
-    // Get all parameter keys from the frame
-    auto int_keys = frame.getAvailableCollections();  // Simplified - in reality would need proper GP API
-    
-    // For now, skip GP merging as it requires deeper knowledge of podio's GP API
-    // This would be implemented similar to EDM4hepDataHandler's GP handling
+    // Generic parameters in podio are stored as frame parameters
+    // This would use podio's Frame parameter API to merge GP values
+    // For now, this is a simplified implementation - full GP handling would require:
+    // 1. Getting all parameter keys from the frame using frame.getAvailableCollections() or similar
+    // 2. Extracting parameters by type (int, float, double, string)
+    // 3. Merging them into merged_data_.gp_*_params maps
+    // 4. Writing them back in writeTimeslice() using output_frame.putParameter()
+    // This follows the pattern in EDM4hepDataHandler's GP handling
 }
 
 void PodioFrameZipperDataHandler::writeTimeslice() {
