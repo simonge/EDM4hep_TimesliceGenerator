@@ -178,12 +178,20 @@ jobs:
       uses: actions/download-artifact@v4
       with:
         name: edm4hep-merged
+    - name: Verify file exists
+      run: |
+        pwd
+        ls -lh
+        ls -lh merged_ci_18x275.edm4hep.root
+        file merged_ci_18x275.edm4hep.root
     - name: Run eicrecon on EDM4hep merged events
       uses: eic/run-cvmfs-osg-eic-shell@main
       with:
         platform-release: "eic_xl:nightly"
         run: |
           source /opt/detector/epic-main/bin/thisepic.sh
+          # Verify file exists
+          ls -lh merged_ci_18x275.edm4hep.root
           # Run eicrecon directly on merged EDM4hep events
           eicrecon -Pplugins=dump_flags merged_ci_18x275.edm4hep.root -Pjana:loglevel=info
           
