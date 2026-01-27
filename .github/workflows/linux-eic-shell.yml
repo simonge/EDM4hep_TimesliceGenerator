@@ -37,7 +37,7 @@ jobs:
   build:
     runs-on: ubuntu-24.04
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
     - uses: cvmfs-contrib/github-action-cvmfs@v5
     - name: Build and install
       uses: eic/run-cvmfs-osg-eic-shell@main
@@ -47,7 +47,7 @@ jobs:
           # Build the project
           ./make.sh
     - name: Upload build artifacts
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v6
       with:
         name: timeframe-builder-binaries
         path: |
@@ -59,10 +59,10 @@ jobs:
     needs: build
     runs-on: ubuntu-24.04
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
     - uses: cvmfs-contrib/github-action-cvmfs@v5
     - name: Download build artifacts
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v7
       with:
         name: timeframe-builder-binaries
     - name: Fix binary permissions
@@ -85,7 +85,7 @@ jobs:
           
           ls -lh merged_ci_18x275.edm4hep.root
     - name: Upload EDM4hep merger output
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v6
       with:
         name: edm4hep-merged
         path: merged_ci_18x275.edm4hep.root
@@ -95,10 +95,10 @@ jobs:
     needs: build
     runs-on: ubuntu-24.04
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
     - uses: cvmfs-contrib/github-action-cvmfs@v5
     - name: Download build artifacts
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v7
       with:
         name: timeframe-builder-binaries
     - name: Fix binary permissions
@@ -121,7 +121,7 @@ jobs:
           
           ls -lh merged_ci_18x275.hepmc3.tree.root
     - name: Upload HepMC3 merger output
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v6
       with:
         name: hepmc3-merged
         path: merged_ci_18x275.hepmc3.tree.root
@@ -131,14 +131,14 @@ jobs:
     needs: test-hepmc3
     runs-on: ubuntu-24.04
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
     - uses: cvmfs-contrib/github-action-cvmfs@v5
     - name: Download build binaries
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v7
       with:
         name: timeframe-builder-binaries
     - name: Download HepMC3 events
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v7
       with:
         name: hepmc3-merged
     - name: Run EPIC simulation on HepMC3 output
@@ -155,7 +155,7 @@ jobs:
           
           ls -lh sim_ci_18x275.edm4hep.root
     - name: Upload simulated events
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v6
       with:
         name: epic-simulated
         path: sim_ci_18x275.edm4hep.root
@@ -165,14 +165,10 @@ jobs:
     needs: epic-simulation
     runs-on: ubuntu-24.04
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
     - uses: cvmfs-contrib/github-action-cvmfs@v5
-    - name: Download build binaries
-      uses: actions/download-artifact@v4
-      with:
-        name: timeframe-builder-binaries
     - name: Download EPIC simulated events
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v7
       with:
         name: epic-simulated
     - name: Run eicrecon on simulated events
@@ -185,19 +181,21 @@ jobs:
           eicrecon -Pplugins=dump_flags sim_ci_18x275.edm4hep.root -Pjana:loglevel=info -Ppodio:output_file=recon_ci_18x275_from_epic.edm4hep.root
           
           ls -lh recon_ci_18x275_from_epic.edm4hep.root 2>/dev/null || echo "Warning: eicrecon output not found"
+    - name: Upload reconstructed events
+      uses: actions/upload-artifact@v6
+      with:
+        name: epic-reconstructed
+        path: recon_ci_18x275_from_epic.edm4hep.root
+        retention-days: 1
 
   eicrecon-from-edm4hep:
     needs: test-edm4hep
     runs-on: ubuntu-24.04
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
     - uses: cvmfs-contrib/github-action-cvmfs@v5
-    - name: Download build binaries
-      uses: actions/download-artifact@v4
-      with:
-        name: timeframe-builder-binaries
     - name: Download EDM4hep merged events
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v7
       with:
         name: edm4hep-merged
     - name: Verify file exists
@@ -218,3 +216,37 @@ jobs:
           eicrecon -Pplugins=dump_flags merged_ci_18x275.edm4hep.root -Pjana:loglevel=info -Ppodio:output_file=recon_ci_18x275_from_edm4hep.edm4hep.root
           
           ls -lh recon_ci_18x275_from_edm4hep.edm4hep.root 2>/dev/null || echo "Warning: eicrecon output not found"
+    - name: Upload reconstructed events
+      uses: actions/upload-artifact@v6
+      with:
+        name: edm4hep-reconstructed
+        path: recon_ci_18x275_from_edm4hep.edm4hep.root
+        retention-days: 1
+
+  capybara-report:
+    runs-on: ubuntu-24.04
+    needs: 
+      - eicrecon-from-edm4hep
+      - eicrecon-from-epic
+    steps:
+    - name: Download epic eicrecon outputs
+      uses: actions/download-artifact@v7
+      with:
+        name: epic-reconstructed
+    - name: Download edm4hep eicrecon outputs
+      uses: actions/download-artifact@v7
+      with:
+        name: edm4hep-reconstructed
+    - name: Generate Capybara report
+      uses: eic/run-cvmfs-osg-eic-shell@main
+      with:
+        platform-release: "eic_xl:nightly"
+        run: |
+          mkdir capybara-reports
+          capybara bara recon_ci_18x275_from_epic.edm4hep.root recon_ci_18x275_from_edm4hep.edm4hep.root
+    - name: Upload Capybara report
+      uses: actions/upload-artifact@v6
+      with:
+        name: capybara-report
+        path: capybara-reports
+        retention-days: 1
