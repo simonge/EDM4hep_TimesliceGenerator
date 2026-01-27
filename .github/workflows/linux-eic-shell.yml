@@ -57,9 +57,12 @@ jobs:
           ./install/bin/timeframe_builder --config configs/config_ci.yml \
             --output merged_ci_18x275.edm4hep.root \
             --source:signal:input_files root://dtn-eic.jlab.org//volatile/eic/EPIC/FULL/25.12.0/epic_craterlake/DIS/NC/18x275/minQ2=1000/pythia8NCDIS_18x275_minQ2=1000_beamEffects_xAngle=-0.025_hiDiv_1.0074.edm4hep.root \
+            --source:minbias:input_files root://dtn-eic.jlab.org//volatile/eic/EPIC/FULL/25.12.0/epic_craterlake/DIS/NC/18x275/minQ2=1/pythia8NCDIS_18x275_minQ2=1_beamEffects_xAngle=-0.025_hiDiv_1.0074.edm4hep.root \
             --source:hadron_beamgas:input_files root://dtn-eic.jlab.org//volatile/eic/EPIC/FULL/25.12.0/epic_craterlake/BACKGROUNDS/BEAMGAS/proton/pythia8.306-1.0/275GeV/pythia8.306-1.0_ProtonBeamGas_275GeV_run001.0000.edm4hep.root \
+            --source:electron_beamgas_bremsstrahlung:input_files root://dtn-eic.jlab.org//volatile/eic/EPIC/FULL/25.12.0/epic_craterlake/BACKGROUNDS/BEAMGAS/electron/GETaLM1.0.0-1.1/18GeV/GETaLM1.0.0-1.1_ElectronBeamGas_18GeV_emin10keV_run001.0000.edm4hep.root \
             --source:electron_beamgas_coulomb:input_files root://dtn-eic.jlab.org//volatile/eic/EPIC/FULL/25.12.0/epic_craterlake/BACKGROUNDS/BEAMGAS/electron/coulomb/EIC_ESR_Xsuite/dataprod_rel_1.0.1/18x275/10000Ahr/MachineRuntime50s/dataprod_rel_1.0.1_electron_coulomb_18x275_10000Ahr.0000.edm4hep.root \
-            --source:electron_beamgas_touschek:input_files root://dtn-eic.jlab.org//volatile/eic/EPIC/FULL/25.12.0/epic_craterlake/BACKGROUNDS/BEAMGAS/electron/touschek/EIC_ESR_Xsuite/dataprod_rel_1.0.1/18x275/10000Ahr/MachineRuntime50s/dataprod_rel_1.0.1_electron_touschek_18x275_10000Ahr.0000.edm4hep.root
+            --source:electron_beamgas_touschek:input_files root://dtn-eic.jlab.org//volatile/eic/EPIC/FULL/25.12.0/epic_craterlake/BACKGROUNDS/BEAMGAS/electron/touschek/EIC_ESR_Xsuite/dataprod_rel_1.0.1/18x275/10000Ahr/MachineRuntime50s/dataprod_rel_1.0.1_electron_touschek_18x275_10000Ahr.0000.edm4hep.root \
+            --source:electron_synchrotron:input_files root://dtn-eic.jlab.org//volatile/eic/EPIC/FULL/25.12.0/epic_craterlake/BACKGROUNDS/SYNRAD/dataprod_rel_1.0.0/18x275/dataprod_rel_1.0.0_synrad_18x275_run001.preproc_10000repeats.0000.edm4hep.root,root://dtn-eic.jlab.org//volatile/eic/EPIC/FULL/25.12.0/epic_craterlake/BACKGROUNDS/SYNRAD/dataprod_rel_1.0.0/18x275/dataprod_rel_1.0.0_synrad_18x275_run001.preproc_10000repeats.0001.edm4hep.root,root://dtn-eic.jlab.org//volatile/eic/EPIC/FULL/25.12.0/epic_craterlake/BACKGROUNDS/SYNRAD/dataprod_rel_1.0.0/18x275/dataprod_rel_1.0.0_synrad_18x275_run001.preproc_10000repeats.0002.edm4hep.root
           
           ls -lh merged_ci_18x275.edm4hep.root
     - name: Upload EDM4hep merger output
