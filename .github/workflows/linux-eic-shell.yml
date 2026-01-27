@@ -83,6 +83,8 @@ jobs:
             events: 100000
             output: epic_sim_ci_electron_synchrotron.edm4hep.root
     steps:
+    - uses: actions/checkout@v4
+    - uses: cvmfs-contrib/github-action-cvmfs@v5
     - name: Run EPIC simulation on separate HepMC3 samples
       uses: eic/run-cvmfs-osg-eic-shell@main
       with:
