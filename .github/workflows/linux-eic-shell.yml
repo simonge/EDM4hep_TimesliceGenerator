@@ -61,25 +61,25 @@ jobs:
     strategy:
       matrix:
         include:
-          - sample: ${{env.XROOTD_SERVER}}${{env.HEPMC3_PATH}}${{env.HEPMC3_SIGNAL_PATH}}
+          - file_env: HEPMC3_SIGNAL_PATH
             events: 10
             output: epic_sim_ci_signal.edm4hep.root
-          - sample: ${{env.XROOTD_SERVER}}${{env.HEPMC3_PATH}}${{env.HEPMC3_MINBIAS_PATH}}
+          - file_env: HEPMC3_MINBIAS_PATH
             events: 10
             output: epic_sim_ci_minbias.edm4hep.root#
-          - sample: ${{env.XROOTD_SERVER}}${{env.HEPMC3_PATH}}${{env.HEPMC3_HADRON_BEAMGAS_PATH}}
+          - file_env: HEPMC3_HADRON_BEAMGAS_PATH
             events: 10
             output: epic_sim_ci_hadron_beamgas.edm4hep.root
-          - sample: ${{env.XROOTD_SERVER}}${{env.HEPMC3_PATH}}${{env.HEPMC3_ELECTRON_BEAMGAS_BREMS_PATH}}
+          - file_env: HEPMC3_ELECTRON_BEAMGAS_BREMS_PATH
             events: 10
             output: epic_sim_ci_electron_beamgas_brems.edm4hep.root
-          - sample: ${{env.XROOTD_SERVER}}${{env.HEPMC3_PATH}}${{env.HEPMC3_ELECTRON_BEAMGAS_COULOMB_PATH}}
+          - file_env: HEPMC3_ELECTRON_BEAMGAS_COULOMB_PATH
             events: 10
             output: epic_sim_ci_electron_beamgas_coulomb.edm4hep.root
-          - sample: ${{env.XROOTD_SERVER}}${{env.HEPMC3_PATH}}${{env.HEPMC3_ELECTRON_BEAMGAS_TOUSCHEK_PATH}}
+          - file_env: HEPMC3_ELECTRON_BEAMGAS_TOUSCHEK_PATH
             events: 10
             output: epic_sim_ci_electron_beamgas_touschek.edm4hep.root
-          - sample: ${{env.XROOTD_SERVER}}${{env.HEPMC3_PATH}}${{env.HEPMC3_ELECTRON_SYNCHROTRON_PATH}}
+          - file_env: HEPMC3_ELECTRON_SYNCHROTRON_PATH
             events: 100000
             output: epic_sim_ci_electron_synchrotron.edm4hep.root
     steps:
@@ -91,7 +91,7 @@ jobs:
           source /opt/detector/epic-main/bin/thisepic.sh
           # Run npsim on the separate HepMC3 samples
           npsim --compactFile $DETECTOR_PATH/epic_craterlake.xml \
-                --inputFiles ${{ matrix.sample }} \
+                --inputFiles ${{env.XROOTD_SERVER}}${{env.HEPMC3_PATH}}${{ matrix.file_env }} \
                 --outputFile ${{ matrix.output }} \
                 --numberOfEvents ${{ matrix.events }}
           
