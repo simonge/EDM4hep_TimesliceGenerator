@@ -14,6 +14,25 @@ concurrency:
 permissions:
   contents: read
 
+env:
+  XROOTD_SERVER: root://dtn-eic.jlab.org/
+  HEPMC3_PATH: /volatile/eic/EPIC/EVGEN/
+  EDM4HEP_PATH: /volatile/eic/EPIC/FULL/25.12.0/epic_craterlake/
+  HEPMC3_SIGNAL_PATH: DIS/NC/18x275/minQ2=1000/pythia8NCDIS_18x275_minQ2=1000_beamEffects_xAngle=-0.025_hiDiv_1.hepmc3.tree.root
+  HEPMC3_MINBIAS_PATH: SIDIS/pythia6-eic/1.0.0/18x275/q2_0to1/pythia_ep_noradcor_18x275_q2_0.000000001_1.0_run1.ab.hepmc3.tree.root
+  HEPMC3_HADRON_BEAMGAS_PATH: BACKGROUNDS/BEAMGAS/proton/pythia8.306-1.0/275GeV/pythia8.306-1.0_ProtonBeamGas_275GeV_run001.hepmc3.tree.root
+  HEPMC3_ELECTRON_BEAMGAS_BREMS_PATH: BACKGROUNDS/BEAMGAS/electron/brems/EIC_ESR_Xsuite/dataprod_rel_1.0.1/18x275/10000Ahr/MachineRuntime50s/dataprod_rel_1.0.1_electron_brems_18x275_10000Ahr.hepmc3.tree.root
+  HEPMC3_ELECTRON_BEAMGAS_COULOMB_PATH: BACKGROUNDS/BEAMGAS/electron/coulomb/EIC_ESR_Xsuite/dataprod_rel_1.0.1/18x275/10000Ahr/MachineRuntime50s/dataprod_rel_1.0.1_electron_coulomb_18x275_10000Ahr.hepmc3.tree.root
+  HEPMC3_ELECTRON_BEAMGAS_TOUSCHEK_PATH: BACKGROUNDS/BEAMGAS/electron/touschek/EIC_ESR_Xsuite/dataprod_rel_1.0.1/18x275/10000Ahr/MachineRuntime50s/dataprod_rel_1.0.1_electron_touschek_18x275_10000Ahr.hepmc3.tree.root
+  HEPMC3_ELECTRON_SYNCHROTRON_PATH: BACKGROUNDS/SYNRAD/dataprod_rel_1.0.0/18x275/dataprod_rel_1.0.0_synrad_18x275_run001.hepmc3.tree.root
+  EDM4HEP_SIGNAL_PATH: DIS/NC/18x275/minQ2=1000/pythia8NCDIS_18x275_minQ2=1000_beamEffects_xAngle=-0.025_hiDiv_1.0074.edm4hep.root
+  EDM4HEP_MINBIAS_PATH: DIS/NC/18x275/minQ2=1/pythia8NCDIS_18x275_minQ2=1_beamEffects_xAngle=-0.025_hiDiv_1.0074.edm4hep.root
+  EDM4HEP_HADRON_BEAMGAS_PATH: BACKGROUNDS/BEAMGAS/proton/pythia8.306-1.0/275GeV/pythia8.306-1.0_ProtonBeamGas_275GeV_run001.0000.edm4hep.root
+  EDM4HEP_ELECTRON_BEAMGAS_BREMS_PATH: BACKGROUNDS/BEAMGAS/electron/GETaLM1.0.0-1.1/18GeV/GETaLM1.0.0-1.1_ElectronBeamGas_18GeV_emin10keV_run001.0000.edm4hep.root
+  EDM4HEP_ELECTRON_BEAMGAS_COULOMB_PATH: BACKGROUNDS/BEAMGAS/electron/coulomb/EIC_ESR_Xsuite/dataprod_rel_1.0.1/18x275/10000Ahr/MachineRuntime50s/dataprod_rel_1.0.1_electron_coulomb_18x275_10000Ahr.0000.edm4hep.root
+  EDM4HEP_ELECTRON_BEAMGAS_TOUSCHEK_PATH: BACKGROUNDS/BEAMGAS/electron/touschek/EIC_ESR_Xsuite/dataprod_rel_1.0.1/18x275/10000Ahr/MachineRuntime50s/dataprod_rel_1.0.1_electron_touschek_18x275_10000Ahr.0000.edm4hep.root
+  EDM4HEP_ELECTRON_SYNCHROTRON_PATH: BACKGROUNDS/SYNRAD/dataprod_rel_1.0.0/18x275/dataprod_rel_1.0.0_synrad_18x275_run001.preproc_10000repeats.0000.edm4hep.root,BACKGROUNDS/SYNRAD/dataprod_rel_1.0.0/18x275/dataprod_rel_1.0.0_synrad_18x275_run001.preproc_10000repeats.0001.edm4hep.root,BACKGROUNDS/SYNRAD/dataprod_rel_1.0.0/18x275/dataprod_rel_1.0.0_synrad_18x275_run001.preproc_10000repeats.0002.edm4hep.root,BACKGROUNDS/SYNRAD/dataprod_rel_1.0.0/18x275/dataprod_rel_1.0.0_synrad_18x275_run001.preproc_10000repeats.0003.edm4hep.root,BACKGROUNDS/SYNRAD/dataprod_rel_1.0.0/18x275/dataprod_rel_1.0.0_synrad_18x275_run001.preproc_10000repeats.0004.edm4hep.root,BACKGROUNDS/SYNRAD/dataprod_rel_1.0.0/18x275/dataprod_rel_1.0.0_synrad_18x275_run001.preproc_10000repeats.0005.edm4hep.root,BACKGROUNDS/SYNRAD/dataprod_rel_1.0.0/18x275/dataprod_rel_1.0.0_synrad_18x275_run001.preproc_10000repeats.0006.edm4hep.root,BACKGROUNDS/SYNRAD/dataprod_rel_1.0.0/18x275/dataprod_rel_1.0.0_synrad_18x275_run001.preproc_10000repeats.0007.edm4hep.root,BACKGROUNDS/SYNRAD/dataprod_rel_1.0.0/18x275/dataprod_rel_1.0.0_synrad_18x275_run001.preproc_10000repeats.0008.edm4hep.root
+
 jobs:
   build:
     runs-on: ubuntu-24.04
@@ -56,10 +75,13 @@ jobs:
           # EDM4hep smoke test using built binary
           ./install/bin/timeframe_builder --config configs/config_ci.yml \
             --output merged_ci_18x275.edm4hep.root \
-            --source:signal:input_files root://dtn-eic.jlab.org//volatile/eic/EPIC/FULL/25.12.0/epic_craterlake/DIS/NC/18x275/minQ2=1000/pythia8NCDIS_18x275_minQ2=1000_beamEffects_xAngle=-0.025_hiDiv_1.0074.edm4hep.root \
-            --source:hadron_beamgas:input_files root://dtn-eic.jlab.org//volatile/eic/EPIC/FULL/25.12.0/epic_craterlake/BACKGROUNDS/BEAMGAS/proton/pythia8.306-1.0/275GeV/pythia8.306-1.0_ProtonBeamGas_275GeV_run001.0000.edm4hep.root \
-            --source:electron_beamgas_coulomb:input_files root://dtn-eic.jlab.org//volatile/eic/EPIC/FULL/25.12.0/epic_craterlake/BACKGROUNDS/BEAMGAS/electron/coulomb/EIC_ESR_Xsuite/dataprod_rel_1.0.1/18x275/10000Ahr/MachineRuntime50s/dataprod_rel_1.0.1_electron_coulomb_18x275_10000Ahr.0000.edm4hep.root \
-            --source:electron_beamgas_touschek:input_files root://dtn-eic.jlab.org//volatile/eic/EPIC/FULL/25.12.0/epic_craterlake/BACKGROUNDS/BEAMGAS/electron/touschek/EIC_ESR_Xsuite/dataprod_rel_1.0.1/18x275/10000Ahr/MachineRuntime50s/dataprod_rel_1.0.1_electron_touschek_18x275_10000Ahr.0000.edm4hep.root
+            --source:signal:input_files ${{env.XROOTD_SERVER}}${{env.EDM4HEP_PATH}}${{env.EDM4HEP_SIGNAL_PATH}} \
+            --source:minbias:input_files ${{env.XROOTD_SERVER}}${{env.EDM4HEP_PATH}}${{env.EDM4HEP_MINBIAS_PATH}} \
+            --source:hadron_beamgas:input_files ${{env.XROOTD_SERVER}}${{env.EDM4HEP_PATH}}${{env.EDM4HEP_HADRON_BEAMGAS_PATH}} \
+            --source:electron_beamgas_bremsstrahlung:input_files ${{env.XROOTD_SERVER}}${{env.EDM4HEP_PATH}}${{env.EDM4HEP_ELECTRON_BEAMGAS_BREMS_PATH}} \
+            --source:electron_beamgas_coulomb:input_files ${{env.XROOTD_SERVER}}${{env.EDM4HEP_PATH}}${{env.EDM4HEP_ELECTRON_BEAMGAS_COULOMB_PATH}} \
+            --source:electron_beamgas_touschek:input_files ${{env.XROOTD_SERVER}}${{env.EDM4HEP_PATH}}${{env.EDM4HEP_ELECTRON_BEAMGAS_TOUSCHEK_PATH}} \
+            --source:electron_synchrotron:input_files ${{env.XROOTD_SERVER}}${{env.EDM4HEP_PATH}}${{env.EDM4HEP_ELECTRON_SYNCHROTRON_PATH}}
           
           ls -lh merged_ci_18x275.edm4hep.root
     - name: Upload EDM4hep merger output
@@ -89,13 +111,13 @@ jobs:
           # HepMC3 smoke test using built binary
           ./install/bin/timeframe_builder --config configs/config_ci.yml \
             --output merged_ci_18x275.hepmc3.tree.root \
-            --source:signal:input_files root://dtn-eic.jlab.org//volatile/eic/EPIC/EVGEN/DIS/NC/18x275/minQ2=1000/pythia8NCDIS_18x275_minQ2=1000_beamEffects_xAngle=-0.025_hiDiv_1.hepmc3.tree.root \
-            --source:minbias:input_files root://dtn-eic.jlab.org//volatile/eic/EPIC/EVGEN/SIDIS/pythia6-eic/1.0.0/18x275/q2_0to1/pythia_ep_noradcor_18x275_q2_0.000000001_1.0_run1.ab.hepmc3.tree.root \
-            --source:hadron_beamgas:input_files root://dtn-eic.jlab.org//volatile/eic/EPIC/EVGEN/BACKGROUNDS/BEAMGAS/proton/pythia8.306-1.0/275GeV/pythia8.306-1.0_ProtonBeamGas_275GeV_run001.hepmc3.tree.root \
-            --source:electron_beamgas_bremsstrahlung:input_files root://dtn-eic.jlab.org//volatile/eic/EPIC/EVGEN/BACKGROUNDS/BEAMGAS/electron/brems/EIC_ESR_Xsuite/dataprod_rel_1.0.1/18x275/10000Ahr/MachineRuntime50s/dataprod_rel_1.0.1_electron_brems_18x275_10000Ahr.hepmc3.tree.root \
-            --source:electron_beamgas_coulomb:input_files root://dtn-eic.jlab.org//volatile/eic/EPIC/EVGEN/BACKGROUNDS/BEAMGAS/electron/coulomb/EIC_ESR_Xsuite/dataprod_rel_1.0.1/18x275/10000Ahr/MachineRuntime50s/dataprod_rel_1.0.1_electron_coulomb_18x275_10000Ahr.hepmc3.tree.root \
-            --source:electron_beamgas_touschek:input_files root://dtn-eic.jlab.org//volatile/eic/EPIC/EVGEN/BACKGROUNDS/BEAMGAS/electron/touschek/EIC_ESR_Xsuite/dataprod_rel_1.0.1/18x275/10000Ahr/MachineRuntime50s/dataprod_rel_1.0.1_electron_touschek_18x275_10000Ahr.hepmc3.tree.root \
-            --source:electron_synchrotron:input_files root://dtn-eic.jlab.org//volatile/eic/EPIC/EVGEN/BACKGROUNDS/SYNRAD/dataprod_rel_1.0.0/18x275/dataprod_rel_1.0.0_synrad_18x275_run001.hepmc3.tree.root
+            --source:signal:input_files ${{env.XROOTD_SERVER}}${{env.HEPMC3_PATH}}${{env.HEPMC3_SIGNAL_PATH}} \
+            --source:minbias:input_files ${{env.XROOTD_SERVER}}${{env.HEPMC3_PATH}}${{env.HEPMC3_MINBIAS_PATH}} \
+            --source:hadron_beamgas:input_files ${{env.XROOTD_SERVER}}${{env.HEPMC3_PATH}}${{env.HEPMC3_HADRON_BEAMGAS_PATH}} \
+            --source:electron_beamgas_bremsstrahlung:input_files ${{env.XROOTD_SERVER}}${{env.HEPMC3_PATH}}${{env.HEPMC3_ELECTRON_BEAMGAS_BREMS_PATH}} \
+            --source:electron_beamgas_coulomb:input_files ${{env.XROOTD_SERVER}}${{env.HEPMC3_PATH}}${{env.HEPMC3_ELECTRON_BEAMGAS_COULOMB_PATH}} \
+            --source:electron_beamgas_touschek:input_files ${{env.XROOTD_SERVER}}${{env.HEPMC3_PATH}}${{env.HEPMC3_ELECTRON_BEAMGAS_TOUSCHEK_PATH}} \
+            --source:electron_synchrotron:input_files ${{env.XROOTD_SERVER}}${{env.HEPMC3_PATH}}${{env.HEPMC3_ELECTRON_SYNCHROTRON_PATH}}
           
           ls -lh merged_ci_18x275.hepmc3.tree.root
     - name: Upload HepMC3 merger output
