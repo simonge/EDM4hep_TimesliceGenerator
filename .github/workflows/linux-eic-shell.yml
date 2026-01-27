@@ -84,6 +84,7 @@ jobs:
         run: |
           source /opt/detector/epic-main/bin/thisepic.sh
           # Run npsim on the separate HepMC3 samples
+          export file_env="${{ matrix.file_env }}"
           npsim --compactFile $DETECTOR_PATH/epic_craterlake.xml \
                 --inputFiles "${XROOTD_SERVER}${HEPMC3_PATH}${!file_env}" \
                 --outputFile ${{ matrix.output }} \
