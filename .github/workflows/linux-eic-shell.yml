@@ -55,8 +55,56 @@ jobs:
           configs/
         retention-days: 1
 
-  test-edm4hep:
+  separate-epic-simulation:
     needs: build
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        include:
+          - sample: ${{env.XROOTD_SERVER}}${{env.HEPMC3_PATH}}${{env.HEPMC3_SIGNAL_PATH}}
+            events: 10
+            output: epic_sim_ci_signal.edm4hep.root
+          - sample: ${{env.XROOTD_SERVER}}${{env.HEPMC3_PATH}}${{env.HEPMC3_MINBIAS_PATH}}
+            events: 10
+            output: epic_sim_ci_minbias.edm4hep.root#
+          - sample: ${{env.XROOTD_SERVER}}${{env.HEPMC3_PATH}}${{env.HEPMC3_HADRON_BEAMGAS_PATH}}
+            events: 10
+            output: epic_sim_ci_hadron_beamgas.edm4hep.root
+          - sample: ${{env.XROOTD_SERVER}}${{env.HEPMC3_PATH}}${{env.HEPMC3_ELECTRON_BEAMGAS_BREMS_PATH}}
+            events: 10
+            output: epic_sim_ci_electron_beamgas_brems.edm4hep.root
+          - sample: ${{env.XROOTD_SERVER}}${{env.HEPMC3_PATH}}${{env.HEPMC3_ELECTRON_BEAMGAS_COULOMB_PATH}}
+            events: 10
+            output: epic_sim_ci_electron_beamgas_coulomb.edm4hep.root
+          - sample: ${{env.XROOTD_SERVER}}${{env.HEPMC3_PATH}}${{env.HEPMC3_ELECTRON_BEAMGAS_TOUSCHEK_PATH}}
+            events: 10
+            output: epic_sim_ci_electron_beamgas_touschek.edm4hep.root
+          - sample: ${{env.XROOTD_SERVER}}${{env.HEPMC3_PATH}}${{env.HEPMC3_ELECTRON_SYNCHROTRON_PATH}}
+            events: 100000
+            output: epic_sim_ci_electron_synchrotron.edm4hep.root
+    steps:
+    - name: Run EPIC simulation on separate HepMC3 samples
+      uses: eic/run-cvmfs-osg-eic-shell@main
+      with:
+        platform-release: "eic_xl:nightly"
+        run: |
+          source /opt/detector/epic-main/bin/thisepic.sh
+          # Run npsim on the separate HepMC3 samples
+          npsim --compactFile $DETECTOR_PATH/epic_craterlake.xml \
+                --inputFiles ${{ matrix.sample }} \
+                --outputFile ${{ matrix.output }} \
+                --numberOfEvents ${{ matrix.events }}
+          
+          ls -lh ${{ matrix.output }}
+    - name: Upload separate EPIC simulation outputs
+      uses: actions/upload-artifact@v4
+      with:
+        name: epic-simulated-separate
+        path: epic_sim_ci_*.edm4hep.root
+        retention-days: 1
+
+  test-edm4hep:
+    needs: separate-epic-simulation
     runs-on: ubuntu-24.04
     steps:
     - uses: actions/checkout@v4
@@ -67,6 +115,10 @@ jobs:
         name: timeframe-builder-binaries
     - name: Fix binary permissions
       run: chmod +x install/bin/timeframe_builder
+    - name: Download separate EPIC simulation outputs
+      uses: actions/download-artifact@v4
+      with:
+        name: epic-simulated-separate
     - name: EDM4hep merging from XRootD
       uses: eic/run-cvmfs-osg-eic-shell@main
       with:
@@ -75,13 +127,13 @@ jobs:
           # EDM4hep smoke test using built binary
           ./install/bin/timeframe_builder --config configs/config_ci.yml \
             --output merged_ci_18x275.edm4hep.root \
-            --source:signal:input_files ${{env.XROOTD_SERVER}}${{env.EDM4HEP_PATH}}${{env.EDM4HEP_SIGNAL_PATH}} \
-            --source:minbias:input_files ${{env.XROOTD_SERVER}}${{env.EDM4HEP_PATH}}${{env.EDM4HEP_MINBIAS_PATH}} \
-            --source:hadron_beamgas:input_files ${{env.XROOTD_SERVER}}${{env.EDM4HEP_PATH}}${{env.EDM4HEP_HADRON_BEAMGAS_PATH}} \
-            --source:electron_beamgas_bremsstrahlung:input_files ${{env.XROOTD_SERVER}}${{env.EDM4HEP_PATH}}${{env.EDM4HEP_ELECTRON_BEAMGAS_BREMS_PATH}} \
-            --source:electron_beamgas_coulomb:input_files ${{env.XROOTD_SERVER}}${{env.EDM4HEP_PATH}}${{env.EDM4HEP_ELECTRON_BEAMGAS_COULOMB_PATH}} \
-            --source:electron_beamgas_touschek:input_files ${{env.XROOTD_SERVER}}${{env.EDM4HEP_PATH}}${{env.EDM4HEP_ELECTRON_BEAMGAS_TOUSCHEK_PATH}} \
-            --source:electron_synchrotron:input_files ${{env.XROOTD_SERVER}}${{env.EDM4HEP_PATH}}${{env.EDM4HEP_ELECTRON_SYNCHROTRON_PATH}}
+            --source:signal:input_files epic_sim_ci_signal.edm4hep.root \
+            --source:minbias:input_files epic_sim_ci_minbias.edm4hep.root \
+            --source:hadron_beamgas:input_files epic_sim_ci_hadron_beamgas.edm4hep.root \
+            --source:electron_beamgas_bremsstrahlung:input_files epic_sim_ci_electron_beamgas_brems.edm4hep.root \
+            --source:electron_beamgas_coulomb:input_files epic_sim_ci_electron_beamgas_coulomb.edm4hep.root \
+            --source:electron_beamgas_touschek:input_files epic_sim_ci_electron_beamgas_touschek.edm4hep.root \
+            --source:electron_synchrotron:input_files epic_sim_ci_electron_synchrotron.edm4hep.root
           
           ls -lh merged_ci_18x275.edm4hep.root
     - name: Upload EDM4hep merger output
@@ -127,7 +179,7 @@ jobs:
         path: merged_ci_18x275.hepmc3.tree.root
         retention-days: 1
 
-  epic-simulation:
+  merged-epic-simulation:
     needs: test-hepmc3
     runs-on: ubuntu-24.04
     steps:
@@ -162,7 +214,7 @@ jobs:
         retention-days: 1
 
   eicrecon-from-epic:
-    needs: epic-simulation
+    needs: merged-epic-simulation
     runs-on: ubuntu-24.04
     steps:
     - uses: actions/checkout@v4
