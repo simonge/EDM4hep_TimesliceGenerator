@@ -75,13 +75,13 @@ jobs:
           # EDM4hep smoke test using built binary
           ./install/bin/timeframe_builder --config configs/config_ci.yml \
             --output merged_ci_18x275.edm4hep.root \
-            --source:signal:input_files {{ env.XROOTD_SERVER }}{{ env.EDM4HEP_PATH }}{{ env.EDM4HEP_SIGNAL_PATH }} \
-            --source:minbias:input_files {{ env.XROOTD_SERVER }}{{ env.EDM4HEP_PATH }}{{ env.EDM4HEP_MINBIAS_PATH }} \
-            --source:hadron_beamgas:input_files {{ env.XROOTD_SERVER }}{{ env.EDM4HEP_PATH }}{{ env.EDM4HEP_HADRON_BEAMGAS_PATH }} \
-            --source:electron_beamgas_bremsstrahlung:input_files {{ env.XROOTD_SERVER }}{{ env.EDM4HEP_PATH }}{{ env.EDM4HEP_ELECTRON_BEAMGAS_BREMS_PATH }} \
-            --source:electron_beamgas_coulomb:input_files {{ env.XROOTD_SERVER }}{{ env.EDM4HEP_PATH }}{{ env.EDM4HEP_ELECTRON_BEAMGAS_COULOMB_PATH }} \
-            --source:electron_beamgas_touschek:input_files {{ env.XROOTD_SERVER }}{{ env.EDM4HEP_PATH }}{{ env.EDM4HEP_ELECTRON_BEAMGAS_TOUSCHEK_PATH }} \
-            --source:electron_synchrotron:input_files {{ env.XROOTD_SERVER }}{{ env.EDM4HEP_PATH }}{{ env.EDM4HEP_ELECTRON_SYNCHROTRON_PATH }}
+            --source:signal:input_files ${{env.XROOTD_SERVER}}${{env.EDM4HEP_PATH}}${{env.EDM4HEP_SIGNAL_PATH}} \
+            --source:minbias:input_files ${{env.XROOTD_SERVER}}${{env.EDM4HEP_PATH}}${{env.EDM4HEP_MINBIAS_PATH}} \
+            --source:hadron_beamgas:input_files ${{env.XROOTD_SERVER}}${{env.EDM4HEP_PATH}}${{env.EDM4HEP_HADRON_BEAMGAS_PATH}} \
+            --source:electron_beamgas_bremsstrahlung:input_files ${{env.XROOTD_SERVER}}${{env.EDM4HEP_PATH}}${{env.EDM4HEP_ELECTRON_BEAMGAS_BREMS_PATH}} \
+            --source:electron_beamgas_coulomb:input_files ${{env.XROOTD_SERVER}}${{env.EDM4HEP_PATH}}${{env.EDM4HEP_ELECTRON_BEAMGAS_COULOMB_PATH}} \
+            --source:electron_beamgas_touschek:input_files ${{env.XROOTD_SERVER}}${{env.EDM4HEP_PATH}}${{env.EDM4HEP_ELECTRON_BEAMGAS_TOUSCHEK_PATH}} \
+            --source:electron_synchrotron:input_files ${{env.XROOTD_SERVER}}${{env.EDM4HEP_PATH}}${{env.EDM4HEP_ELECTRON_SYNCHROTRON_PATH}}
           
           ls -lh merged_ci_18x275.edm4hep.root
     - name: Upload EDM4hep merger output
@@ -111,13 +111,13 @@ jobs:
           # HepMC3 smoke test using built binary
           ./install/bin/timeframe_builder --config configs/config_ci.yml \
             --output merged_ci_18x275.hepmc3.tree.root \
-            --source:signal:input_files {{ env.XROOTD_SERVER }}{{ env.HEPMC3_PATH }}{{ env.HEPMC3_SIGNAL_PATH }} \
-            --source:minbias:input_files {{ env.XROOTD_SERVER }}{{ env.HEPMC3_PATH }}{{ env.HEPMC3_MINBIAS_PATH }} \
-            --source:hadron_beamgas:input_files {{ env.XROOTD_SERVER }}{{ env.HEPMC3_PATH }}{{ env.HEPMC3_HADRON_BEAMGAS_PATH }} \
-            --source:electron_beamgas_bremsstrahlung:input_files {{ env.XROOTD_SERVER }}{{ env.HEPMC3_PATH }}{{ env.HEPMC3_ELECTRON_BEAMGAS_BREMS_PATH }} \
-            --source:electron_beamgas_coulomb:input_files {{ env.XROOTD_SERVER }}{{ env.HEPMC3_PATH }}{{ env.HEPMC3_ELECTRON_BEAMGAS_COULOMB_PATH }} \
-            --source:electron_beamgas_touschek:input_files {{ env.XROOTD_SERVER }}{{ env.HEPMC3_PATH }}{{ env.HEPMC3_ELECTRON_BEAMGAS_TOUSCHEK_PATH }} \
-            --source:electron_synchrotron:input_files {{ env.XROOTD_SERVER }}{{ env.HEPMC3_PATH }}{{ env.HEPMC3_ELECTRON_SYNCHROTRON_PATH }}
+            --source:signal:input_files ${{env.XROOTD_SERVER}}${{env.HEPMC3_PATH}}${{env.HEPMC3_SIGNAL_PATH}} \
+            --source:minbias:input_files ${{env.XROOTD_SERVER}}${{env.HEPMC3_PATH}}${{env.HEPMC3_MINBIAS_PATH}} \
+            --source:hadron_beamgas:input_files ${{env.XROOTD_SERVER}}${{env.HEPMC3_PATH}}${{env.HEPMC3_HADRON_BEAMGAS_PATH}} \
+            --source:electron_beamgas_bremsstrahlung:input_files ${{env.XROOTD_SERVER}}${{env.HEPMC3_PATH}}${{env.HEPMC3_ELECTRON_BEAMGAS_BREMS_PATH}} \
+            --source:electron_beamgas_coulomb:input_files ${{env.XROOTD_SERVER}}${{env.HEPMC3_PATH}}${{env.HEPMC3_ELECTRON_BEAMGAS_COULOMB_PATH}} \
+            --source:electron_beamgas_touschek:input_files ${{env.XROOTD_SERVER}}${{env.HEPMC3_PATH}}${{env.HEPMC3_ELECTRON_BEAMGAS_TOUSCHEK_PATH}} \
+            --source:electron_synchrotron:input_files ${{env.XROOTD_SERVER}}${{env.HEPMC3_PATH}}${{env.HEPMC3_ELECTRON_SYNCHROTRON_PATH}}
           
           ls -lh merged_ci_18x275.hepmc3.tree.root
     - name: Upload HepMC3 merger output
