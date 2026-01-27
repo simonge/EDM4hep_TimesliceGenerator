@@ -58,7 +58,7 @@ jobs:
             output: epic_sim_ci_signal.edm4hep.root
           - file_env: HEPMC3_MINBIAS_PATH
             events: 10
-            output: epic_sim_ci_minbias.edm4hep.root#
+            output: epic_sim_ci_minbias.edm4hep.root
           - file_env: HEPMC3_HADRON_BEAMGAS_PATH
             events: 10
             output: epic_sim_ci_hadron_beamgas.edm4hep.root
@@ -85,7 +85,7 @@ jobs:
           source /opt/detector/epic-main/bin/thisepic.sh
           # Run npsim on the separate HepMC3 samples
           npsim --compactFile $DETECTOR_PATH/epic_craterlake.xml \
-                --inputFiles ${{env.XROOTD_SERVER}}${{env.HEPMC3_PATH}}${{ matrix.file_env }} \
+                --inputFiles "${XROOTD_SERVER}${HEPMC3_PATH}${!file_env}" \
                 --outputFile ${{ matrix.output }} \
                 --numberOfEvents ${{ matrix.events }}
           
