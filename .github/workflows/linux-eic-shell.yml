@@ -229,6 +229,8 @@ jobs:
       - eicrecon-from-edm4hep
       - eicrecon-from-epic
     steps:
+    - uses: actions/checkout@v6
+    - uses: cvmfs-contrib/github-action-cvmfs@v5
     - name: Download epic eicrecon outputs
       uses: actions/download-artifact@v7
       with:
