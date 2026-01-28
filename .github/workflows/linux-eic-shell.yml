@@ -220,7 +220,7 @@ jobs:
       uses: actions/upload-artifact@v6
       with:
         name: edm4hep-reconstructed
-        path: recon_ci_18x275_from_edm4hep.edm4hep.root
+        path: recon_ci_18x275_from_edm4hep.eicrecon.edm4eic.root
         retention-days: 1
 
   capybara-report:
