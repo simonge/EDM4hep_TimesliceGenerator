@@ -13,28 +13,25 @@ SIMULATIONS = [
     {"type": "electron_synchrotron", "input": "epic_sim_ci_electron_synchrotron.edm4hep.root", "events": 100000, "remote": "root://dtn-eic.jlab.org//volatile/eic/EPIC/EVGEN/BACKGROUNDS/SYNRAD/dataprod_rel_1.0.0/18x275/dataprod_rel_1.0.0_synrad_18x275_run001.hepmc3.tree.root"},
 ]
 
+
 # Output files for all simulations
-SIM_OUTPUTS = [sim["input"] for sim in SIMULATIONS]
+SIM_TYPES = [sim["type"] for sim in SIMULATIONS]
+SIM_OUTPUTS = [f"epic_sim_ci_{sim_type}.edm4hep.root" for sim_type in SIM_TYPES]
 
-# Merged output file
-MERGED_OUTPUT = "merged/merged_timeframes.root"
-
-# Benchmark results
-BENCHMARK_OUTPUT = "benchmark/benchmark_results.txt"
 rule all:
     input:
-        SIM_OUTPUTS
+        expand("epic_sim_ci_{sim_type}.edm4hep.root", sim_type=SIM_TYPES)
 
 rule simulate_epic:
-    output:
-        sim_out=lambda wildcards: next(sim["input"] for sim in SIMULATIONS if sim["type"] == wildcards.sim_type)
     params:
-        events=lambda wildcards: next(sim["events"] for sim in SIMULATIONS if sim["type"] == wildcards.sim_type),
-        input_file=lambda wildcards: next(sim["remote"] for sim in SIMULATIONS if sim["type"] == wildcards.sim_type)
-    shell:
-        """
-        npsim --compactFile $DETECTOR_PATH/epic_craterlake.xml \
-              --inputFiles {params.input_file} \
-              --outputFile {output.sim_out} \
-              --numberOfEvents {params.events}
-        """
+        remote=lambda wildcards: next(sim["remote"] for sim in SIMULATIONS if sim["type"] == wildcards.sim_type)
+    output:
+        out="epic_sim_ci_{sim_type}.edm4hep.root"
+    run:
+        events = next(sim['events'] for sim in SIMULATIONS if sim['type'] == wildcards.sim_type)
+        shell(f"""
+            npsim --compactFile $DETECTOR_PATH/epic_craterlake.xml \
+                  --inputFiles {params.remote} \
+                  --outputFile {{output.out}} \
+                  --numberOfEvents {events}
+        """)

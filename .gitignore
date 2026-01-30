@@ -37,3 +37,11 @@ janainstall/
 
 # capybara generated files
 capybara-reports/
+
+# snakemake files
+.snakemake/
+
+# epic simulation calibrations
+calibrations/
+gdml/
+fieldmaps/
