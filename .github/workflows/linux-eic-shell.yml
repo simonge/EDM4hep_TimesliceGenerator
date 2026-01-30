@@ -47,66 +47,35 @@ jobs:
           configs/
         retention-days: 1
 
-  separate-epic-simulation:
+  epic-simulations:
     needs: build
     runs-on: ubuntu-24.04
-    strategy:
-      matrix:
-        include:
-          - type: signal
-            file_env: HEPMC3_SIGNAL_PATH
-            events: 10
-            output: epic_sim_ci_signal.edm4hep.root
-          - type: minbias
-            file_env: HEPMC3_MINBIAS_PATH
-            events: 10
-            output: epic_sim_ci_minbias.edm4hep.root
-          - type: hadron_beamgas
-            file_env: HEPMC3_HADRON_BEAMGAS_PATH
-            events: 10
-            output: epic_sim_ci_hadron_beamgas.edm4hep.root
-          - type: electron_beamgas_bremsstrahlung
-            file_env: HEPMC3_ELECTRON_BEAMGAS_BREMS_PATH
-            events: 10
-            output: epic_sim_ci_electron_beamgas_brems.edm4hep.root
-          - type: electron_beamgas_coulomb
-            file_env: HEPMC3_ELECTRON_BEAMGAS_COULOMB_PATH
-            events: 10
-            output: epic_sim_ci_electron_beamgas_coulomb.edm4hep.root
-          - type: electron_beamgas_touschek
-            file_env: HEPMC3_ELECTRON_BEAMGAS_TOUSCHEK_PATH
-            events: 10
-            output: epic_sim_ci_electron_beamgas_touschek.edm4hep.root
-          - type: electron_synchrotron
-            file_env: HEPMC3_ELECTRON_SYNCHROTRON_PATH
-            events: 100000
-            output: epic_sim_ci_electron_synchrotron.edm4hep.root
     steps:
     - uses: actions/checkout@v4
     - uses: cvmfs-contrib/github-action-cvmfs@v5
-    - name: Run EPIC simulation on separate HepMC3 samples
+    - name: Run all EPIC simulations with Snakemake
       uses: eic/run-cvmfs-osg-eic-shell@main
       with:
         platform-release: "eic_xl:nightly"
         run: |
           source /opt/detector/epic-main/bin/thisepic.sh
-          # Run npsim on the separate HepMC3 samples
-          export file_env="${{ matrix.file_env }}"
-          npsim --compactFile $DETECTOR_PATH/epic_craterlake.xml \
-                --inputFiles "${XROOTD_SERVER}${HEPMC3_PATH}${!file_env}" \
-                --outputFile ${{ matrix.output }} \
-                --numberOfEvents ${{ matrix.events }}
-          
-          ls -lh ${{ matrix.output }}
-    - name: Upload separate EPIC simulation outputs
+          snakemake --cores 8
+    - name: Upload all EPIC simulation outputs
       uses: actions/upload-artifact@v4
       with:
-        name: epic-simulated-${{ matrix.type }}
-        path: ${{ matrix.output }}
+        name: epic-simulated
+        path: |
+          epic_sim_ci_signal.edm4hep.root
+          epic_sim_ci_minbias.edm4hep.root
+          epic_sim_ci_hadron_beamgas.edm4hep.root
+          epic_sim_ci_electron_beamgas_brems.edm4hep.root
+          epic_sim_ci_electron_beamgas_coulomb.edm4hep.root
+          epic_sim_ci_electron_beamgas_touschek.edm4hep.root
+          epic_sim_ci_electron_synchrotron.edm4hep.root
         retention-days: 1
 
   test-edm4hep:
-    needs: separate-epic-simulation
+    needs: epic-simulations
     runs-on: ubuntu-24.04
     steps:
     - uses: actions/checkout@v4
@@ -117,34 +86,10 @@ jobs:
         name: timeframe-builder-binaries
     - name: Fix binary permissions
       run: chmod +x install/bin/timeframe_builder
-    - name: Download separate EPIC signal simulation output
+    - name: Download separate EPIC simulation output
       uses: actions/download-artifact@v4
       with:
-        name: epic-simulated-signal
-    - name: Download separate EPIC minbias simulation output
-      uses: actions/download-artifact@v4
-      with:
-        name: epic-simulated-minbias
-    - name: Download separate EPIC hadron beamgas simulation output
-      uses: actions/download-artifact@v4
-      with:
-        name: epic-simulated-hadron_beamgas
-    - name: Download separate EPIC electron beamgas bremsstrahlung simulation output
-      uses: actions/download-artifact@v4
-      with:
-        name: epic-simulated-electron_beamgas_bremsstrahlung
-    - name: Download separate EPIC electron beamgas coulomb simulation output
-      uses: actions/download-artifact@v4
-      with:
-        name: epic-simulated-electron_beamgas_coulomb
-    - name: Download separate EPIC electron beamgas touschek simulation output
-      uses: actions/download-artifact@v4
-      with:
-        name: epic-simulated-electron_beamgas_touschek
-    - name: Download separate EPIC electron synchrotron simulation output
-      uses: actions/download-artifact@v4
-      with:
-        name: epic-simulated-electron_synchrotron
+        name: epic-simulated
     - name: EDM4hep merging from XRootD
       uses: eic/run-cvmfs-osg-eic-shell@main
       with:
