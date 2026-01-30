@@ -260,7 +260,7 @@ jobs:
         run: |
           source /opt/detector/epic-main/bin/thisepic.sh
           # Run eicrecon on simulated events from EPIC simulation
-          eicrecon -Pplugins=dump_flags sim_ci_18x275.edm4hep.root -Pjana:loglevel=info -Ppodio:output_file=recon_ci_18x275_from_epic.edm4hep.root
+          eicrecon -Pplugins=dump_flags sim_ci_18x275.edm4hep.root -Pjana:loglevel=info -Pjana:warmup_timeout=0 -Pjana:timeout=0 -Ppodio:output_file=recon_ci_18x275_from_epic.edm4hep.root
           
           ls -lh recon_ci_18x275_from_epic.edm4hep.root 2>/dev/null || echo "Warning: eicrecon output not found"
 
@@ -293,6 +293,6 @@ jobs:
           # Verify file exists
           ls -lh merged_ci_18x275.edm4hep.root
           # Run eicrecon directly on merged EDM4hep events
-          eicrecon -Pplugins=dump_flags merged_ci_18x275.edm4hep.root -Pjana:loglevel=info -Ppodio:output_file=recon_ci_18x275_from_edm4hep.edm4hep.root
+          eicrecon -Pplugins=dump_flags merged_ci_18x275.edm4hep.root -Pjana:loglevel=info -Pjana:warmup_timeout=0 -Pjana:timeout=0 -Ppodio:output_file=recon_ci_18x275_from_edm4hep.edm4hep.root
           
           ls -lh recon_ci_18x275_from_edm4hep.edm4hep.root 2>/dev/null || echo "Warning: eicrecon output not found"
