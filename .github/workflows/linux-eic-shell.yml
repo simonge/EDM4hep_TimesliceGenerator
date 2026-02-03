@@ -63,7 +63,7 @@ jobs:
     - name: Upload all EPIC simulation outputs
       uses: actions/upload-artifact@v4
       with:
-        name: epic-simulated
+        name: epic-simulated-separate
         path: |
           epic_sim_ci_signal.edm4hep.root
           epic_sim_ci_minbias.edm4hep.root
@@ -89,7 +89,7 @@ jobs:
     - name: Download separate EPIC simulation output
       uses: actions/download-artifact@v4
       with:
-        name: epic-simulated
+        name: epic-simulated-separate
     - name: EDM4hep merging from XRootD
       uses: eic/run-cvmfs-osg-eic-shell@main
       with:
