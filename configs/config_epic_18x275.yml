@@ -36,7 +36,7 @@ sources:
     use_bunch_crossing: true
     attach_to_beam: true
     beam_angle: 0.025 # in rad
-    beam_speed: 0.299792458 # in m/ns
+    beam_speed: 299.792458 # in mm/ns
     beam_spread: 0.030 # in ns
     generator_status_offset: 6000
     repeat_on_eof: true
@@ -48,7 +48,7 @@ sources:
     use_bunch_crossing: true
     attach_to_beam: true
     beam_angle: -3.141592653589793 # in rad
-    beam_speed: 0.299792458 # in m/ns
+    beam_speed: 299.792458 # in mm/ns
     beam_spread: 0.003 # in ns
     generator_status_offset: 3000
     repeat_on_eof: true
@@ -60,7 +60,7 @@ sources:
     use_bunch_crossing: true
     attach_to_beam: true
     beam_angle: -3.141592653589793 # in rad
-    beam_speed: 0.299792458 # in m/ns
+    beam_speed: 299.792458 # in mm/ns
     beam_spread: 0.003 # in ns
     generator_status_offset: 5000
     repeat_on_eof: true
@@ -72,7 +72,7 @@ sources:
     use_bunch_crossing: true
     attach_to_beam: true
     beam_angle: -3.141592653589793 # in rad
-    beam_speed: 0.299792458 # in m/ns
+    beam_speed: 299.792458 # in mm/ns
     beam_spread: 0.003 # in ns
     generator_status_offset: 4000
     repeat_on_eof: true
@@ -84,7 +84,7 @@ sources:
     use_bunch_crossing: true
     attach_to_beam: true
     beam_angle: -3.141592653589793 # in rad
-    beam_speed: 0.299792458 # in m/ns
+    beam_speed: 299.792458 # in mm/ns
     beam_spread: 0.003 # in ns
     generator_status_offset: 2000
     repeat_on_eof: true
