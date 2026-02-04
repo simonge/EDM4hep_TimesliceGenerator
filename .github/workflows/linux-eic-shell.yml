@@ -90,7 +90,7 @@ jobs:
       uses: actions/download-artifact@v4
       with:
         name: epic-simulated-separate
-    - name: EDM4hep merging from XRootD
+    - name: EDM4hep merging from simulation outputs
       uses: eic/run-cvmfs-osg-eic-shell@main
       with:
         platform-release: "eic_xl:nightly"
