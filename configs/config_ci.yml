@@ -32,7 +32,7 @@ sources:
     beam_spread: 0.030 # in ns
     generator_status_offset: 6000
     repeat_on_eof: false
-  - name: electron_beamgas_bremsstrahlung
+  - name: electron_beamgas_brems
     static_number_of_events: false
     mean_event_frequency: 0.00031694 # in GHz
     use_bunch_crossing: true
