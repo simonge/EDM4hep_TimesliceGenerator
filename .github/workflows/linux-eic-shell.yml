@@ -17,7 +17,6 @@ permissions:
 env:
   XROOTD_SERVER: root://dtn-eic.jlab.org/
   HEPMC3_PATH: /volatile/eic/EPIC/EVGEN/
-  EDM4HEP_PATH: /volatile/eic/EPIC/FULL/25.12.0/epic_craterlake/
   HEPMC3_SIGNAL_PATH: DIS/NC/18x275/minQ2=1000/pythia8NCDIS_18x275_minQ2=1000_beamEffects_xAngle=-0.025_hiDiv_1.hepmc3.tree.root
   HEPMC3_MINBIAS_PATH: SIDIS/pythia6-eic/1.0.0/18x275/q2_0to1/pythia_ep_noradcor_18x275_q2_0.000000001_1.0_run1.ab.hepmc3.tree.root
   HEPMC3_HADRON_BEAMGAS_PATH: BACKGROUNDS/BEAMGAS/proton/pythia8.306-1.0/275GeV/pythia8.306-1.0_ProtonBeamGas_275GeV_run001.hepmc3.tree.root
@@ -25,13 +24,6 @@ env:
   HEPMC3_ELECTRON_BEAMGAS_COULOMB_PATH: BACKGROUNDS/BEAMGAS/electron/coulomb/EIC_ESR_Xsuite/dataprod_rel_1.0.1/18x275/10000Ahr/MachineRuntime50s/dataprod_rel_1.0.1_electron_coulomb_18x275_10000Ahr.hepmc3.tree.root
   HEPMC3_ELECTRON_BEAMGAS_TOUSCHEK_PATH: BACKGROUNDS/BEAMGAS/electron/touschek/EIC_ESR_Xsuite/dataprod_rel_1.0.1/18x275/10000Ahr/MachineRuntime50s/dataprod_rel_1.0.1_electron_touschek_18x275_10000Ahr.hepmc3.tree.root
   HEPMC3_ELECTRON_SYNCHROTRON_PATH: BACKGROUNDS/SYNRAD/dataprod_rel_1.0.0/18x275/dataprod_rel_1.0.0_synrad_18x275_run001.hepmc3.tree.root
-  EDM4HEP_SIGNAL_PATH: DIS/NC/18x275/minQ2=1000/pythia8NCDIS_18x275_minQ2=1000_beamEffects_xAngle=-0.025_hiDiv_1.0074.edm4hep.root
-  EDM4HEP_MINBIAS_PATH: DIS/NC/18x275/minQ2=1/pythia8NCDIS_18x275_minQ2=1_beamEffects_xAngle=-0.025_hiDiv_1.0074.edm4hep.root
-  EDM4HEP_HADRON_BEAMGAS_PATH: BACKGROUNDS/BEAMGAS/proton/pythia8.306-1.0/275GeV/pythia8.306-1.0_ProtonBeamGas_275GeV_run001.0000.edm4hep.root
-  EDM4HEP_ELECTRON_BEAMGAS_BREMS_PATH: BACKGROUNDS/BEAMGAS/electron/GETaLM1.0.0-1.1/18GeV/GETaLM1.0.0-1.1_ElectronBeamGas_18GeV_emin10keV_run001.0000.edm4hep.root
-  EDM4HEP_ELECTRON_BEAMGAS_COULOMB_PATH: BACKGROUNDS/BEAMGAS/electron/coulomb/EIC_ESR_Xsuite/dataprod_rel_1.0.1/18x275/10000Ahr/MachineRuntime50s/dataprod_rel_1.0.1_electron_coulomb_18x275_10000Ahr.0000.edm4hep.root
-  EDM4HEP_ELECTRON_BEAMGAS_TOUSCHEK_PATH: BACKGROUNDS/BEAMGAS/electron/touschek/EIC_ESR_Xsuite/dataprod_rel_1.0.1/18x275/10000Ahr/MachineRuntime50s/dataprod_rel_1.0.1_electron_touschek_18x275_10000Ahr.0000.edm4hep.root
-  EDM4HEP_ELECTRON_SYNCHROTRON_PATH: root://dtn-eic.jlab.org//volatile/eic/EPIC/FULL/25.12.0/epic_craterlake/BACKGROUNDS/SYNRAD/dataprod_rel_1.0.0/18x275/dataprod_rel_1.0.0_synrad_18x275_run001.preproc_10000repeats.0000.edm4hep.root,root://dtn-eic.jlab.org//volatile/eic/EPIC/FULL/25.12.0/epic_craterlake/BACKGROUNDS/SYNRAD/dataprod_rel_1.0.0/18x275/dataprod_rel_1.0.0_synrad_18x275_run001.preproc_10000repeats.0001.edm4hep.root,root://dtn-eic.jlab.org//volatile/eic/EPIC/FULL/25.12.0/epic_craterlake/BACKGROUNDS/SYNRAD/dataprod_rel_1.0.0/18x275/dataprod_rel_1.0.0_synrad_18x275_run001.preproc_10000repeats.0002.edm4hep.root,root://dtn-eic.jlab.org//volatile/eic/EPIC/FULL/25.12.0/epic_craterlake/BACKGROUNDS/SYNRAD/dataprod_rel_1.0.0/18x275/dataprod_rel_1.0.0_synrad_18x275_run001.preproc_10000repeats.0003.edm4hep.root,root://dtn-eic.jlab.org//volatile/eic/EPIC/FULL/25.12.0/epic_craterlake/BACKGROUNDS/SYNRAD/dataprod_rel_1.0.0/18x275/dataprod_rel_1.0.0_synrad_18x275_run001.preproc_10000repeats.0004.edm4hep.root,root://dtn-eic.jlab.org//volatile/eic/EPIC/FULL/25.12.0/epic_craterlake/BACKGROUNDS/SYNRAD/dataprod_rel_1.0.0/18x275/dataprod_rel_1.0.0_synrad_18x275_run001.preproc_10000repeats.0005.edm4hep.root,root://dtn-eic.jlab.org//volatile/eic/EPIC/FULL/25.12.0/epic_craterlake/BACKGROUNDS/SYNRAD/dataprod_rel_1.0.0/18x275/dataprod_rel_1.0.0_synrad_18x275_run001.preproc_10000repeats.0006.edm4hep.root,root://dtn-eic.jlab.org//volatile/eic/EPIC/FULL/25.12.0/epic_craterlake/BACKGROUNDS/SYNRAD/dataprod_rel_1.0.0/18x275/dataprod_rel_1.0.0_synrad_18x275_run001.preproc_10000repeats.0007.edm4hep.root,root://dtn-eic.jlab.org//volatile/eic/EPIC/FULL/25.12.0/epic_craterlake/BACKGROUNDS/SYNRAD/dataprod_rel_1.0.0/18x275/dataprod_rel_1.0.0_synrad_18x275_run001.preproc_10000repeats.0008.edm4hep.root
 
 jobs:
   build:
@@ -55,11 +47,38 @@ jobs:
           configs/
         retention-days: 1
 
-  test-edm4hep:
+  epic-simulations:
     needs: build
     runs-on: ubuntu-24.04
     steps:
     - uses: actions/checkout@v6
+    - uses: cvmfs-contrib/github-action-cvmfs@v5
+    - name: Run all EPIC simulations with Snakemake
+      uses: eic/run-cvmfs-osg-eic-shell@main
+      with:
+        platform-release: "eic_xl:nightly"
+        run: |
+          source /opt/detector/epic-main/bin/thisepic.sh
+          snakemake --cores 1
+    - name: Upload all EPIC simulation outputs
+      uses: actions/upload-artifact@v4
+      with:
+        name: epic-simulated-separate
+        path: |
+          epic_sim_ci_signal.edm4hep.root
+          epic_sim_ci_minbias.edm4hep.root
+          epic_sim_ci_hadron_beamgas.edm4hep.root
+          epic_sim_ci_electron_beamgas_brems.edm4hep.root
+          epic_sim_ci_electron_beamgas_coulomb.edm4hep.root
+          epic_sim_ci_electron_beamgas_touschek.edm4hep.root
+          epic_sim_ci_electron_synchrotron.edm4hep.root
+        retention-days: 1
+
+  test-edm4hep:
+    needs: epic-simulations
+    runs-on: ubuntu-24.04
+    steps:
+    - uses: actions/checkout@v4
     - uses: cvmfs-contrib/github-action-cvmfs@v5
     - name: Download build artifacts
       uses: actions/download-artifact@v7
@@ -67,7 +86,11 @@ jobs:
         name: timeframe-builder-binaries
     - name: Fix binary permissions
       run: chmod +x install/bin/timeframe_builder
-    - name: EDM4hep merging from XRootD
+    - name: Download separate EPIC simulation output
+      uses: actions/download-artifact@v4
+      with:
+        name: epic-simulated-separate
+    - name: EDM4hep merging from simulation outputs
       uses: eic/run-cvmfs-osg-eic-shell@main
       with:
         platform-release: "eic_xl:nightly"
@@ -75,13 +98,13 @@ jobs:
           # EDM4hep smoke test using built binary
           ./install/bin/timeframe_builder --config configs/config_ci.yml \
             --output merged_ci_18x275.edm4hep.root \
-            --source:signal:input_files ${{env.XROOTD_SERVER}}${{env.EDM4HEP_PATH}}${{env.EDM4HEP_SIGNAL_PATH}} \
-            --source:minbias:input_files ${{env.XROOTD_SERVER}}${{env.EDM4HEP_PATH}}${{env.EDM4HEP_MINBIAS_PATH}} \
-            --source:hadron_beamgas:input_files ${{env.XROOTD_SERVER}}${{env.EDM4HEP_PATH}}${{env.EDM4HEP_HADRON_BEAMGAS_PATH}} \
-            --source:electron_beamgas_bremsstrahlung:input_files ${{env.XROOTD_SERVER}}${{env.EDM4HEP_PATH}}${{env.EDM4HEP_ELECTRON_BEAMGAS_BREMS_PATH}} \
-            --source:electron_beamgas_coulomb:input_files ${{env.XROOTD_SERVER}}${{env.EDM4HEP_PATH}}${{env.EDM4HEP_ELECTRON_BEAMGAS_COULOMB_PATH}} \
-            --source:electron_beamgas_touschek:input_files ${{env.XROOTD_SERVER}}${{env.EDM4HEP_PATH}}${{env.EDM4HEP_ELECTRON_BEAMGAS_TOUSCHEK_PATH}} \
-            --source:electron_synchrotron:input_files ${{env.EDM4HEP_ELECTRON_SYNCHROTRON_PATH}}
+            --source:signal:input_files epic_sim_ci_signal.edm4hep.root \
+            --source:minbias:input_files epic_sim_ci_minbias.edm4hep.root \
+            --source:hadron_beamgas:input_files epic_sim_ci_hadron_beamgas.edm4hep.root \
+            --source:electron_beamgas_brems:input_files epic_sim_ci_electron_beamgas_brems.edm4hep.root \
+            --source:electron_beamgas_coulomb:input_files epic_sim_ci_electron_beamgas_coulomb.edm4hep.root \
+            --source:electron_beamgas_touschek:input_files epic_sim_ci_electron_beamgas_touschek.edm4hep.root \
+            --source:electron_synchrotron:input_files epic_sim_ci_electron_synchrotron.edm4hep.root
           
           ls -lh merged_ci_18x275.edm4hep.root
     - name: Upload EDM4hep merger output
@@ -114,7 +137,7 @@ jobs:
             --source:signal:input_files ${{env.XROOTD_SERVER}}${{env.HEPMC3_PATH}}${{env.HEPMC3_SIGNAL_PATH}} \
             --source:minbias:input_files ${{env.XROOTD_SERVER}}${{env.HEPMC3_PATH}}${{env.HEPMC3_MINBIAS_PATH}} \
             --source:hadron_beamgas:input_files ${{env.XROOTD_SERVER}}${{env.HEPMC3_PATH}}${{env.HEPMC3_HADRON_BEAMGAS_PATH}} \
-            --source:electron_beamgas_bremsstrahlung:input_files ${{env.XROOTD_SERVER}}${{env.HEPMC3_PATH}}${{env.HEPMC3_ELECTRON_BEAMGAS_BREMS_PATH}} \
+            --source:electron_beamgas_brems:input_files ${{env.XROOTD_SERVER}}${{env.HEPMC3_PATH}}${{env.HEPMC3_ELECTRON_BEAMGAS_BREMS_PATH}} \
             --source:electron_beamgas_coulomb:input_files ${{env.XROOTD_SERVER}}${{env.HEPMC3_PATH}}${{env.HEPMC3_ELECTRON_BEAMGAS_COULOMB_PATH}} \
             --source:electron_beamgas_touschek:input_files ${{env.XROOTD_SERVER}}${{env.HEPMC3_PATH}}${{env.HEPMC3_ELECTRON_BEAMGAS_TOUSCHEK_PATH}} \
             --source:electron_synchrotron:input_files ${{env.XROOTD_SERVER}}${{env.HEPMC3_PATH}}${{env.HEPMC3_ELECTRON_SYNCHROTRON_PATH}}
@@ -127,7 +150,7 @@ jobs:
         path: merged_ci_18x275.hepmc3.tree.root
         retention-days: 1
 
-  epic-simulation:
+  merged-epic-simulation:
     needs: test-hepmc3
     runs-on: ubuntu-24.04
     steps:
@@ -162,7 +185,7 @@ jobs:
         retention-days: 1
 
   eicrecon-from-epic:
-    needs: epic-simulation
+    needs: merged-epic-simulation
     runs-on: ubuntu-24.04
     steps:
     - uses: actions/checkout@v6
@@ -178,7 +201,7 @@ jobs:
         run: |
           source /opt/detector/epic-main/bin/thisepic.sh
           # Run eicrecon on simulated events from EPIC simulation
-          eicrecon -Pplugins=dump_flags sim_ci_18x275.edm4hep.root -Pjana:loglevel=info -Ppodio:output_file=recon_ci_18x275_from_epic.eicrecon.edm4eic.root
+          eicrecon -Pplugins=dump_flags sim_ci_18x275.edm4hep.root -Pjana:loglevel=info -Pjana:warmup_timeout=0 -Pjana:timeout=0 -Ppodio:output_file=recon_ci_18x275_from_epic.edm4hep.root
           
           ls -lh recon_ci_18x275_from_epic.eicrecon.edm4eic.root 2>/dev/null || echo "Warning: eicrecon output not found"
     - name: Upload reconstructed events
@@ -213,7 +236,7 @@ jobs:
           # Verify file exists
           ls -lh merged_ci_18x275.edm4hep.root
           # Run eicrecon directly on merged EDM4hep events
-          eicrecon -Pplugins=dump_flags merged_ci_18x275.edm4hep.root -Pjana:loglevel=info -Ppodio:output_file=recon_ci_18x275_from_edm4hep.eicrecon.edm4eic.root
+          eicrecon -Pplugins=dump_flags merged_ci_18x275.edm4hep.root -Pjana:loglevel=info -Pjana:warmup_timeout=0 -Pjana:timeout=0 -Ppodio:output_file=recon_ci_18x275_from_edm4hep.edm4hep.root
           
           ls -lh recon_ci_18x275_from_edm4hep.eicrecon.edm4eic.root 2>/dev/null || echo "Warning: eicrecon output not found"
     - name: Upload reconstructed events

@@ -40,7 +40,7 @@ sources:
     beam_spread: 0.030 # in ns
     generator_status_offset: 6000
     repeat_on_eof: true
-  - name: electron_beamgas_bremsstrahlung
+  - name: electron_beamgas_brems
     input_files:
       - input3.edm4hep.root
     static_number_of_events: false

@@ -1,8 +1,6 @@
 # Build and install artifacts
 build/
-build_standalone/
 install/
-install_standalone/
 
 # CMake files
 CMakeFiles/
@@ -36,3 +34,14 @@ __pycache__/
 
 # Misc
 janainstall/
+
+# capybara generated files
+capybara-reports/
+
+# snakemake files
+.snakemake/
+
+# epic simulation calibrations
+calibrations/
+gdml/
+fieldmaps/
