@@ -39,7 +39,7 @@ void CommandLineParser::printUsage(const char* program_name) {
               << "  --source:NAME:beam_attachment BOOL\n"
               << "                              Enable beam attachment (true/false)\n"
               << "  --source:NAME:beam_speed SPEED\n"
-              << "                              Beam speed in ns/mm\n"
+              << "                              Beam speed in mm/ns\n"
               << "  --source:NAME:beam_spread SPREAD\n"
               << "                              Beam spread for Gaussian smearing\n"
               << "  --source:NAME:status_offset OFFSET\n"
@@ -205,7 +205,7 @@ void CommandLineParser::mergeCliSources(MergerConfig& config, const std::vector<
                 if (cli_source.attach_to_beam) {
                     existing_source.attach_to_beam = cli_source.attach_to_beam;
                 }
-                if (cli_source.beam_speed != 299.7924580f) {
+                if (cli_source.beam_speed != 299.792458f) {
                     existing_source.beam_speed = cli_source.beam_speed;
                 }
                 if (cli_source.beam_spread != 0.0f) {
@@ -271,7 +271,7 @@ void CommandLineParser::printConfiguration(const MergerConfig& config) {
         std::cout << "  Mean event frequency: " << source.mean_event_frequency << " events/ns" << std::endl;
         std::cout << "  Use bunch crossing: " << (source.use_bunch_crossing ? "true" : "false") << std::endl;
         std::cout << "  Beam attachment: " << (source.attach_to_beam ? "true" : "false") << std::endl;
-        std::cout << "  Beam speed: " << source.beam_speed << " ns/mm" << std::endl;
+        std::cout << "  Beam speed: " << source.beam_speed << " mm/ns" << std::endl;
         std::cout << "  Beam spread: " << source.beam_spread << std::endl;
         std::cout << "  Generator status offset: " << source.generator_status_offset << std::endl;
         std::cout << "  Repeat on EOF: " << (source.repeat_on_eof ? "true" : "false") << std::endl;
