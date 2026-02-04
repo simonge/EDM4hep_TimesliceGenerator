@@ -21,7 +21,7 @@ void CommandLineParser::printUsage(const char* program_name) {
               << "  -s, --static-events         Use static number of events per timeframe\n"
               << "  -e, --events-per-frame N    Static events per timeframe (default: 1)\n"
               << "  --beam-attachment           Enable beam attachment with Gaussian smearing\n"
-              << "  --beam-speed SPEED          Beam speed in m/ns (default: 0.299792458)\n"
+              << "  --beam-speed SPEED          Beam speed in mm/ns (default: 299.792458)\n"
               << "  --beam-spread SPREAD        Beam spread for Gaussian smearing (default: 0.0)\n"
               << "  --status-offset OFFSET      Generator status offset (default: 0)\n"
               << "\nSource-Specific Options:\n"
@@ -205,7 +205,7 @@ void CommandLineParser::mergeCliSources(MergerConfig& config, const std::vector<
                 if (cli_source.attach_to_beam) {
                     existing_source.attach_to_beam = cli_source.attach_to_beam;
                 }
-                if (cli_source.beam_speed != 299792.4580f) {
+                if (cli_source.beam_speed != 299.7924580f) {
                     existing_source.beam_speed = cli_source.beam_speed;
                 }
                 if (cli_source.beam_spread != 0.0f) {
