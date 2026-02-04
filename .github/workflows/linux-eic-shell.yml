@@ -268,13 +268,25 @@ jobs:
         platform-release: "eic_xl:nightly"
         run: |
           mkdir capybara-reports
-          capybara bara -M EventHeader recon_ci_18x275_from_epic.eicrecon.edm4eic.root recon_ci_18x275_from_edm4hep.eicrecon.edm4eic.root
-          mv capybara-reports timeslice_builder_comparison
+          mkdir edm4hep-merged
+          mkdir hepmc3-merged
+          mv recon_ci_18x275_from_epic.eicrecon.edm4eic.root hepmc3-merged/
+          mv recon_ci_18x275_from_edm4hep.eicrecon.edm4eic.root edm4hep-merged/
+          capybara bara -M EventHeader hepmc3-merged/recon_ci_18x275_from_epic.eicrecon.edm4eic.root edm4hep-merged/recon_ci_18x275_from_edm4hep.eicrecon.edm4eic.root
+          # Use PR number or commit SHA for unique directory name
+          if [ "${{ github.event_name }}" == "pull_request" ]; then
+            REPORT_DIR="pr-${{ github.event.pull_request.number }}"
+          else
+            REPORT_DIR="main-${{ github.sha }}"
+          fi
+          mv capybara-reports $REPORT_DIR
     - name: Upload Capybara report
       uses: actions/upload-artifact@v6
       with:
         name: capybara-report
-        path: timeslice_builder_comparison
+        path: |
+          pr-*/
+          main-*/
         retention-days: 1
         
   collect-docs:
@@ -285,19 +297,16 @@ jobs:
         uses: actions/download-artifact@v7
         with:
           name: capybara-report
-          path: publishing_docs/capybara/timeslice_builder_comparison
-      - name: Create capybara index
+          path: capybara_artifact
+      - name: Organize reports for publishing
         run: |
-          echo "# TimesliceBuilder Capybara Reports" > publishing_docs/capybara/index.md
-          echo "" >> publishing_docs/capybara/index.md
-          if [ "${{ github.event_name }}" == "pull_request" ]; then
-            echo "### Capybara summary for PR ${{ github.event.pull_request.number }}" >> publishing_docs/capybara/index.md
-          else
-            echo "### Capybara summary for main" >> publishing_docs/capybara/index.md
-          fi
-          echo "" >> publishing_docs/capybara/index.md
-          find publishing_docs/capybara/ -mindepth 1 -maxdepth 1 -type d -printf \
-            "- [%f](timeslice_builder_comparison/index.html)\n" | sort >> publishing_docs/capybara/index.md
+          # Read the report directory name
+          REPORT_DIR=$(find capybara_artifact -mindepth 1 -maxdepth 1 -type d -printf "%f\n")
+          echo "Report directory: $REPORT_DIR"
+          
+          # Move report to publishing directory
+          mkdir -p publishing_docs/capybara
+          mv capybara_artifact/$REPORT_DIR publishing_docs/capybara/
       - name: List content to publish
         run: find publishing_docs/
       - name: Upload GitHub Pages artifact
@@ -307,14 +316,17 @@ jobs:
           retention-days: 7
       - name: Create capybara step summary
         run: |
+          # Read the report directory name
+          REPORT_DIR=$(find capybara_artifact -mindepth 1 -maxdepth 1 -type d -printf "%f\n" 2>/dev/null || echo "unknown")
+          
           if [ "${{ github.event_name }}" == "pull_request" ]; then
-            echo "### Capybara Report for PR ${{ github.event.pull_request.number }}" >> $GITHUB_STEP_SUMMARY
+            echo "### Capybara Report for PR #${{ github.event.pull_request.number }}" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
-            echo "- [View Report](https://timeslicegenerator.epic-eic.org/capybara/timeslice_builder_comparison/index.html)" >> $GITHUB_STEP_SUMMARY
+            echo "- [View Report](https://eic.github.io/TimeframeBuilder/capybara/${REPORT_DIR}/index.html)" >> $GITHUB_STEP_SUMMARY
           else
             echo "### Capybara Report for main" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
-            echo "- [View Report](https://timeslicegenerator.epic-eic.org/capybara/timeslice_builder_comparison/index.html)" >> $GITHUB_STEP_SUMMARY
+            echo "- [View Report](https://eic.github.io/TimeframeBuilder/capybara/${REPORT_DIR}/index.html)" >> $GITHUB_STEP_SUMMARY
           fi
 
   deploy-docs:
