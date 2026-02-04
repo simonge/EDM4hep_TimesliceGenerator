@@ -31,7 +31,7 @@ struct SourceConfig {
     // Beam background config, beam direction and speed
     bool   attach_to_beam{false};
     float  beam_angle{0.0f};
-    float  beam_speed{0.299792458f}; //Speed of light in m/ns
+    float  beam_speed{299.792458f}; //Speed of light in mm/ns
     float  beam_spread{0.0f};
 
     // New generator status offset
