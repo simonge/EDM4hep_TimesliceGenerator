@@ -303,6 +303,7 @@ jobs:
           # Read the report directory name
           REPORT_DIR=$(find capybara_artifact -mindepth 1 -maxdepth 1 -type d -printf "%f\n")
           echo "Report directory: $REPORT_DIR"
+          echo "REPORT_DIR=$REPORT_DIR" >> $GITHUB_ENV
           
           # Move report to publishing directory
           mkdir -p publishing_docs/capybara
@@ -316,17 +317,14 @@ jobs:
           retention-days: 7
       - name: Create capybara step summary
         run: |
-          # Read the report directory name
-          REPORT_DIR=$(find capybara_artifact -mindepth 1 -maxdepth 1 -type d -printf "%f\n" 2>/dev/null || echo "unknown")
-          
           if [ "${{ github.event_name }}" == "pull_request" ]; then
             echo "### Capybara Report for PR #${{ github.event.pull_request.number }}" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
-            echo "- [View Report](https://eic.github.io/TimeframeBuilder/capybara/${REPORT_DIR}/index.html)" >> $GITHUB_STEP_SUMMARY
+            echo "- [View Report](https://eic.github.io/TimeframeBuilder/capybara/${{ env.REPORT_DIR }}/index.html)" >> $GITHUB_STEP_SUMMARY
           else
             echo "### Capybara Report for main" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
-            echo "- [View Report](https://eic.github.io/TimeframeBuilder/capybara/${REPORT_DIR}/index.html)" >> $GITHUB_STEP_SUMMARY
+            echo "- [View Report](https://eic.github.io/TimeframeBuilder/capybara/${{ env.REPORT_DIR }}/index.html)" >> $GITHUB_STEP_SUMMARY
           fi
 
   deploy-docs:
