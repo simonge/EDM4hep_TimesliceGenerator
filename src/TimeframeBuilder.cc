@@ -2,6 +2,7 @@
 
 #include <iostream>
 #include <stdexcept>
+#include <chrono>
 
 TimeframeBuilder::TimeframeBuilder(const MergerConfig& config)
     : m_config(config), gen(rd()) {}
@@ -27,6 +28,8 @@ void TimeframeBuilder::run() {
 
     std::cout << "Processing " << m_config.max_events << " timeframes..." << std::endl;
 
+    // Timing start
+    auto start_time = std::chrono::high_resolution_clock::now();
     size_t events_generated = 0;
     for (; events_generated < m_config.max_events; ++events_generated) {
         // Update number of events needed per source
@@ -51,6 +54,15 @@ void TimeframeBuilder::run() {
             std::cout << "Processed " << events_generated << " timeframes..." << std::endl;
         }
     }
+    // Timing end
+    auto end_time = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> elapsed = end_time - start_time;
+    double total_time = elapsed.count();
+    double avg_time_per_event = (events_generated > 0) ? total_time / events_generated : 0.0;
+    std::cout << "\nTiming report:" << std::endl;
+    std::cout << "  Total time: " << total_time << " s" << std::endl;
+    std::cout << "  Number of events: " << events_generated << std::endl;
+    std::cout << "  Average time per event: " << avg_time_per_event << " s" << std::endl;
 
     // Finalize output
     data_handler_->finalize();
