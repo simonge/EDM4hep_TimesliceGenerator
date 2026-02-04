@@ -101,7 +101,7 @@ jobs:
             --source:signal:input_files epic_sim_ci_signal.edm4hep.root \
             --source:minbias:input_files epic_sim_ci_minbias.edm4hep.root \
             --source:hadron_beamgas:input_files epic_sim_ci_hadron_beamgas.edm4hep.root \
-            --source:electron_beamgas_bremsstrahlung:input_files epic_sim_ci_electron_beamgas_brems.edm4hep.root \
+            --source:electron_beamgas_brems:input_files epic_sim_ci_electron_beamgas_brems.edm4hep.root \
             --source:electron_beamgas_coulomb:input_files epic_sim_ci_electron_beamgas_coulomb.edm4hep.root \
             --source:electron_beamgas_touschek:input_files epic_sim_ci_electron_beamgas_touschek.edm4hep.root \
             --source:electron_synchrotron:input_files epic_sim_ci_electron_synchrotron.edm4hep.root
@@ -137,7 +137,7 @@ jobs:
             --source:signal:input_files ${{env.XROOTD_SERVER}}${{env.HEPMC3_PATH}}${{env.HEPMC3_SIGNAL_PATH}} \
             --source:minbias:input_files ${{env.XROOTD_SERVER}}${{env.HEPMC3_PATH}}${{env.HEPMC3_MINBIAS_PATH}} \
             --source:hadron_beamgas:input_files ${{env.XROOTD_SERVER}}${{env.HEPMC3_PATH}}${{env.HEPMC3_HADRON_BEAMGAS_PATH}} \
-            --source:electron_beamgas_bremsstrahlung:input_files ${{env.XROOTD_SERVER}}${{env.HEPMC3_PATH}}${{env.HEPMC3_ELECTRON_BEAMGAS_BREMS_PATH}} \
+            --source:electron_beamgas_brems:input_files ${{env.XROOTD_SERVER}}${{env.HEPMC3_PATH}}${{env.HEPMC3_ELECTRON_BEAMGAS_BREMS_PATH}} \
             --source:electron_beamgas_coulomb:input_files ${{env.XROOTD_SERVER}}${{env.HEPMC3_PATH}}${{env.HEPMC3_ELECTRON_BEAMGAS_COULOMB_PATH}} \
             --source:electron_beamgas_touschek:input_files ${{env.XROOTD_SERVER}}${{env.HEPMC3_PATH}}${{env.HEPMC3_ELECTRON_BEAMGAS_TOUSCHEK_PATH}} \
             --source:electron_synchrotron:input_files ${{env.XROOTD_SERVER}}${{env.HEPMC3_PATH}}${{env.HEPMC3_ELECTRON_SYNCHROTRON_PATH}}
