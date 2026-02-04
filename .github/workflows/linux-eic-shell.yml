@@ -268,7 +268,7 @@ jobs:
         platform-release: "eic_xl:nightly"
         run: |
           mkdir capybara-reports
-          capybara bara recon_ci_18x275_from_epic.eicrecon.edm4eic.root recon_ci_18x275_from_edm4hep.eicrecon.edm4eic.root
+          capybara bara -M EventHeader recon_ci_18x275_from_epic.eicrecon.edm4eic.root recon_ci_18x275_from_edm4hep.eicrecon.edm4eic.root
           mv capybara-reports timeslice_builder_comparison
     - name: Upload Capybara report
       uses: actions/upload-artifact@v6
