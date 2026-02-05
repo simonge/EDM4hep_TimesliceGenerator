@@ -14,6 +14,7 @@
 
 #include <TFile.h>
 #include <iostream>
+#include <sstream>
 #include <stdexcept>
 
 //------------------------------------------------------------------------------
@@ -159,54 +160,113 @@ void JEventSourceTimeframeBuilderHepMC3::initializeConfiguration() {
 #ifdef HAVE_HEPMC3
     auto* app = GetApplication();
     
-    // Get configuration parameters from JANA
+    // Get global configuration parameters from JANA
+    // All parameters are registered in timeframe_builder_plugin.cc
     
-    // Timeframe configuration
-    m_config.timeframe_duration = app->GetParameterValue<float>(
-        "tfb:timeframe_duration", 2000.0f);
-    m_config.bunch_crossing_period = app->GetParameterValue<float>(
-        "tfb:bunch_crossing_period", 10.0f);
-    m_config.max_events = app->GetParameterValue<size_t>(
-        "tfb:max_timeframes", 100);
+    // Global timeframe configuration
+    m_config.timeframe_duration = app->GetParameterValue<float>("tfb:timeframe_duration");
+    m_config.bunch_crossing_period = app->GetParameterValue<float>("tfb:bunch_crossing_period");
+    m_config.max_events = app->GetParameterValue<int>("tfb:max_timeframes");
     m_max_timeframes = m_config.max_events;
+    m_config.random_seed = app->GetParameterValue<unsigned int>("tfb:random_seed");
+    m_config.introduce_offsets = app->GetParameterValue<bool>("tfb:introduce_offsets");
+    m_config.merge_particles = app->GetParameterValue<bool>("tfb:merge_particles");
+    m_config.output_file = app->GetParameterValue<std::string>("tfb:output_file");
     
-    // Random seed
-    m_config.random_seed = app->GetParameterValue<unsigned int>(
-        "tfb:random_seed", 0);
+    // Initialize RNG with configured seed
     if (m_config.random_seed != 0) {
         m_gen = std::mt19937(m_config.random_seed);
     }
     
-    // Source configuration
-    SourceConfig source;
-    source.name = "input";
-    source.input_files.push_back(GetResourceName());
-    source.tree_name = "hepmc3_tree";
+    // Check if multiple sources are specified
+    std::string source_names_str = app->GetParameterValue<std::string>("tfb:source_names");
     
-    // Get source-specific parameters
-    source.static_number_of_events = app->GetParameterValue<bool>(
-        "tfb:static_events", false);
-    source.static_events_per_timeframe = app->GetParameterValue<size_t>(
-        "tfb:events_per_frame", 1);
-    source.mean_event_frequency = app->GetParameterValue<float>(
-        "tfb:event_frequency", 1.0f);
-    source.use_bunch_crossing = app->GetParameterValue<bool>(
-        "tfb:use_bunch_crossing", false);
-    source.attach_to_beam = app->GetParameterValue<bool>(
-        "tfb:attach_to_beam", false);
-    source.beam_speed = app->GetParameterValue<float>(
-        "tfb:beam_speed", 299.792458f);
-    source.beam_spread = app->GetParameterValue<float>(
-        "tfb:beam_spread", 0.0f);
-    source.generator_status_offset = app->GetParameterValue<int32_t>(
-        "tfb:status_offset", 0);
-    
-    m_config.sources.push_back(source);
-    
-    // Output file - for JANA, we might not want to write an output file
-    // or make it optional
-    m_config.output_file = app->GetParameterValue<std::string>(
-        "tfb:output_file", "");
+    if (!source_names_str.empty()) {
+        // Parse multiple sources from configuration
+        std::vector<std::string> source_names;
+        std::stringstream ss(source_names_str);
+        std::string name;
+        while (std::getline(ss, name, ',')) {
+            // Trim whitespace
+            name.erase(0, name.find_first_not_of(" \t"));
+            name.erase(name.find_last_not_of(" \t") + 1);
+            if (!name.empty()) {
+                source_names.push_back(name);
+            }
+        }
+        
+        // Create a source configuration for each named source
+        for (const auto& src_name : source_names) {
+            SourceConfig source;
+            source.name = src_name;
+            
+            // Build parameter names for this source
+            std::string prefix = "tfb:" + src_name + ":";
+            
+            // Get source-specific input files
+            std::string files_str = app->GetParameterValue<std::string>(prefix + "input_files", "");
+            if (!files_str.empty()) {
+                std::stringstream file_ss(files_str);
+                std::string file;
+                while (std::getline(file_ss, file, ',')) {
+                    file.erase(0, file.find_first_not_of(" \t"));
+                    file.erase(file.find_last_not_of(" \t") + 1);
+                    if (!file.empty()) {
+                        source.input_files.push_back(file);
+                    }
+                }
+            }
+            
+            // Get all source-specific parameters
+            source.static_number_of_events = app->GetParameterValue<bool>(
+                prefix + "static_events", false);
+            source.static_events_per_timeframe = app->GetParameterValue<int>(
+                prefix + "events_per_frame", 1);
+            source.mean_event_frequency = app->GetParameterValue<float>(
+                prefix + "event_frequency", 1.0f);
+            source.use_bunch_crossing = app->GetParameterValue<bool>(
+                prefix + "use_bunch_crossing", false);
+            source.attach_to_beam = app->GetParameterValue<bool>(
+                prefix + "attach_to_beam", false);
+            source.beam_angle = app->GetParameterValue<float>(
+                prefix + "beam_angle", 0.0f);
+            source.beam_speed = app->GetParameterValue<float>(
+                prefix + "beam_speed", 299.792458f);
+            source.beam_spread = app->GetParameterValue<float>(
+                prefix + "beam_spread", 0.0f);
+            source.generator_status_offset = app->GetParameterValue<int>(
+                prefix + "status_offset", 0);
+            source.already_merged = app->GetParameterValue<bool>(
+                prefix + "already_merged", false);
+            source.tree_name = app->GetParameterValue<std::string>(
+                prefix + "tree_name", "hepmc3_tree");
+            source.repeat_on_eof = app->GetParameterValue<bool>(
+                prefix + "repeat_on_eof", false);
+            
+            m_config.sources.push_back(source);
+        }
+    } else {
+        // Single source mode - use input file and default parameters
+        SourceConfig source;
+        source.name = "input";
+        source.input_files.push_back(GetResourceName());
+        
+        // Get default source parameters
+        source.static_number_of_events = app->GetParameterValue<bool>("tfb:static_events");
+        source.static_events_per_timeframe = app->GetParameterValue<int>("tfb:events_per_frame");
+        source.mean_event_frequency = app->GetParameterValue<float>("tfb:event_frequency");
+        source.use_bunch_crossing = app->GetParameterValue<bool>("tfb:use_bunch_crossing");
+        source.attach_to_beam = app->GetParameterValue<bool>("tfb:attach_to_beam");
+        source.beam_angle = app->GetParameterValue<float>("tfb:beam_angle");
+        source.beam_speed = app->GetParameterValue<float>("tfb:beam_speed");
+        source.beam_spread = app->GetParameterValue<float>("tfb:beam_spread");
+        source.generator_status_offset = app->GetParameterValue<int>("tfb:status_offset");
+        source.already_merged = app->GetParameterValue<bool>("tfb:already_merged");
+        source.tree_name = app->GetParameterValue<std::string>("tfb:tree_name");
+        source.repeat_on_eof = app->GetParameterValue<bool>("tfb:repeat_on_eof");
+        
+        m_config.sources.push_back(source);
+    }
 #endif
 }
 
