@@ -55,49 +55,68 @@ jana -Pplugins=timeframe_builder_plugin input_file.hepmc3.tree.root
 
 ### Configuration Parameters
 
+**The plugin now supports the full breadth of configuration options available in the standalone tool.**
+
 All TimeframeBuilder parameters use the `tfb:` prefix:
 
-#### Timeframe Configuration
+#### Global Timeframe Configuration
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `tfb:timeframe_duration` | float | 2000.0 | Duration of each timeframe in nanoseconds |
 | `tfb:bunch_crossing_period` | float | 10.0 | Bunch crossing period in nanoseconds |
 | `tfb:max_timeframes` | int | 100 | Maximum number of timeframes to process |
-| `tfb:random_seed` | int | 0 | Random seed (0 = use random_device) |
+| `tfb:random_seed` | uint | 0 | Random seed (0 = use random_device) |
+| `tfb:introduce_offsets` | bool | true | Introduce random time offsets |
+| `tfb:merge_particles` | bool | false | Merge particles (advanced feature) |
+| `tfb:output_file` | string | "" | Output file (empty = no output) |
 
-#### Event Selection
+#### Multi-Source Configuration
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `tfb:source_names` | string | "" | Comma-separated list of source names (empty = single source mode) |
+
+#### Default Source Parameters (used when source_names is empty)
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `tfb:static_events` | bool | false | Use static number of events per timeframe |
-| `tfb:events_per_frame` | int | 1 | Events per timeframe (if static_events is true) |
-| `tfb:event_frequency` | float | 1.0 | Mean event frequency in events/ns (if static_events is false) |
+| `tfb:events_per_frame` | int | 1 | Events per timeframe (if static) |
+| `tfb:event_frequency` | float | 1.0 | Mean event frequency in events/ns |
+| `tfb:use_bunch_crossing` | bool | false | Enable bunch crossing discretization |
+| `tfb:attach_to_beam` | bool | false | Enable beam attachment |
+| `tfb:beam_angle` | float | 0.0 | Beam angle in radians |
+| `tfb:beam_speed` | float | 299.792458 | Beam speed in mm/ns |
+| `tfb:beam_spread` | float | 0.0 | Gaussian beam time spread in ns |
+| `tfb:status_offset` | int | 0 | Generator status offset |
+| `tfb:already_merged` | bool | false | Input is pre-merged timeframes |
+| `tfb:tree_name` | string | "events" | TTree name in input file |
+| `tfb:repeat_on_eof` | bool | false | Repeat source when EOF reached |
 
-#### Bunch Crossing and Beam Physics
+#### Per-Source Parameters (when using source_names)
 
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `tfb:use_bunch_crossing` | bool | false | Enable bunch crossing time discretization |
-| `tfb:attach_to_beam` | bool | false | Enable beam attachment for particles |
-| `tfb:beam_speed` | float | 299.792458 | Beam speed in ns/mm (speed of light) |
-| `tfb:beam_spread` | float | 0.0 | Gaussian beam time spread (std dev) in ns |
+For each source named `SOURCENAME`, parameters use the format `tfb:SOURCENAME:parameter`:
 
-#### Generator Configuration
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `tfb:status_offset` | int | 0 | Offset added to MCParticle generator status |
-
-#### Output Configuration
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `tfb:output_file` | string | "" | Optional output file (empty = no output file) |
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `tfb:SOURCENAME:input_files` | string | Comma-separated list of input files |
+| `tfb:SOURCENAME:static_events` | bool | Use static event count |
+| `tfb:SOURCENAME:events_per_frame` | int | Events per timeframe (if static) |
+| `tfb:SOURCENAME:event_frequency` | float | Mean event frequency |
+| `tfb:SOURCENAME:use_bunch_crossing` | bool | Enable bunch crossing |
+| `tfb:SOURCENAME:attach_to_beam` | bool | Enable beam attachment |
+| `tfb:SOURCENAME:beam_angle` | float | Beam angle in radians |
+| `tfb:SOURCENAME:beam_speed` | float | Beam speed in mm/ns |
+| `tfb:SOURCENAME:beam_spread` | float | Beam time spread in ns |
+| `tfb:SOURCENAME:status_offset` | int | Generator status offset |
+| `tfb:SOURCENAME:already_merged` | bool | Pre-merged input |
+| `tfb:SOURCENAME:tree_name` | string | TTree name |
+| `tfb:SOURCENAME:repeat_on_eof` | bool | Repeat on EOF |
 
 ### Example Configurations
 
-#### Basic Timeframe Merging
+#### Basic Single Source (Backward Compatible)
 
 ```bash
 jana -Pplugins=timeframe_builder_plugin \
@@ -106,7 +125,7 @@ jana -Pplugins=timeframe_builder_plugin \
      input.edm4hep.root
 ```
 
-#### Static Event Count
+#### Static Event Count (Single Source)
 
 Merge exactly 3 events per timeframe:
 
@@ -117,6 +136,39 @@ jana -Pplugins=timeframe_builder_plugin \
      -Ptfb:max_timeframes=100 \
      input.edm4hep.root
 ```
+
+#### Multiple Sources with Different Configurations
+
+Signal and background with different properties:
+
+```bash
+jana -Pplugins=timeframe_builder_plugin \
+     -Ptfb:source_names=signal,background \
+     -Ptfb:signal:input_files=signal1.root,signal2.root \
+     -Ptfb:signal:event_frequency=0.5 \
+     -Ptfb:signal:use_bunch_crossing=true \
+     -Ptfb:background:input_files=bg.root \
+     -Ptfb:background:static_events=true \
+     -Ptfb:background:events_per_frame=2 \
+     -Ptfb:background:status_offset=1000 \
+     -Ptfb:timeframe_duration=10000.0 \
+     -Ptfb:max_timeframes=1000
+```
+
+#### Three Sources: Signal, BH Background, DIS Background
+
+```bash
+jana -Pplugins=timeframe_builder_plugin \
+     -Ptfb:source_names=signal,bh_background,dis_background \
+     -Ptfb:signal:input_files=signal.root \
+     -Ptfb:signal:event_frequency=0.1 \
+     -Ptfb:bh_background:input_files=bh_bg.root \
+     -Ptfb:bh_background:static_events=true \
+     -Ptfb:bh_background:events_per_frame=5 \
+     -Ptfb:bh_background:status_offset=1000 \
+     -Ptfb:dis_background:input_files=dis_bg.root \
+     -Ptfb:dis_background:event_frequency=0.05 \
+     -Ptfb:dis_background:status_offset=2000
 
 #### Bunch Crossing Mode
 
