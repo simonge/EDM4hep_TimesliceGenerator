@@ -14,6 +14,7 @@ void CommandLineParser::printUsage(const char* program_name) {
               << "  -n, --nevents N             Maximum number of timeframes to generate (default: 100)\n"
               << "  -d, --duration TIME         Timeframe duration in ns (default: 20.0)\n"
               << "  -p, --bunch-period PERIOD   Bunch crossing period in ns (default: 10.0)\n"
+              << "  --random-seed SEED          Random number generator seed (default: 0, use random_device)\n"
               << "  -h, --help                  Show this help message\n"
               << "\nDefault Source Options (backward compatibility):\n"
               << "  -f, --frequency FREQ        Mean event frequency (events/ns) (default: 1.0)\n"
@@ -152,6 +153,7 @@ void CommandLineParser::loadYAMLConfig(const std::string& config_file, MergerCon
     if (yaml["max_events"]) config.max_events = yaml["max_events"].as<size_t>();
     if (yaml["timeframe_duration"]) config.timeframe_duration = yaml["timeframe_duration"].as<float>();
     if (yaml["bunch_crossing_period"]) config.bunch_crossing_period = yaml["bunch_crossing_period"].as<float>();
+    if (yaml["random_seed"]) config.random_seed = yaml["random_seed"].as<unsigned int>();
     if (yaml["introduce_offsets"]) config.introduce_offsets = yaml["introduce_offsets"].as<bool>();
     
     if (yaml["sources"]) {
@@ -280,6 +282,7 @@ void CommandLineParser::printConfiguration(const MergerConfig& config) {
     std::cout << "Max events: " << config.max_events << std::endl;
     std::cout << "Timeframe duration: " << config.timeframe_duration << " ns" << std::endl;
     std::cout << "Bunch crossing period: " << config.bunch_crossing_period << " ns" << std::endl;
+    std::cout << "Random seed: " << config.random_seed << (config.random_seed == 0 ? " (using random_device)" : "") << std::endl;
     std::cout << "Introduce offsets: " << (config.introduce_offsets ? "true" : "false") << std::endl;
     std::cout << "================================================" << std::endl;
 }
@@ -328,6 +331,7 @@ MergerConfig CommandLineParser::parse(int argc, char* argv[]) {
         {"duration", required_argument, 0, 'd'},
         {"frequency", required_argument, 0, 'f'},
         {"bunch-period", required_argument, 0, 'p'},
+        {"random-seed", required_argument, 0, 1005},
         {"use-bunch-crossing", no_argument, 0, 'b'},
         {"static-events", no_argument, 0, 's'},
         {"events-per-frame", required_argument, 0, 'e'},
@@ -382,6 +386,9 @@ MergerConfig CommandLineParser::parse(int argc, char* argv[]) {
                 break;
             case 1003:
                 default_source.generator_status_offset = std::stoi(optarg);
+                break;
+            case 1005:
+                config.random_seed = std::stoul(optarg);
                 break;
             case 'h':
                 printUsage(new_argv[0]);
