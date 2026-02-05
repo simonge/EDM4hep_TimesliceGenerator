@@ -163,7 +163,33 @@ Input Files → DataSource → TimeframeBuilder → DataHandler → JEventSource
 
 ## Integration with Downstream Factories
 
-The merged timeframe events can be accessed by JANA2 factories using standard JANA2 mechanisms. The plugin currently provides merged events through the JEvent system, allowing downstream factories to process the combined data.
+**Current Implementation Status**: The merged timeframe data is generated internally but not yet fully exposed to JANA2 factories. The current implementation has the following characteristics:
+
+1. **Timeframe Generation**: Events are successfully merged into timeframes using the existing TimeframeBuilder logic
+2. **Event Numbering**: Each timeframe is assigned a unique event number in JANA2
+3. **Data Access**: The merged collections are available internally but require additional work to expose them to JANA2 factories
+
+**Recommended Usage Pattern**: 
+
+The current implementation is best used in one of these ways:
+
+1. **Write-then-Read Pattern**: Configure the plugin to write merged timeframes to an output file using `tfb:output_file`, then use a standard PODIO JEventSource to read the merged data:
+   ```bash
+   # First pass: Generate merged timeframes
+   jana -Pplugins=timeframe_builder_plugin \
+        -Ptfb:output_file=merged.edm4hep.root \
+        input.edm4hep.root
+   
+   # Second pass: Process merged timeframes with standard PODIO source
+   jana -Pplugins=podio input_plugin.root merged.edm4hep.root
+   ```
+
+2. **Future Enhancement**: Direct exposure of merged collections to JANA2 factories. This would require:
+   - Converting the internal `*Data` types back to proper PODIO collection types
+   - Creating a podio::Frame from the merged collections
+   - Inserting collections into JEvent for factory access
+
+**Why This Matters**: This limitation exists because the TimeframeBuilder uses ROOT's native vector types for efficiency during merging, while JANA2 factories typically expect PODIO collection types. The conversion layer has not yet been implemented but is planned for future versions.
 
 ## Differences from Standalone Tool
 

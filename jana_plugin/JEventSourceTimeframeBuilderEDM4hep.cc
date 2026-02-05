@@ -93,14 +93,29 @@ JEventSourceTimeframeBuilderEDM4hep::Emit(JEvent& event) {
     event.SetEventNumber(m_timeframe_number);
     event.SetRunNumber(1);
     
-    // The merged data is already in the data handler's internal structures
-    // For EDM4hep, we would need to convert this to a podio::Frame and insert it
-    // This is a simplified version - in practice, you'd want to properly expose
-    // the merged collections through the data handler
+    // Get the merged collections from the data handler
+    auto* edm4hep_handler = dynamic_cast<EDM4hepDataHandler*>(m_data_handler.get());
+    if (edm4hep_handler) {
+        const auto& merged = edm4hep_handler->getMergedCollections();
+        
+        // TODO: Insert merged collections into JEvent
+        // This requires converting the *Data types back to proper PODIO collections
+        // For now, this is a limitation - the merged data is available but not yet
+        // properly exposed to JANA2 factories.
+        // 
+        // Potential approaches:
+        // 1. Convert to podio::Frame and insert
+        // 2. Create custom JFactories that access the merged collections directly
+        // 3. Write to file and read back using standard PODIO JEventSource
+        //
+        // For the immediate use case, we can write the merged timeframe to file
+        // and have downstream processors read from that file.
+    }
     
-    // Write the timeframe (this writes to the output file in the original design)
-    // For JANA2, we might want to skip writing or make it optional
-    // m_data_handler->writeTimeframe();
+    // Optionally write the timeframe to output file if configured
+    if (!m_config.output_file.empty()) {
+        m_data_handler->writeTimeframe();
+    }
     
     m_timeframe_number++;
     
