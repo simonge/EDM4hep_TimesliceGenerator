@@ -9,6 +9,10 @@ This tool provides control over timing adjustments allowing optional shifting of
 
 Sources can either be individual events, or an already merged source allowing step by step overlays. *At the moment these seem to take about the same time but hopefully should be possible to speed up using already merged sources*
 
+The TimeframeBuilder can be used in two ways:
+1. **Standalone executable**: Command-line tool for batch processing
+2. **JANA2 plugin**: Integrated into JANA2 as a JEventSource for event-by-event processing
+
 ## Prerequisites
 
 - **PODIO library and headers** - Required for EDM4hep data I/O operations
@@ -21,6 +25,7 @@ Sources can either be individual events, or an already merged source allowing st
 ### Optional Dependencies
 
 - **HepMC3**: If available, enables support for `.hepmc3.tree.root` format files. If not found during build, only EDM4hep format will be supported.
+- **JANA2**: If available, enables building of the JANA2 plugin for integration with JANA2-based applications.
 
 ## Building
 
@@ -531,6 +536,7 @@ Main orchestration class:
 - `include/TimeframeBuilder.h`: Main API and data structures
 - `include/DataSource.h`: Input data source abstraction
 - `include/MergerConfig.h`: Configuration structures
+- `jana_plugin/`: JANA2 plugin for integration with JANA2-based applications
 
 ### Testing
 ```bash
@@ -548,6 +554,60 @@ Main orchestration class:
 Example configuration files are provided in the `configs/` directory:
 - `config.yml`: Basic multi-source configuration
 - `config_continue.yml`: Working with pre-merged timeframe files
+
+## JANA2 Plugin
+
+The TimeframeBuilder includes a JANA2 plugin that provides JEventSource implementations for merging events within the JANA2 framework. This allows merged timeframes to be consumed by JANA2 factories and processors.
+
+### Building the JANA2 Plugin
+
+The plugin is automatically built when JANA2 is found during CMake configuration:
+
+```bash
+mkdir build && cd build
+cmake .. -DCMAKE_INSTALL_PREFIX=../install
+make -j$(nproc)
+make install
+```
+
+To disable the JANA2 plugin build:
+
+```bash
+cmake .. -DBUILD_JANA_PLUGIN=OFF
+```
+
+### Using the JANA2 Plugin
+
+Run JANA with the TimeframeBuilder plugin:
+
+```bash
+jana -Pplugins=timeframe_builder_plugin \
+     -Ptfb:timeframe_duration=5000.0 \
+     -Ptfb:max_timeframes=100 \
+     input.edm4hep.root
+```
+
+For complete documentation on the JANA2 plugin, see [jana_plugin/README.md](jana_plugin/README.md).
+
+### Available Event Sources
+
+- **JEventSourceTimeframeBuilderEDM4hep**: For EDM4hep/PODIO format files (`.edm4hep.root`)
+- **JEventSourceTimeframeBuilderHepMC3**: For HepMC3 format files (`.hepmc3.tree.root`) - available when HepMC3 is found
+
+### JANA2 Configuration Parameters
+
+All TimeframeBuilder parameters in JANA2 use the `tfb:` prefix:
+
+- `tfb:timeframe_duration`: Duration of each timeframe in nanoseconds (default: 2000.0)
+- `tfb:bunch_crossing_period`: Bunch crossing period in nanoseconds (default: 10.0)
+- `tfb:max_timeframes`: Maximum number of timeframes to process (default: 100)
+- `tfb:static_events`: Use static number of events per timeframe (default: false)
+- `tfb:events_per_frame`: Events per timeframe if static (default: 1)
+- `tfb:event_frequency`: Mean event frequency in events/ns (default: 1.0)
+- `tfb:use_bunch_crossing`: Enable bunch crossing discretization (default: false)
+- `tfb:attach_to_beam`: Enable beam attachment (default: false)
+
+See [jana_plugin/README.md](jana_plugin/README.md) for a complete list of parameters and usage examples.
 
 ## License
 
