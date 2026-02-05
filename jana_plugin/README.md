@@ -214,7 +214,15 @@ To add support for a new data format:
 
 ### Testing
 
-To test the plugin:
+To test the plugin, use the provided test script:
+
+```bash
+# Build and test (requires JANA2 environment)
+cd jana_plugin
+./test_jana_plugin.sh /path/to/input.edm4hep.root
+```
+
+Or manually test:
 
 ```bash
 # Build and install
@@ -226,6 +234,12 @@ jana -Pplugins=timeframe_builder_plugin \
      -Ptfb:max_timeframes=10 \
      path/to/test_input.edm4hep.root
 ```
+
+The test script (`test_jana_plugin.sh`) will:
+1. Check for JANA2 availability
+2. Build the project with plugin support
+3. Verify the plugin library was created
+4. Run JANA with a sample input file (if provided)
 
 ## Troubleshooting
 
