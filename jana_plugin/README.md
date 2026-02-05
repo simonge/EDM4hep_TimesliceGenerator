@@ -181,7 +181,7 @@ The current implementation is best used in one of these ways:
         input.edm4hep.root
    
    # Second pass: Process merged timeframes with standard PODIO source
-   jana -Pplugins=podio input_plugin.root merged.edm4hep.root
+   jana -Pplugins=podio merged.edm4hep.root
    ```
 
 2. **Future Enhancement**: Direct exposure of merged collections to JANA2 factories. This would require:

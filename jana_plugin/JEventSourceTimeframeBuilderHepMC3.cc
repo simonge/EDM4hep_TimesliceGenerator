@@ -219,8 +219,15 @@ void JEventSourceTimeframeBuilderHepMC3::initializeMerger() {
     m_data_handler = std::make_unique<HepMC3DataHandler>();
     
     // Initialize data sources
+    // Note: output_file is still needed for the DataHandler initialization
+    // even if we're not writing output. This is a limitation of the current
+    // DataHandler design. Use a temporary name that won't be written to.
+    std::string output_file = m_config.output_file.empty() 
+        ? "timeframe_builder_tmp.hepmc3.tree.root" 
+        : m_config.output_file;
+    
     m_data_sources = m_data_handler->initializeDataSources(
-        m_config.output_file.empty() ? "merged.hepmc3.tree.root" : m_config.output_file,
+        output_file,
         m_config.sources);
 #endif
 }

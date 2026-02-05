@@ -167,7 +167,7 @@ void JEventSourceTimeframeBuilderEDM4hep::initializeConfiguration() {
     auto* app = GetApplication();
     
     // Get configuration parameters from JANA
-    // Note: In a real implementation, these would be registered as JANA parameters
+    // All parameters are registered in timeframe_builder_plugin.cc
     
     // Timeframe configuration
     m_config.timeframe_duration = app->GetParameterValue<float>(
@@ -226,8 +226,15 @@ void JEventSourceTimeframeBuilderEDM4hep::initializeMerger() {
     m_data_handler = std::make_unique<EDM4hepDataHandler>();
     
     // Initialize data sources
+    // Note: output_file is still needed for the DataHandler initialization
+    // even if we're not writing output. This is a limitation of the current
+    // DataHandler design. Use a temporary name that won't be written to.
+    std::string output_file = m_config.output_file.empty() 
+        ? "timeframe_builder_tmp.edm4hep.root" 
+        : m_config.output_file;
+    
     m_data_sources = m_data_handler->initializeDataSources(
-        m_config.output_file.empty() ? "merged.edm4hep.root" : m_config.output_file,
+        output_file,
         m_config.sources);
 }
 
