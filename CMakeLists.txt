@@ -77,3 +77,10 @@ endif()
 
 # Install the executables
 install(TARGETS timeframe_builder DESTINATION bin)
+
+# Option to build JANA2 plugin
+option(BUILD_JANA_PLUGIN "Build JANA2 plugin for TimeframeBuilder" ON)
+
+if(BUILD_JANA_PLUGIN)
+    add_subdirectory(jana_plugin)
+endif()

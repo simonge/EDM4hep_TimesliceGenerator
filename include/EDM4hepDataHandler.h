@@ -69,6 +69,9 @@ public:
     void finalize() override;
     
     std::string getFormatName() const override { return "EDM4hep"; }
+    
+    // Public accessor for merged collections (for JANA2 integration)
+    const EDM4hepMergedCollections& getMergedCollections() const { return collections_; }
 
 private:
     std::unique_ptr<TFile> output_file_;
