@@ -5,7 +5,7 @@
 #include <chrono>
 
 TimeframeBuilder::TimeframeBuilder(const MergerConfig& config)
-    : m_config(config), gen(rd()) {}
+    : m_config(config), gen(config.random_seed == 0 ? rd() : config.random_seed) {}
 
 void TimeframeBuilder::setDataHandler(std::unique_ptr<DataHandler> handler) {
     data_handler_ = std::move(handler);
