@@ -173,7 +173,7 @@ void JEventSourceTimeframeBuilderEDM4hep::initializeConfiguration() {
     // Global timeframe configuration
     m_config.timeframe_duration = app->GetParameterValue<float>("tfb:timeframe_duration");
     m_config.bunch_crossing_period = app->GetParameterValue<float>("tfb:bunch_crossing_period");
-    m_config.max_events = app->GetParameterValue<int>("tfb:max_timeframes");
+    m_config.max_events = app->GetParameterValue<size_t>("tfb:max_timeframes");
     m_max_timeframes = m_config.max_events;
     m_config.random_seed = app->GetParameterValue<unsigned int>("tfb:random_seed");
     m_config.introduce_offsets = app->GetParameterValue<bool>("tfb:introduce_offsets");
@@ -227,7 +227,7 @@ void JEventSourceTimeframeBuilderEDM4hep::initializeConfiguration() {
             // Get all source-specific parameters
             source.static_number_of_events = app->GetParameterValue<bool>(
                 prefix + "static_events", false);
-            source.static_events_per_timeframe = app->GetParameterValue<int>(
+            source.static_events_per_timeframe = app->GetParameterValue<size_t>(
                 prefix + "events_per_frame", 1);
             source.mean_event_frequency = app->GetParameterValue<float>(
                 prefix + "event_frequency", 1.0f);
@@ -241,7 +241,7 @@ void JEventSourceTimeframeBuilderEDM4hep::initializeConfiguration() {
                 prefix + "beam_speed", 299.792458f);
             source.beam_spread = app->GetParameterValue<float>(
                 prefix + "beam_spread", 0.0f);
-            source.generator_status_offset = app->GetParameterValue<int>(
+            source.generator_status_offset = app->GetParameterValue<int32_t>(
                 prefix + "status_offset", 0);
             source.already_merged = app->GetParameterValue<bool>(
                 prefix + "already_merged", false);
@@ -260,14 +260,14 @@ void JEventSourceTimeframeBuilderEDM4hep::initializeConfiguration() {
         
         // Get default source parameters
         source.static_number_of_events = app->GetParameterValue<bool>("tfb:static_events");
-        source.static_events_per_timeframe = app->GetParameterValue<int>("tfb:events_per_frame");
+        source.static_events_per_timeframe = app->GetParameterValue<size_t>("tfb:events_per_frame");
         source.mean_event_frequency = app->GetParameterValue<float>("tfb:event_frequency");
         source.use_bunch_crossing = app->GetParameterValue<bool>("tfb:use_bunch_crossing");
         source.attach_to_beam = app->GetParameterValue<bool>("tfb:attach_to_beam");
         source.beam_angle = app->GetParameterValue<float>("tfb:beam_angle");
         source.beam_speed = app->GetParameterValue<float>("tfb:beam_speed");
         source.beam_spread = app->GetParameterValue<float>("tfb:beam_spread");
-        source.generator_status_offset = app->GetParameterValue<int>("tfb:status_offset");
+        source.generator_status_offset = app->GetParameterValue<int32_t>("tfb:status_offset");
         source.already_merged = app->GetParameterValue<bool>("tfb:already_merged");
         source.tree_name = app->GetParameterValue<std::string>("tfb:tree_name");
         source.repeat_on_eof = app->GetParameterValue<bool>("tfb:repeat_on_eof");

@@ -44,7 +44,7 @@ void InitPlugin(JApplication* app) {
         "Duration of each timeframe in nanoseconds");
     app->SetDefaultParameter("tfb:bunch_crossing_period", 10.0f,
         "Bunch crossing period in nanoseconds");
-    app->SetDefaultParameter("tfb:max_timeframes", 100,
+    app->SetDefaultParameter("tfb:max_timeframes", (size_t)100,
         "Maximum number of timeframes to process");
     app->SetDefaultParameter("tfb:random_seed", 0u,
         "Random seed for event merging (0 = use random_device)");
@@ -64,7 +64,7 @@ void InitPlugin(JApplication* app) {
     // Default source configuration (for backward compatibility when no sources specified)
     app->SetDefaultParameter("tfb:static_events", false,
         "Use static number of events per timeframe (default source)");
-    app->SetDefaultParameter("tfb:events_per_frame", 1,
+    app->SetDefaultParameter("tfb:events_per_frame", (size_t)1,
         "Static events per timeframe (default source)");
     app->SetDefaultParameter("tfb:event_frequency", 1.0f,
         "Mean event frequency in events/ns (default source)");
