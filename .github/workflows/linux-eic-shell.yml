@@ -53,13 +53,18 @@ jobs:
     steps:
     - uses: actions/checkout@v6
     - uses: cvmfs-contrib/github-action-cvmfs@v5
+    - name: Fix script permissions
+      run: chmod +x .github/scripts/monitor_memory.sh
     - name: Run all EPIC simulations with Snakemake
       uses: eic/run-cvmfs-osg-eic-shell@main
       with:
         platform-release: "eic_xl:nightly"
         run: |
           source /opt/detector/epic-main/bin/thisepic.sh
-          snakemake --cores 1
+          snakemake --cores 1 &
+          SNAKEMAKE_PID=$!
+          .github/scripts/monitor_memory.sh $SNAKEMAKE_PID epic-simulations.csv --tree
+          wait $SNAKEMAKE_PID
     - name: Upload all EPIC simulation outputs
       uses: actions/upload-artifact@v4
       with:
@@ -72,6 +77,12 @@ jobs:
           epic_sim_ci_electron_beamgas_coulomb.edm4hep.root
           epic_sim_ci_electron_beamgas_touschek.edm4hep.root
           epic_sim_ci_electron_synchrotron.edm4hep.root
+        retention-days: 1
+    - name: Upload snakemake memory report
+      uses: actions/upload-artifact@v6
+      with:
+        name: epic-simulations
+        path: epic-simulations.csv
         retention-days: 1
 
   test-edm4hep:
@@ -155,7 +166,7 @@ jobs:
             --source:electron_beamgas_touschek:input_files ${{env.XROOTD_SERVER}}${{env.HEPMC3_PATH}}${{env.HEPMC3_ELECTRON_BEAMGAS_TOUSCHEK_PATH}} \
             --source:electron_synchrotron:input_files ${{env.XROOTD_SERVER}}${{env.HEPMC3_PATH}}${{env.HEPMC3_ELECTRON_SYNCHROTRON_PATH}} &
           TF_PID=$!
-          .github/scripts/monitor_memory.sh $TF_PID hepmc3_merge_memory.csv
+          .github/scripts/monitor_memory.sh $TF_PID hepmc3_merge_memory.csv --tree
           wait $TF_PID
           
           ls -lh merged_ci_18x275.hepmc3.tree.root
@@ -202,7 +213,7 @@ jobs:
                 --outputFile sim_ci_18x275.edm4hep.root \
                 --numberOfEvents 10 &
           NPSIM_PID=$!
-          .github/scripts/monitor_memory.sh $NPSIM_PID npsim_memory.csv
+          .github/scripts/monitor_memory.sh $NPSIM_PID merged-epic-simulation.csv --tree
           wait $NPSIM_PID
           
           ls -lh sim_ci_18x275.edm4hep.root
@@ -215,8 +226,8 @@ jobs:
     - name: Upload memory report
       uses: actions/upload-artifact@v6
       with:
-        name: npsim-memory
-        path: npsim_memory.csv
+        name: merged-epic-simulation
+        path: merged-epic-simulation.csv
         retention-days: 1
 
   eicrecon-from-epic:
@@ -241,7 +252,7 @@ jobs:
           # Run eicrecon on simulated events from EPIC simulation
           eicrecon -Pplugins=dump_flags sim_ci_18x275.edm4hep.root -Pjana:loglevel=info -Pjana:warmup_timeout=0 -Pjana:timeout=0 -Ppodio:output_file=recon_ci_18x275_from_epic.eicrecon.edm4eic.root &
           EICRECON_PID=$!
-          .github/scripts/monitor_memory.sh $EICRECON_PID eicrecon_epic_memory.csv
+          .github/scripts/monitor_memory.sh $EICRECON_PID eicrecon_epic_memory.csv --tree
           wait $EICRECON_PID
           
           ls -lh recon_ci_18x275_from_epic.eicrecon.edm4eic.root 2>/dev/null || echo "Warning: eicrecon output not found"
@@ -351,6 +362,7 @@ jobs:
   combine-memory-reports:
     runs-on: ubuntu-24.04
     needs:
+      - epic-simulations
       - test-edm4hep
       - test-hepmc3
       - merged-epic-simulation
