@@ -121,7 +121,7 @@ jobs:
     - name: Upload memory report
       uses: actions/upload-artifact@v6
       with:
-        name: memory-reports
+        name: edm4hep-merge-memory
         path: edm4hep_merge_memory.csv
         retention-days: 1
 
@@ -168,7 +168,7 @@ jobs:
     - name: Upload memory report
       uses: actions/upload-artifact@v6
       with:
-        name: memory-reports
+        name: hepmc3-merge-memory
         path: hepmc3_merge_memory.csv
         retention-days: 1
 
@@ -215,7 +215,7 @@ jobs:
     - name: Upload memory report
       uses: actions/upload-artifact@v6
       with:
-        name: memory-reports
+        name: npsim-memory
         path: npsim_memory.csv
         retention-days: 1
 
@@ -254,7 +254,7 @@ jobs:
     - name: Upload memory report
       uses: actions/upload-artifact@v6
       with:
-        name: memory-reports
+        name: eicrecon-epic-memory
         path: eicrecon_epic_memory.csv
         retention-days: 1
 
@@ -301,7 +301,7 @@ jobs:
     - name: Upload memory report
       uses: actions/upload-artifact@v6
       with:
-        name: memory-reports
+        name: eicrecon-edm4hep-memory
         path: eicrecon_edm4hep_memory.csv
         retention-days: 1
 
@@ -348,9 +348,37 @@ jobs:
           main-*/
         retention-days: 1
         
+  combine-memory-reports:
+    runs-on: ubuntu-24.04
+    needs:
+      - test-edm4hep
+      - test-hepmc3
+      - merged-epic-simulation
+      - eicrecon-from-epic
+      - eicrecon-from-edm4hep
+    steps:
+      - name: Download all memory reports
+        uses: actions/download-artifact@v7
+        with:
+          path: memory_artifacts
+      - name: Combine memory reports
+        run: |
+          mkdir -p combined_memory
+          # Copy all CSV files from different artifacts into one directory
+          find memory_artifacts -name "*.csv" -exec cp {} combined_memory/ \;
+          ls -lh combined_memory/
+      - name: Upload combined memory reports
+        uses: actions/upload-artifact@v6
+        with:
+          name: memory-reports
+          path: combined_memory/
+          retention-days: 1
+        
   collect-docs:
     runs-on: ubuntu-24.04
-    needs: capybara-report
+    needs:
+      - capybara-report
+      - combine-memory-reports
     steps:
       - name: Download capybara report
         uses: actions/download-artifact@v7
