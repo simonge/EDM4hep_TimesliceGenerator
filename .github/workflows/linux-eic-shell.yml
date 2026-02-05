@@ -273,7 +273,7 @@ jobs:
           mkdir hepmc3-merged
           mv recon_ci_18x275_from_epic.eicrecon.edm4eic.root hepmc3-merged/
           mv recon_ci_18x275_from_edm4hep.eicrecon.edm4eic.root edm4hep-merged/
-          capybara bara -M EventHeader hepmc3-merged/recon_ci_18x275_from_epic.eicrecon.edm4eic.root edm4hep-merged/recon_ci_18x275_from_edm4hep.eicrecon.edm4eic.root
+          capybara bara -M EventHeader hepmc3-merged/*recon_ci_18x275_from_epic.eicrecon.edm4eic.root edm4hep-merged/recon_ci_18x275_from_edm4hep.eicrecon.edm4eic.root
           # Use PR number or commit SHA for unique directory name
           if [ "${{ github.event_name }}" == "pull_request" ]; then
             REPORT_DIR="pr-${{ github.event.pull_request.number }}"
