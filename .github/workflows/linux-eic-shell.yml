@@ -380,6 +380,9 @@ jobs:
       - capybara-report
       - combine-memory-reports
     steps:
+      - uses: actions/checkout@v4      
+      - name: Fix script permissions
+        run: chmod +x .github/scripts/generate_memory_report.sh
       - name: Download capybara report
         uses: actions/download-artifact@v7
         with:
