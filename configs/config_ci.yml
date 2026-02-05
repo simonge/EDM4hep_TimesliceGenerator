@@ -20,7 +20,7 @@ sources:
     static_number_of_events: false
     mean_event_frequency: 1.8 # in GHz # Check value
     use_bunch_crossing: true
-    generator_status_offset: 7000
+    generator_status_offset: 0
     repeat_on_eof: false
   - name: hadron_beamgas
     static_number_of_events: false
@@ -30,7 +30,7 @@ sources:
     beam_angle: 0.025 # in rad
     beam_speed: 299.792458 # in mm/ns
     beam_spread: 0.030 # in ns
-    generator_status_offset: 6000
+    generator_status_offset: 0
     repeat_on_eof: false
   - name: electron_beamgas_brems
     static_number_of_events: false
@@ -40,7 +40,7 @@ sources:
     beam_angle: -3.141592653589793 # in rad
     beam_speed: 299.792458 # in mm/ns
     beam_spread: 0.003 # in ns
-    generator_status_offset: 3000
+    generator_status_offset: 0
     repeat_on_eof: false
   - name: electron_beamgas_coulomb
     static_number_of_events: false
@@ -50,7 +50,7 @@ sources:
     beam_angle: -3.141592653589793 # in rad
     beam_speed: 299.792458 # in mm/ns
     beam_spread: 0.003 # in ns
-    generator_status_offset: 5000
+    generator_status_offset: 0
     repeat_on_eof: false
   - name: electron_beamgas_touschek
     static_number_of_events: false
@@ -60,7 +60,7 @@ sources:
     beam_angle: -3.141592653589793 # in rad
     beam_speed: 299.792458 # in mm/ns
     beam_spread: 0.003 # in ns
-    generator_status_offset: 4000
+    generator_status_offset: 0
     repeat_on_eof: false
   - name: electron_synchrotron
     static_number_of_events: false
@@ -70,5 +70,5 @@ sources:
     beam_angle: -3.141592653589793 # in rad
     beam_speed: 299.792458 # in mm/ns
     beam_spread: 0.003 # in ns
-    generator_status_offset: 2000
+    generator_status_offset: 0
     repeat_on_eof: false
