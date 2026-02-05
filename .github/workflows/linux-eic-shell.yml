@@ -86,6 +86,8 @@ jobs:
         name: timeframe-builder-binaries
     - name: Fix binary permissions
       run: chmod +x install/bin/timeframe_builder
+    - name: Fix script permissions
+      run: chmod +x .github/scripts/monitor_memory.sh
     - name: Download separate EPIC simulation output
       uses: actions/download-artifact@v4
       with:
@@ -135,6 +137,8 @@ jobs:
         name: timeframe-builder-binaries
     - name: Fix binary permissions
       run: chmod +x install/bin/timeframe_builder
+    - name: Fix script permissions
+      run: chmod +x .github/scripts/monitor_memory.sh
     - name: HepMC3 merging from XRootD
       uses: eic/run-cvmfs-osg-eic-shell@main
       with:
@@ -178,6 +182,8 @@ jobs:
       uses: actions/download-artifact@v7
       with:
         name: timeframe-builder-binaries
+    - name: Fix script permissions
+      run: chmod +x .github/scripts/monitor_memory.sh
     - name: Download HepMC3 events
       uses: actions/download-artifact@v7
       with:
@@ -219,6 +225,8 @@ jobs:
     steps:
     - uses: actions/checkout@v6
     - uses: cvmfs-contrib/github-action-cvmfs@v5
+    - name: Fix script permissions
+      run: chmod +x .github/scripts/monitor_memory.sh
     - name: Download EPIC simulated events
       uses: actions/download-artifact@v7
       with:
@@ -260,6 +268,8 @@ jobs:
       uses: actions/download-artifact@v7
       with:
         name: edm4hep-merged
+    - name: Fix script permissions
+      run: chmod +x .github/scripts/monitor_memory.sh
     - name: Verify file exists
       run: |
         pwd
