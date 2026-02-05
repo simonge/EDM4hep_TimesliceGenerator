@@ -53,13 +53,18 @@ jobs:
     steps:
     - uses: actions/checkout@v6
     - uses: cvmfs-contrib/github-action-cvmfs@v5
+    - name: Fix script permissions
+      run: chmod +x .github/scripts/monitor_memory.sh
     - name: Run all EPIC simulations with Snakemake
       uses: eic/run-cvmfs-osg-eic-shell@main
       with:
         platform-release: "eic_xl:nightly"
         run: |
           source /opt/detector/epic-main/bin/thisepic.sh
-          snakemake --cores 1
+          snakemake --cores 1 &
+          SNAKEMAKE_PID=$!
+          .github/scripts/monitor_memory.sh $SNAKEMAKE_PID epic-simulations.csv --tree
+          wait $SNAKEMAKE_PID
     - name: Upload all EPIC simulation outputs
       uses: actions/upload-artifact@v4
       with:
@@ -72,6 +77,12 @@ jobs:
           epic_sim_ci_electron_beamgas_coulomb.edm4hep.root
           epic_sim_ci_electron_beamgas_touschek.edm4hep.root
           epic_sim_ci_electron_synchrotron.edm4hep.root
+        retention-days: 1
+    - name: Upload snakemake memory report
+      uses: actions/upload-artifact@v6
+      with:
+        name: epic-simulations
+        path: epic-simulations.csv
         retention-days: 1
 
   test-edm4hep:
@@ -86,6 +97,8 @@ jobs:
         name: timeframe-builder-binaries
     - name: Fix binary permissions
       run: chmod +x install/bin/timeframe_builder
+    - name: Fix script permissions
+      run: chmod +x .github/scripts/monitor_memory.sh
     - name: Download separate EPIC simulation output
       uses: actions/download-artifact@v4
       with:
@@ -104,7 +117,10 @@ jobs:
             --source:electron_beamgas_brems:input_files epic_sim_ci_electron_beamgas_brems.edm4hep.root \
             --source:electron_beamgas_coulomb:input_files epic_sim_ci_electron_beamgas_coulomb.edm4hep.root \
             --source:electron_beamgas_touschek:input_files epic_sim_ci_electron_beamgas_touschek.edm4hep.root \
-            --source:electron_synchrotron:input_files epic_sim_ci_electron_synchrotron.edm4hep.root
+            --source:electron_synchrotron:input_files epic_sim_ci_electron_synchrotron.edm4hep.root &
+          TF_PID=$!
+          .github/scripts/monitor_memory.sh $TF_PID edm4hep_merge_memory.csv
+          wait $TF_PID
           
           ls -lh merged_ci_18x275.edm4hep.root
     - name: Upload EDM4hep merger output
@@ -112,6 +128,12 @@ jobs:
       with:
         name: edm4hep-merged
         path: merged_ci_18x275.edm4hep.root
+        retention-days: 1
+    - name: Upload memory report
+      uses: actions/upload-artifact@v6
+      with:
+        name: edm4hep-merge-memory
+        path: edm4hep_merge_memory.csv
         retention-days: 1
 
   test-hepmc3:
@@ -126,6 +148,8 @@ jobs:
         name: timeframe-builder-binaries
     - name: Fix binary permissions
       run: chmod +x install/bin/timeframe_builder
+    - name: Fix script permissions
+      run: chmod +x .github/scripts/monitor_memory.sh
     - name: HepMC3 merging from XRootD
       uses: eic/run-cvmfs-osg-eic-shell@main
       with:
@@ -140,7 +164,10 @@ jobs:
             --source:electron_beamgas_brems:input_files ${{env.XROOTD_SERVER}}${{env.HEPMC3_PATH}}${{env.HEPMC3_ELECTRON_BEAMGAS_BREMS_PATH}} \
             --source:electron_beamgas_coulomb:input_files ${{env.XROOTD_SERVER}}${{env.HEPMC3_PATH}}${{env.HEPMC3_ELECTRON_BEAMGAS_COULOMB_PATH}} \
             --source:electron_beamgas_touschek:input_files ${{env.XROOTD_SERVER}}${{env.HEPMC3_PATH}}${{env.HEPMC3_ELECTRON_BEAMGAS_TOUSCHEK_PATH}} \
-            --source:electron_synchrotron:input_files ${{env.XROOTD_SERVER}}${{env.HEPMC3_PATH}}${{env.HEPMC3_ELECTRON_SYNCHROTRON_PATH}}
+            --source:electron_synchrotron:input_files ${{env.XROOTD_SERVER}}${{env.HEPMC3_PATH}}${{env.HEPMC3_ELECTRON_SYNCHROTRON_PATH}} &
+          TF_PID=$!
+          .github/scripts/monitor_memory.sh $TF_PID hepmc3_merge_memory.csv --tree
+          wait $TF_PID
           
           ls -lh merged_ci_18x275.hepmc3.tree.root
     - name: Upload HepMC3 merger output
@@ -148,6 +175,12 @@ jobs:
       with:
         name: hepmc3-merged
         path: merged_ci_18x275.hepmc3.tree.root
+        retention-days: 1
+    - name: Upload memory report
+      uses: actions/upload-artifact@v6
+      with:
+        name: hepmc3-merge-memory
+        path: hepmc3_merge_memory.csv
         retention-days: 1
 
   merged-epic-simulation:
@@ -160,6 +193,8 @@ jobs:
       uses: actions/download-artifact@v7
       with:
         name: timeframe-builder-binaries
+    - name: Fix script permissions
+      run: chmod +x .github/scripts/monitor_memory.sh
     - name: Download HepMC3 events
       uses: actions/download-artifact@v7
       with:
@@ -170,12 +205,16 @@ jobs:
         platform-release: "eic_xl:nightly"
         run: |
           source /opt/detector/epic-main/bin/thisepic.sh
+          
           # Run npsim on the merged HepMC3 events
           npsim --compactFile $DETECTOR_PATH/epic_craterlake.xml \
                 --physics.alternativeStableStatuses "1001 2001 3001 4001 5001 6001 7001" \
                 --inputFiles merged_ci_18x275.hepmc3.tree.root \
                 --outputFile sim_ci_18x275.edm4hep.root \
-                --numberOfEvents 10
+                --numberOfEvents 10 &
+          NPSIM_PID=$!
+          .github/scripts/monitor_memory.sh $NPSIM_PID merged-epic-simulation.csv --tree
+          wait $NPSIM_PID
           
           ls -lh sim_ci_18x275.edm4hep.root
     - name: Upload simulated events
@@ -184,6 +223,12 @@ jobs:
         name: epic-simulated
         path: sim_ci_18x275.edm4hep.root
         retention-days: 1
+    - name: Upload memory report
+      uses: actions/upload-artifact@v6
+      with:
+        name: merged-epic-simulation
+        path: merged-epic-simulation.csv
+        retention-days: 1
 
   eicrecon-from-epic:
     needs: merged-epic-simulation
@@ -191,6 +236,8 @@ jobs:
     steps:
     - uses: actions/checkout@v6
     - uses: cvmfs-contrib/github-action-cvmfs@v5
+    - name: Fix script permissions
+      run: chmod +x .github/scripts/monitor_memory.sh
     - name: Download EPIC simulated events
       uses: actions/download-artifact@v7
       with:
@@ -201,8 +248,12 @@ jobs:
         platform-release: "eic_xl:nightly"
         run: |
           source /opt/detector/epic-main/bin/thisepic.sh
+          
           # Run eicrecon on simulated events from EPIC simulation
-          eicrecon -Pplugins=dump_flags sim_ci_18x275.edm4hep.root -Pjana:loglevel=info -Pjana:warmup_timeout=0 -Pjana:timeout=0 -Ppodio:output_file=recon_ci_18x275_from_epic.eicrecon.edm4eic.root
+          eicrecon -Pplugins=dump_flags sim_ci_18x275.edm4hep.root -Pjana:loglevel=info -Pjana:warmup_timeout=0 -Pjana:timeout=0 -Ppodio:output_file=recon_ci_18x275_from_epic.eicrecon.edm4eic.root &
+          EICRECON_PID=$!
+          .github/scripts/monitor_memory.sh $EICRECON_PID eicrecon_epic_memory.csv --tree
+          wait $EICRECON_PID
           
           ls -lh recon_ci_18x275_from_epic.eicrecon.edm4eic.root 2>/dev/null || echo "Warning: eicrecon output not found"
     - name: Upload reconstructed events
@@ -210,6 +261,12 @@ jobs:
       with:
         name: epic-reconstructed
         path: recon_ci_18x275_from_epic.eicrecon.edm4eic.root
+        retention-days: 1
+    - name: Upload memory report
+      uses: actions/upload-artifact@v6
+      with:
+        name: eicrecon-epic-memory
+        path: eicrecon_epic_memory.csv
         retention-days: 1
 
   eicrecon-from-edm4hep:
@@ -222,6 +279,8 @@ jobs:
       uses: actions/download-artifact@v7
       with:
         name: edm4hep-merged
+    - name: Fix script permissions
+      run: chmod +x .github/scripts/monitor_memory.sh
     - name: Verify file exists
       run: |
         pwd
@@ -234,10 +293,14 @@ jobs:
         platform-release: "eic_xl:nightly"
         run: |
           source /opt/detector/epic-main/bin/thisepic.sh
+          
           # Verify file exists
           ls -lh merged_ci_18x275.edm4hep.root
           # Run eicrecon directly on merged EDM4hep events
-          eicrecon -Pplugins=dump_flags merged_ci_18x275.edm4hep.root -Pjana:loglevel=info -Pjana:warmup_timeout=0 -Pjana:timeout=0 -Ppodio:output_file=recon_ci_18x275_from_edm4hep.eicrecon.edm4eic.root
+          eicrecon -Pplugins=dump_flags merged_ci_18x275.edm4hep.root -Pjana:loglevel=info -Pjana:warmup_timeout=0 -Pjana:timeout=0 -Ppodio:output_file=recon_ci_18x275_from_edm4hep.eicrecon.edm4eic.root &
+          EICRECON_PID=$!
+          .github/scripts/monitor_memory.sh $EICRECON_PID eicrecon_edm4hep_memory.csv
+          wait $EICRECON_PID
           
           ls -lh recon_ci_18x275_from_edm4hep.eicrecon.edm4eic.root 2>/dev/null || echo "Warning: eicrecon output not found"
     - name: Upload reconstructed events
@@ -245,6 +308,12 @@ jobs:
       with:
         name: edm4hep-reconstructed
         path: recon_ci_18x275_from_edm4hep.eicrecon.edm4eic.root
+        retention-days: 1
+    - name: Upload memory report
+      uses: actions/upload-artifact@v6
+      with:
+        name: eicrecon-edm4hep-memory
+        path: eicrecon_edm4hep_memory.csv
         retention-days: 1
 
   capybara-report:
@@ -278,7 +347,7 @@ jobs:
           if [ "${{ github.event_name }}" == "pull_request" ]; then
             REPORT_DIR="pr-${{ github.event.pull_request.number }}"
           else
-            REPORT_DIR="main-${{ github.sha }}"
+            REPORT_DIR="main"
           fi
           mv capybara-reports $REPORT_DIR
     - name: Upload Capybara report
@@ -290,15 +359,52 @@ jobs:
           main-*/
         retention-days: 1
         
+  combine-memory-reports:
+    runs-on: ubuntu-24.04
+    needs:
+      - epic-simulations
+      - test-edm4hep
+      - test-hepmc3
+      - merged-epic-simulation
+      - eicrecon-from-epic
+      - eicrecon-from-edm4hep
+    steps:
+      - name: Download all memory reports
+        uses: actions/download-artifact@v7
+        with:
+          path: memory_artifacts
+      - name: Combine memory reports
+        run: |
+          mkdir -p combined_memory
+          # Copy all CSV files from different artifacts into one directory
+          find memory_artifacts -name "*.csv" -exec cp {} combined_memory/ \;
+          ls -lh combined_memory/
+      - name: Upload combined memory reports
+        uses: actions/upload-artifact@v6
+        with:
+          name: memory-reports
+          path: combined_memory/
+          retention-days: 1
+        
   collect-docs:
     runs-on: ubuntu-24.04
-    needs: capybara-report
+    needs:
+      - capybara-report
+      - combine-memory-reports
     steps:
+      - uses: actions/checkout@v4      
+      - name: Fix script permissions
+        run: chmod +x .github/scripts/generate_memory_report.sh
       - name: Download capybara report
         uses: actions/download-artifact@v7
         with:
           name: capybara-report
           path: capybara_artifact
+      - name: Download memory reports
+        uses: actions/download-artifact@v7
+        with:
+          name: memory-reports
+          path: memory_reports
       - name: Organize reports for publishing
         run: |
           # Read the report directory name
@@ -309,6 +415,13 @@ jobs:
           # Move report to publishing directory
           mkdir -p publishing_docs/capybara
           mv capybara_artifact/$REPORT_DIR publishing_docs/capybara/
+          
+          # Create memory usage report
+          mkdir -p publishing_docs/memory/$REPORT_DIR
+          cp memory_reports/*.csv publishing_docs/memory/$REPORT_DIR/ 2>/dev/null || true
+          
+          # Generate HTML report for memory usage
+          .github/scripts/generate_memory_report.sh publishing_docs/memory/$REPORT_DIR
       - name: List content to publish
         run: find publishing_docs/
       - name: Upload GitHub Pages artifact
@@ -319,13 +432,15 @@ jobs:
       - name: Create capybara step summary
         run: |
           if [ "${{ github.event_name }}" == "pull_request" ]; then
-            echo "### Capybara Report for PR #${{ github.event.pull_request.number }}" >> $GITHUB_STEP_SUMMARY
+            echo "### Reports for PR #${{ github.event.pull_request.number }}" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
-            echo "- [View Report](https://eic.github.io/TimeframeBuilder/capybara/${{ env.REPORT_DIR }}/index.html)" >> $GITHUB_STEP_SUMMARY
+            echo "- [Capybara Comparison Report](https://eic.github.io/TimeframeBuilder/capybara/${{ env.REPORT_DIR }}/index.html)" >> $GITHUB_STEP_SUMMARY
+            echo "- [Memory Usage Report](https://eic.github.io/TimeframeBuilder/memory/${{ env.REPORT_DIR }}/index.html)" >> $GITHUB_STEP_SUMMARY
           else
-            echo "### Capybara Report for main" >> $GITHUB_STEP_SUMMARY
+            echo "### Reports for main" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
-            echo "- [View Report](https://eic.github.io/TimeframeBuilder/capybara/${{ env.REPORT_DIR }}/index.html)" >> $GITHUB_STEP_SUMMARY
+            echo "- [Capybara Comparison Report](https://eic.github.io/TimeframeBuilder/capybara/${{ env.REPORT_DIR }}/index.html)" >> $GITHUB_STEP_SUMMARY
+            echo "- [Memory Usage Report](https://eic.github.io/TimeframeBuilder/memory/${{ env.REPORT_DIR }}/index.html)" >> $GITHUB_STEP_SUMMARY
           fi
 
   deploy-docs:
