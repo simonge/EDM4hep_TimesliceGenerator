@@ -172,7 +172,7 @@ jobs:
           source /opt/detector/epic-main/bin/thisepic.sh
           # Run npsim on the merged HepMC3 events
           npsim --compactFile $DETECTOR_PATH/epic_craterlake.xml \
-                --physics.alternativeStableStatuses 1001,2001,3001,4001,5001,6001,7001 \
+                --physics.alternativeStableStatuses "1001 2001 3001 4001 5001 6001 7001" \
                 --inputFiles merged_ci_18x275.hepmc3.tree.root \
                 --outputFile sim_ci_18x275.edm4hep.root \
                 --numberOfEvents 10
