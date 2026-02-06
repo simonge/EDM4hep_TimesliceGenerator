@@ -442,12 +442,29 @@ jobs:
             echo "- [Capybara Comparison Report](https://eic.github.io/TimeframeBuilder/capybara/${{ env.REPORT_DIR }}/index.html)" >> $GITHUB_STEP_SUMMARY
             echo "- [Memory Usage Report](https://eic.github.io/TimeframeBuilder/memory/${{ env.REPORT_DIR }}/index.html)" >> $GITHUB_STEP_SUMMARY
           fi
+      - name: Create PR report summary
+        if: ${{ github.event_name == 'pull_request' }}
+        run: |
+          echo "### TimeframeBuilder reports for PR #${{ github.event.pull_request.number }}" >> reports_${{ github.event.pull_request.number }}.md
+          echo "" >> reports_${{ github.event.pull_request.number }}.md
+          echo "- [Capybara Comparison Report](https://eic.github.io/TimeframeBuilder/capybara/${{ env.REPORT_DIR }}/index.html)" >> reports_${{ github.event.pull_request.number }}.md
+          echo "- [Memory Usage Report](https://eic.github.io/TimeframeBuilder/memory/${{ env.REPORT_DIR }}/index.html)" >> reports_${{ github.event.pull_request.number }}.md
+          echo "" >> reports_${{ github.event.pull_request.number }}.md
+          echo "<small>Last updated $(TZ=America/New_York date -Iminutes) ${{ github.sha }}</small>" >> reports_${{ github.event.pull_request.number }}.md
+      - name: Upload PR report summary
+        if: ${{ github.event_name == 'pull_request' }}
+        uses: actions/upload-artifact@v6
+        with:
+          name: reports_${{ github.event.pull_request.number }}.md
+          path: reports_${{ github.event.pull_request.number }}.md
 
   deploy-docs:
     needs: collect-docs
     permissions:
       pages: write
       id-token: write
+      pull-requests: write
+      contents: read
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -456,3 +473,24 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+      - name: Find PR reports comment
+        if: ${{ github.event_name == 'pull_request' }}
+        id: find_comment
+        uses: peter-evans/find-comment@v4
+        with:
+          issue-number: ${{ github.event.pull_request.number }}
+          comment-author: 'github-actions[bot]'
+          body-includes: TimeframeBuilder reports
+      - name: Fetch PR reports summary
+        if: ${{ github.event_name == 'pull_request' }}
+        uses: actions/download-artifact@v7
+        with:
+          name: reports_${{ github.event.pull_request.number }}.md
+      - name: Create or update PR reports comment
+        if: ${{ github.event_name == 'pull_request' }}
+        uses: peter-evans/create-or-update-comment@v5
+        with:
+          comment-id: ${{ steps.find_comment.outputs.comment-id }}
+          issue-number: ${{ github.event.pull_request.number }}
+          body-file: reports_${{ github.event.pull_request.number }}.md
+          edit-mode: replace
