@@ -61,7 +61,7 @@ jobs:
         platform-release: "eic_xl:nightly"
         run: |
           source /opt/detector/epic-main/bin/thisepic.sh
-          snakemake --cores 2 &
+          snakemake --cores 1 &
           SNAKEMAKE_PID=$!
           .github/scripts/monitor_memory.sh $SNAKEMAKE_PID epic-simulations.csv --tree
           wait $SNAKEMAKE_PID
