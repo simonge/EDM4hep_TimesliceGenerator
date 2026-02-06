@@ -211,7 +211,7 @@ jobs:
                 --physics.alternativeStableStatuses "1001 2001 3001 4001 5001 6001 7001" \
                 --inputFiles merged_ci_18x275.hepmc3.tree.root \
                 --outputFile sim_ci_18x275.edm4hep.root \
-                --numberOfEvents 10 &
+                --numberOfEvents 50 &
           NPSIM_PID=$!
           .github/scripts/monitor_memory.sh $NPSIM_PID merged-epic-simulation.csv --tree
           wait $NPSIM_PID
