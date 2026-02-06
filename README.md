@@ -9,6 +9,11 @@ This tool provides control over timing adjustments allowing optional shifting of
 
 Sources can either be individual events, or an already merged source allowing step by step overlays. *At the moment these seem to take about the same time but hopefully should be possible to speed up using already merged sources*
 
+## Reporting
+CI tests report on the comparison between the output of [eicrecon](https://github.com/eic/EICrecon) when hepmc3 events are merged before simulation with those merging edm4hep events after simulation. [Current capybara report from main](https://eic.github.io/TimeframeBuilder/capybara/main/index.html)
+
+The memory usage profile during each step is also recorded and reported. [Current memory report from main](https://eic.github.io/TimeframeBuilder/memory/main/index.html)
+
 ## Prerequisites
 
 - **PODIO library and headers** - Required for EDM4hep data I/O operations
