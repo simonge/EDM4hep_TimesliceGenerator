@@ -447,6 +447,7 @@ jobs:
       - epic-simulations
       - test-edm4hep
       - test-hepmc3
+      - test-hepmc3-old-merger
       - merged-epic-simulation
       - eicrecon-from-epic
       - eicrecon-from-edm4hep
