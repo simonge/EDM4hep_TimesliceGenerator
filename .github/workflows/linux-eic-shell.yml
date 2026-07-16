@@ -196,15 +196,15 @@ jobs:
           SignalBackgroundMerger --rngSeed 1 \
             --nSlices 10 \
             --signalFile ${{env.XROOTD_SERVER}}${{env.HEPMC3_PATH}}${{env.HEPMC3_SIGNAL_PATH}} \
-            --signalFreq 0 \  
+            --signalFreq 0 \
             --signalStatus 0 \
-            --intWindow 2000 \            
-            --bgFile "${{env.XROOTD_SERVER}}${{env.HEPMC3_PATH}}${{env.HEPMC3_MINBIAS_PATH}}"  "83" "0" "0"\
-            --bgFile "${{env.XROOTD_SERVER}}${{env.HEPMC3_PATH}}${{env.HEPMC3_HADRON_BEAMGAS_PATH}}"  "25.5" "0" "6000"\
-            --bgFile "${{env.XROOTD_SERVER}}${{env.HEPMC3_PATH}}${{env.HEPMC3_ELECTRON_BEAMGAS_BREMS_PATH}}"  "316.94" "0" "3000"\
-            --bgFile "${{env.XROOTD_SERVER}}${{env.HEPMC3_PATH}}${{env.HEPMC3_ELECTRON_BEAMGAS_COULOMB_PATH}}"  "0.86" "0" "5000"\
-            --bgFile "${{env.XROOTD_SERVER}}${{env.HEPMC3_PATH}}${{env.HEPMC3_ELECTRON_BEAMGAS_TOUSCHEK_PATH}}"  "0.55" "0" "4000"\
-            --bgFile "${{env.XROOTD_SERVER}}${{env.HEPMC3_PATH}}${{env.HEPMC3_ELECTRON_SYNCHROTRON_PATH}}"  "3324000" "0" "2000"\
+            --intWindow 2000 \
+            --bgFile "${{env.XROOTD_SERVER}}${{env.HEPMC3_PATH}}${{env.HEPMC3_MINBIAS_PATH}}"  "83" "0" "0" \
+            --bgFile "${{env.XROOTD_SERVER}}${{env.HEPMC3_PATH}}${{env.HEPMC3_HADRON_BEAMGAS_PATH}}"  "25.5" "0" "6000" \
+            --bgFile "${{env.XROOTD_SERVER}}${{env.HEPMC3_PATH}}${{env.HEPMC3_ELECTRON_BEAMGAS_BREMS_PATH}}"  "316.94" "0" "3000" \
+            --bgFile "${{env.XROOTD_SERVER}}${{env.HEPMC3_PATH}}${{env.HEPMC3_ELECTRON_BEAMGAS_COULOMB_PATH}}"  "0.86" "0" "5000" \
+            --bgFile "${{env.XROOTD_SERVER}}${{env.HEPMC3_PATH}}${{env.HEPMC3_ELECTRON_BEAMGAS_TOUSCHEK_PATH}}"  "0.55" "0" "4000" \
+            --bgFile "${{env.XROOTD_SERVER}}${{env.HEPMC3_PATH}}${{env.HEPMC3_ELECTRON_SYNCHROTRON_PATH}}"  "3324000" "0" "2000" \
             --outputFile hepmc3-old-merger_ci_18x275.hepmc3.tree.root &
           TF_PID=$!
           .github/scripts/monitor_memory.sh $TF_PID hepmc3-old-merger_memory.csv --tree
