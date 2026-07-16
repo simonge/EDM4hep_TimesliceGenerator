@@ -30,8 +30,9 @@ rule simulate_epic:
     run:
         events = next(sim['events'] for sim in SIMULATIONS if sim['type'] == wildcards.sim_type)
         shell(f"""
-            npsim --compactFile $DETECTOR_PATH/epic_craterlake.xml \
-                  --inputFiles {params.remote} \
-                  --outputFile {{output.out}} \
-                  --numberOfEvents {events}
+            exec npsim \
+              --compactFile $DETECTOR_PATH/epic_craterlake.xml \
+              --inputFiles {params.remote} \
+              --outputFile {{output.out}} \
+              --numberOfEvents {events}
         """)
