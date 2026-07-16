@@ -187,7 +187,10 @@ jobs:
     needs: build
     runs-on: ubuntu-24.04
     steps:
+    - uses: actions/checkout@v6
     - uses: cvmfs-contrib/github-action-cvmfs@v5
+    - name: Fix script permissions
+      run: chmod +x .github/scripts/monitor_memory.sh
     - name: Old HepMC3 merging from XRootD
       uses: eic/run-cvmfs-osg-eic-shell@main
       with:
