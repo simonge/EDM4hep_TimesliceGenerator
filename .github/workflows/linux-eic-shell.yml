@@ -359,48 +359,48 @@ jobs:
         path: eicrecon_edm4hep_memory.csv
         retention-days: 1
 
-  capybara-report-hepmc3:
-    runs-on: ubuntu-24.04
-    needs: 
-      - test-hepmc3
-      - test-hepmc3-old-merger
-    steps:
-    - uses: actions/checkout@v6
-    - uses: cvmfs-contrib/github-action-cvmfs@v5
-    - name: Download hepmc3 timeframe_builder merger outputs
-      uses: actions/download-artifact@v7
-      with:
-        name: hepmc3-merged
-    - name: Download hepmc3 SignalBackgroundMerger outputs
-      uses: actions/download-artifact@v7
-      with:
-        name: test-hepmc3-old-merger
-    - name: Generate Capybara report
-      uses: eic/run-cvmfs-osg-eic-shell@main
-      with:
-        platform-release: "eic_xl:nightly"
-        run: |
-          mkdir capybara-reports
-          mkdir timeframe_builder-merged
-          mkdir SignalBackgroundMerger-merged
-          mv merged_ci_18x275.hepmc3.tree.root timeframe_builder-merged/merged_ci_18x275.hepmc3.tree.root
-          mv hepmc3-old-merger_ci_18x275.hepmc3.tree.root SignalBackgroundMerger-merged/hepmc3-old-merger_ci_18x275.hepmc3.tree.root
-          capybara bara -M EventHeader timeframe_builder-merged/merged_ci_18x275.hepmc3.tree.root SignalBackgroundMerger-merged/hepmc3-old-merger_ci_18x275.hepmc3.tree.root
-          # Use PR number or commit SHA for unique directory name
-          if [ "${{ github.event_name }}" == "pull_request" ]; then
-            REPORT_DIR="pr-${{ github.event.pull_request.number }}"
-          else
-            REPORT_DIR="main"
-          fi
-          mv capybara-reports $REPORT_DIR
-    - name: Upload Capybara report
-      uses: actions/upload-artifact@v6
-      with:
-        name: capybara-report-hepmc3
-        path: |
-          pr-*/
-          main/
-        retention-days: 1
+  #capybara-report-hepmc3:
+  #  runs-on: ubuntu-24.04
+  #  needs: 
+  #    - test-hepmc3
+  #    - test-hepmc3-old-merger
+  #  steps:
+  #  - uses: actions/checkout@v6
+  #  - uses: cvmfs-contrib/github-action-cvmfs@v5
+  #  - name: Download hepmc3 timeframe_builder merger outputs
+  #    uses: actions/download-artifact@v7
+  #    with:
+  #      name: hepmc3-merged
+  #  - name: Download hepmc3 SignalBackgroundMerger outputs
+  #    uses: actions/download-artifact@v7
+  #    with:
+  #      name: test-hepmc3-old-merger
+  #  - name: Generate Capybara report
+  #    uses: eic/run-cvmfs-osg-eic-shell@main
+  #    with:
+  #      platform-release: "eic_xl:nightly"
+  #      run: |
+  #        mkdir capybara-reports
+  #        mkdir timeframe_builder-merged
+  #        mkdir SignalBackgroundMerger-merged
+  #        mv merged_ci_18x275.hepmc3.tree.root timeframe_builder-merged/merged_ci_18x275.hepmc3.tree.root
+  #        mv hepmc3-old-merger_ci_18x275.hepmc3.tree.root SignalBackgroundMerger-merged/hepmc3-old-merger_ci_18x275.hepmc3.tree.root
+  #        capybara bara -M EventHeader timeframe_builder-merged/merged_ci_18x275.hepmc3.tree.root SignalBackgroundMerger-merged/hepmc3-old-merger_ci_18x275.hepmc3.tree.root
+  #        # Use PR number or commit SHA for unique directory name
+  #        if [ "${{ github.event_name }}" == "pull_request" ]; then
+  #          REPORT_DIR="pr-${{ github.event.pull_request.number }}"
+  #        else
+  #          REPORT_DIR="main"
+  #        fi
+  #        mv capybara-reports $REPORT_DIR
+  #  - name: Upload Capybara report
+  #    uses: actions/upload-artifact@v6
+  #    with:
+  #      name: capybara-report-hepmc3
+  #      path: |
+  #        pr-*/
+  #        main/
+  #      retention-days: 1
 
   capybara-report:
     runs-on: ubuntu-24.04
