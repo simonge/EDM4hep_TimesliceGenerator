@@ -187,6 +187,7 @@ jobs:
     needs: build
     runs-on: ubuntu-24.04
     steps:
+    - uses: cvmfs-contrib/github-action-cvmfs@v5
     - name: Old HepMC3 merging from XRootD
       uses: eic/run-cvmfs-osg-eic-shell@main
       with:
