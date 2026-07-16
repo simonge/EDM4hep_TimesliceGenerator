@@ -374,7 +374,7 @@ jobs:
     - name: Download hepmc3 SignalBackgroundMerger outputs
       uses: actions/download-artifact@v7
       with:
-        name: hepmc3-signal-background-merged
+        name: test-hepmc3-old-merger
     - name: Generate Capybara report
       uses: eic/run-cvmfs-osg-eic-shell@main
       with:
