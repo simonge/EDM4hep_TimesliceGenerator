@@ -63,6 +63,7 @@ void HepMC3DataSource::openInputFiles() {
             }
         }
         reader_->skip(skipN);
+        current_entry_index_ += skipN;
     }
 
 }
