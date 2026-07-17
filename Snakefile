@@ -24,15 +24,15 @@ rule all:
 
 rule simulate_epic:
     params:
-        remote=lambda wildcards: next(sim["remote"] for sim in SIMULATIONS if sim["type"] == wildcards.sim_type)
+        remote=lambda wc: next(sim["remote"] for sim in SIMULATIONS if sim["type"] == wc.sim_type),
+        events=lambda wc: next(sim["events"] for sim in SIMULATIONS if sim["type"] == wc.sim_type)
     output:
         out="epic_sim_ci_{sim_type}.edm4hep.root"
-    run:
-        events = next(sim['events'] for sim in SIMULATIONS if sim['type'] == wildcards.sim_type)
-        shell(f"""
-            exec npsim \
-              --compactFile $DETECTOR_PATH/epic_craterlake.xml \
-              --inputFiles {params.remote} \
-              --outputFile {{output.out}} \
-              --numberOfEvents {events}
-        """)
+    shell:
+        """
+        npsim \
+          --compactFile $DETECTOR_PATH/epic_craterlake.xml \
+          --inputFiles {params.remote} \
+          --outputFile {output.out} \
+          --numberOfEvents {params.events}
+        """
