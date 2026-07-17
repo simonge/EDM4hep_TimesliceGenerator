@@ -4,8 +4,10 @@
 
 std::vector<std::unique_ptr<DataSource>> HepMC3DataHandler::initializeDataSources(
     const std::string& filename,
-    const std::vector<SourceConfig>& source_configs) {
+    const MergerConfig& config) {
     
+    auto source_configs = config.sources;
+
     std::cout << "Initializing HepMC3 data handler for: " << filename << std::endl;
     
     std::vector<std::unique_ptr<DataSource>> data_sources;
@@ -48,8 +50,10 @@ std::vector<std::unique_ptr<DataSource>> HepMC3DataHandler::initializeDataSource
         hepmc3_sources_.push_back(dynamic_cast<HepMC3DataSource*>(source.get()));
     }
     
+    auto runInfo = configureMetadata(config);
+
     // Create HepMC3 writer
-    writer_ = std::make_shared<HepMC3::WriterRootTree>(filename);
+    writer_ = std::make_shared<HepMC3::WriterRootTree>(filename, runInfo);
     if (!writer_) {
         throw std::runtime_error("Failed to create HepMC3 writer for: " + filename);
     }
@@ -57,6 +61,20 @@ std::vector<std::unique_ptr<DataSource>> HepMC3DataHandler::initializeDataSource
     std::cout << "HepMC3 data handler initialized with " << hepmc3_sources_.size() << " sources" << std::endl;
     
     return data_sources;
+}
+
+std::shared_ptr<HepMC3::GenRunInfo> HepMC3DataHandler::configureMetadata(const MergerConfig& config) {
+
+    auto runInfo = std::make_shared<HepMC3::GenRunInfo>();
+
+    std::string metadata_prefix = "TimeframeBuilder_HepMC3_";
+
+    runInfo->add_attribute(metadata_prefix + "timeframe_duration", std::make_shared<HepMC3::StringAttribute>(std::to_string(config.timeframe_duration)));
+    runInfo->add_attribute(metadata_prefix + "bunch_crossing_period", std::make_shared<HepMC3::StringAttribute>(std::to_string(config.bunch_crossing_period)));
+    runInfo->add_attribute(metadata_prefix + "max_events", std::make_shared<HepMC3::StringAttribute>(std::to_string(config.max_events)));
+    runInfo->add_attribute(metadata_prefix + "random_seed", std::make_shared<HepMC3::StringAttribute>(std::to_string(config.random_seed)));
+    
+    return runInfo;
 }
 
 void HepMC3DataHandler::prepareTimeframe() {

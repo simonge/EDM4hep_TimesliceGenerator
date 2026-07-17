@@ -24,7 +24,7 @@ void TimeframeBuilder::run() {
 
     // Initialize data sources via the data handler
     // The data handler creates appropriate data sources for its format
-    data_sources_ = data_handler_->initializeDataSources(m_config.output_file, m_config.sources);
+    data_sources_ = data_handler_->initializeDataSources(m_config.output_file, m_config);
 
     std::cout << "Processing " << m_config.max_events << " timeframes..." << std::endl;
 

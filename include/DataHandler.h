@@ -28,7 +28,7 @@ public:
      */
     virtual std::vector<std::unique_ptr<DataSource>> initializeDataSources(
         const std::string& filename,
-        const std::vector<SourceConfig>& source_configs) = 0;
+        const MergerConfig& config) = 0;
 
     /**
      * Prepare for a new timeframe (clear buffers, etc.)

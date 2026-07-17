@@ -60,7 +60,7 @@ public:
 
     std::vector<std::unique_ptr<DataSource>> initializeDataSources(
         const std::string& filename,
-        const std::vector<SourceConfig>& source_configs) override;
+        const MergerConfig& config) override;
     
     void prepareTimeframe() override;
     

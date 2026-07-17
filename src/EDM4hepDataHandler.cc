@@ -49,9 +49,11 @@ void EDM4hepMergedCollections::clear() {
 
 std::vector<std::unique_ptr<DataSource>> EDM4hepDataHandler::initializeDataSources(
     const std::string& filename,
-    const std::vector<SourceConfig>& source_configs) {
+    const MergerConfig& config) {
     
     std::cout << "Initializing EDM4hep data handler for: " << filename << std::endl;
+
+    auto source_configs = config.sources;
     
     std::vector<std::unique_ptr<DataSource>> data_sources;
     data_sources.reserve(source_configs.size());
