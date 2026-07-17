@@ -92,6 +92,8 @@ std::shared_ptr<HepMC3::GenRunInfo> HepMC3DataHandler::configureMetadata(const M
             runInfo->add_attribute(source_prefix + "input_file_" + std::to_string(i), std::make_shared<HepMC3::StringAttribute>(source_config.input_files[i]));
         }
         runInfo->add_attribute(source_prefix + "generator_status_offset", std::make_shared<HepMC3::StringAttribute>(std::to_string(source_config.generator_status_offset)));
+        runInfo->add_attribute(source_prefix + "repeat_on_end_of_file", std::make_shared<HepMC3::StringAttribute>(source_config.repeat_on_eof ? "true" : "false"));
+        runInfo->add_attribute(source_prefix + "skipped_events", std::make_shared<HepMC3::StringAttribute>(std::to_string(source_config.skip)));
     }
     
     return runInfo;

@@ -24,6 +24,9 @@ struct SourceConfig {
     std::string name{"signal"};
 
     bool   already_merged{false};
+
+    long long  skip{0};
+
     bool   static_number_of_events{false};
     size_t static_events_per_timeframe{1};
     float  mean_event_frequency{1.0f};
