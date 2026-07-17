@@ -73,6 +73,23 @@ std::shared_ptr<HepMC3::GenRunInfo> HepMC3DataHandler::configureMetadata(const M
     runInfo->add_attribute(metadata_prefix + "bunch_crossing_period", std::make_shared<HepMC3::StringAttribute>(std::to_string(config.bunch_crossing_period)));
     runInfo->add_attribute(metadata_prefix + "max_events", std::make_shared<HepMC3::StringAttribute>(std::to_string(config.max_events)));
     runInfo->add_attribute(metadata_prefix + "random_seed", std::make_shared<HepMC3::StringAttribute>(std::to_string(config.random_seed)));
+
+    runInfo->add_attribute(metadata_prefix + "number_of_sources", std::make_shared<HepMC3::StringAttribute>(std::to_string(config.sources.size())));
+
+    for (const auto& source_config : config.sources) {
+        std::string source_prefix = metadata_prefix + "source_" + source_config.name + "_";
+        runInfo->add_attribute(source_prefix + "static_number_of_events", std::make_shared<HepMC3::StringAttribute>(source_config.static_number_of_events ? "true" : "false"));
+        if(source_config.static_number_of_events) {
+            runInfo->add_attribute(source_prefix + "static_events_per_timeframe", std::make_shared<HepMC3::StringAttribute>(std::to_string(source_config.static_events_per_timeframe)));
+        } else{
+            runInfo->add_attribute(source_prefix + "mean_event_frequency", std::make_shared<HepMC3::StringAttribute>(std::to_string(source_config.mean_event_frequency)));
+        }
+        runInfo->add_attribute(source_prefix + "input_files", std::make_shared<HepMC3::StringAttribute>(std::to_string(source_config.input_files.size())));
+        for (size_t i = 0; i < source_config.input_files.size(); ++i) {
+            runInfo->add_attribute(source_prefix + "input_file_" + std::to_string(i), std::make_shared<HepMC3::StringAttribute>(source_config.input_files[i]));
+        }
+        runInfo->add_attribute(source_prefix + "generator_status_offset", std::make_shared<HepMC3::StringAttribute>(std::to_string(source_config.generator_status_offset)));
+    }
     
     return runInfo;
 }
