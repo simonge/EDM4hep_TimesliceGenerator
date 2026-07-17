@@ -197,7 +197,7 @@ jobs:
         platform-release: "eic_xl:nightly"
         run: |
           SignalBackgroundMerger --rngSeed 1 \
-            --nSlices 10 \
+            --nSlices 50 \
             --signalFile ${{env.XROOTD_SERVER}}${{env.HEPMC3_PATH}}${{env.HEPMC3_SIGNAL_PATH}} \
             --signalFreq 0 \
             --signalStatus 0 \
