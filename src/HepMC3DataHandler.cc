@@ -39,7 +39,7 @@ std::vector<std::unique_ptr<DataSource>> HepMC3DataHandler::initializeDataSource
         }
         
         auto data_source = std::make_unique<HepMC3DataSource>(source_config, source_idx);
-        std::cout << "Created HepMC3DataSource for: " + first_file << std::endl;
+        std::cout << "Created HepMC3DataSource name: " + source_config.name + " for: " + first_file << std::endl;
         data_sources.push_back(std::move(data_source));
     }
     
