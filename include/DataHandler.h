@@ -28,7 +28,13 @@ public:
      */
     virtual std::vector<std::unique_ptr<DataSource>> initializeDataSources(
         const std::string& filename,
-        const MergerConfig& config) = 0;
+        const std::vector<SourceConfig>& source_configs) = 0;
+
+    /**
+     * Initialize output file and prepare for writing merged timeframes
+     * @param config Merger configuration
+     */
+    virtual void initializeOutput(const MergerConfig& config, const std::vector<std::unique_ptr<DataSource>>& data_sources) = 0;
 
     /**
      * Prepare for a new timeframe (clear buffers, etc.)
