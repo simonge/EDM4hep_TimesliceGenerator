@@ -62,6 +62,8 @@ public:
         const std::string& filename,
         const std::vector<SourceConfig>& source_configs) override;
     
+    void initializeOutput(const MergerConfig& config, const std::vector<std::unique_ptr<DataSource>>& data_sources) override;
+
     void prepareTimeframe() override;
     
     void writeTimeframe() override;

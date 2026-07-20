@@ -26,6 +26,10 @@ public:
     std::vector<std::unique_ptr<DataSource>> initializeDataSources(
         const std::string& filename,
         const std::vector<SourceConfig>& source_configs) override;
+
+    void initializeOutput(const MergerConfig& config, const std::vector<std::unique_ptr<DataSource>>& data_sources) override;
+
+    std::shared_ptr<HepMC3::GenRunInfo> configureMetadata(const MergerConfig& config);
     
     void prepareTimeframe() override;
     

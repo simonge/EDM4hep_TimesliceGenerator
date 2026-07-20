@@ -29,6 +29,8 @@ void CommandLineParser::printUsage(const char* program_name) {
               << "  --source:NAME               Create or select source named NAME\n"
               << "  --source:NAME:input_files FILE1,FILE2\n"
               << "                              Input files for source (comma-separated)\n"
+              << "  --source:NAME:skip N\n"
+              << "                              Skip N events from source files\n"
               << "  --source:NAME:frequency FREQ\n"
               << "                              Mean event frequency for source\n"
               << "  --source:NAME:static_events BOOL\n"
@@ -115,6 +117,8 @@ bool CommandLineParser::handleSourceOption(std::vector<SourceConfig>& sources, c
     
     if (property == "input_files") {
         source->input_files = splitCommaSeparated(value);
+    } else if (property == "skip") {
+        source->skip = std::stoi(value);
     } else if (property == "frequency") {
         source->mean_event_frequency = std::stof(value);
     } else if (property == "static_events") {
@@ -166,6 +170,7 @@ void CommandLineParser::loadYAMLConfig(const std::string& config_file, MergerCon
                 }
             }
             if (source_yaml["name"]) source.name = source_yaml["name"].as<std::string>();
+            if (source_yaml["skip"]) source.skip = source_yaml["skip"].as<long long>();
             if (source_yaml["already_merged"]) source.already_merged = source_yaml["already_merged"].as<bool>();
             if (source_yaml["static_number_of_events"]) source.static_number_of_events = source_yaml["static_number_of_events"].as<bool>();
             if (source_yaml["static_events_per_timeframe"]) source.static_events_per_timeframe = source_yaml["static_events_per_timeframe"].as<size_t>();
@@ -268,6 +273,7 @@ void CommandLineParser::printConfiguration(const MergerConfig& config) {
         }
         std::cout << std::endl;
         std::cout << "  Name: " << source.name << std::endl;
+        std::cout << "  Events skipped: " << source.skip << std::endl;
         std::cout << "  Static number of events: " << (source.static_number_of_events ? "true" : "false") << std::endl;
         std::cout << "  Events per timeframe: " << source.static_events_per_timeframe << std::endl;
         std::cout << "  Mean event frequency: " << source.mean_event_frequency << " events/ns" << std::endl;

@@ -5,7 +5,7 @@
 std::vector<std::unique_ptr<DataSource>> HepMC3DataHandler::initializeDataSources(
     const std::string& filename,
     const std::vector<SourceConfig>& source_configs) {
-    
+
     std::cout << "Initializing HepMC3 data handler for: " << filename << std::endl;
     
     std::vector<std::unique_ptr<DataSource>> data_sources;
@@ -37,7 +37,7 @@ std::vector<std::unique_ptr<DataSource>> HepMC3DataHandler::initializeDataSource
         }
         
         auto data_source = std::make_unique<HepMC3DataSource>(source_config, source_idx);
-        std::cout << "Created HepMC3DataSource for: " + first_file << std::endl;
+        std::cout << "Created HepMC3DataSource name: " + source_config.name + " for: " + first_file << std::endl;
         data_sources.push_back(std::move(data_source));
     }
     
@@ -48,15 +48,54 @@ std::vector<std::unique_ptr<DataSource>> HepMC3DataHandler::initializeDataSource
         hepmc3_sources_.push_back(dynamic_cast<HepMC3DataSource*>(source.get()));
     }
     
-    // Create HepMC3 writer
-    writer_ = std::make_shared<HepMC3::WriterRootTree>(filename);
-    if (!writer_) {
-        throw std::runtime_error("Failed to create HepMC3 writer for: " + filename);
-    }
-    
     std::cout << "HepMC3 data handler initialized with " << hepmc3_sources_.size() << " sources" << std::endl;
     
     return data_sources;
+}
+
+void HepMC3DataHandler::initializeOutput(const MergerConfig& config, const std::vector<std::unique_ptr<DataSource>>& data_sources) {
+    // Configure metadata and create writer
+    auto runInfo = configureMetadata(config);
+    writer_ = std::make_shared<HepMC3::WriterRootTree>(config.output_file, runInfo);
+    if (!writer_) {
+        throw std::runtime_error("Failed to create HepMC3 writer for: " + config.output_file);
+    }
+}
+
+std::shared_ptr<HepMC3::GenRunInfo> HepMC3DataHandler::configureMetadata(const MergerConfig& config) {
+
+    auto runInfo = std::make_shared<HepMC3::GenRunInfo>();
+
+    std::string metadata_prefix = "TimeframeBuilder_HepMC3_";
+
+    // Fix me when release version exists
+    runInfo->add_attribute(metadata_prefix + "version", std::make_shared<HepMC3::StringAttribute>(std::to_string(0.0f)));
+
+    runInfo->add_attribute(metadata_prefix + "timeframe_duration_ns", std::make_shared<HepMC3::StringAttribute>(std::to_string(config.timeframe_duration)));
+    runInfo->add_attribute(metadata_prefix + "bunch_crossing_period_ns", std::make_shared<HepMC3::StringAttribute>(std::to_string(config.bunch_crossing_period)));
+    runInfo->add_attribute(metadata_prefix + "max_events", std::make_shared<HepMC3::StringAttribute>(std::to_string(config.max_events)));
+    runInfo->add_attribute(metadata_prefix + "random_seed", std::make_shared<HepMC3::StringAttribute>(std::to_string(config.random_seed)));
+
+    runInfo->add_attribute(metadata_prefix + "number_of_sources", std::make_shared<HepMC3::StringAttribute>(std::to_string(config.sources.size())));
+
+    for (const auto& source_config : config.sources) {
+        std::string source_prefix = metadata_prefix + "source_" + source_config.name + "_";
+        runInfo->add_attribute(source_prefix + "static_number_of_events", std::make_shared<HepMC3::StringAttribute>(source_config.static_number_of_events ? "true" : "false"));
+        if(source_config.static_number_of_events) {
+            runInfo->add_attribute(source_prefix + "static_events_per_timeframe", std::make_shared<HepMC3::StringAttribute>(std::to_string(source_config.static_events_per_timeframe)));
+        } else{
+            runInfo->add_attribute(source_prefix + "mean_event_frequency_GHz", std::make_shared<HepMC3::StringAttribute>(std::to_string(source_config.mean_event_frequency)));
+        }
+        runInfo->add_attribute(source_prefix + "input_files", std::make_shared<HepMC3::StringAttribute>(std::to_string(source_config.input_files.size())));
+        for (size_t i = 0; i < source_config.input_files.size(); ++i) {
+            runInfo->add_attribute(source_prefix + "input_file_" + std::to_string(i), std::make_shared<HepMC3::StringAttribute>(source_config.input_files[i]));
+        }
+        runInfo->add_attribute(source_prefix + "generator_status_offset", std::make_shared<HepMC3::StringAttribute>(std::to_string(source_config.generator_status_offset)));
+        runInfo->add_attribute(source_prefix + "repeat_on_end_of_file", std::make_shared<HepMC3::StringAttribute>(source_config.repeat_on_eof ? "true" : "false"));
+        runInfo->add_attribute(source_prefix + "skipped_events", std::make_shared<HepMC3::StringAttribute>(std::to_string(source_config.skip)));
+    }
+    
+    return runInfo;
 }
 
 void HepMC3DataHandler::prepareTimeframe() {

@@ -49,6 +49,23 @@ void HepMC3DataSource::openInputFiles() {
     std::cout << "Found " << total_entries_ << " events in HepMC3 file" << std::endl;
     
     current_entry_index_ = 0;
+
+    // Skip initial events if specified
+    long long skipN = config_->skip;
+    if (skipN > 0) {
+        std::cout << "Skipping first " << skipN << " events for source " << config_->name << " as per configuration" << std::endl;
+        if (config_->skip >= total_entries_) {
+            if(!config_->repeat_on_eof) {
+                throw std::runtime_error("Skip value exceeds total entries in source: " + config_->name);
+            } else {
+                std::cout << "Warning: Skip value exceeds total entries, but repeat_on_eof is true. Will loop back to start after reaching EOF." << std::endl;
+                skipN = skipN % total_entries_; // Wrap around if repeat_on_eof is true
+            }
+        }
+        reader_->skip(skipN);
+        current_entry_index_ += skipN;
+    }
+
 }
 
 bool HepMC3DataSource::hasMoreEntries() const {

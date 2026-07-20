@@ -3,20 +3,6 @@
 #include <string>
 #include <vector>
 
-struct MergerConfig {
-    bool   introduce_offsets{true};
-    float  timeframe_duration{2000.0f};
-    float  bunch_crossing_period{10.0f};
-    unsigned int random_seed{0};  // 0 means use random_device
-
-    // Config per source
-    std::vector<struct SourceConfig> sources;
-
-    // Input/output configuration
-    std::string output_file{"merged_timeframes.edm4hep.root"};
-    size_t max_events{100};
-    bool   merge_particles{false};
-};
 
 struct SourceConfig {
     // Input/output configuration
@@ -24,6 +10,9 @@ struct SourceConfig {
     std::string name{"signal"};
 
     bool   already_merged{false};
+
+    long long  skip{0};
+
     bool   static_number_of_events{false};
     size_t static_events_per_timeframe{1};
     float  mean_event_frequency{1.0f};
@@ -41,4 +30,19 @@ struct SourceConfig {
     // Tree properties
     std::string tree_name{"events"};
     bool repeat_on_eof{false};
+};
+
+struct MergerConfig {
+    bool   introduce_offsets{true};
+    float  timeframe_duration{2000.0f};
+    float  bunch_crossing_period{10.0f};
+    unsigned int random_seed{0};  // 0 means use random_device
+
+    // Config per source
+    std::vector<SourceConfig> sources;
+
+    // Input/output configuration
+    std::string output_file{"merged_timeframes.edm4hep.root"};
+    size_t max_events{100};
+    bool   merge_particles{false};
 };

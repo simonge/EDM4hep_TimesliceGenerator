@@ -99,6 +99,18 @@ std::vector<std::unique_ptr<DataSource>> EDM4hepDataHandler::initializeDataSourc
         throw std::runtime_error("Could not create output file: " + filename);
     }
     
+    std::cout << "EDM4hep data handler initialized successfully" << std::endl;
+    
+    return data_sources;
+}
+
+void EDM4hepDataHandler::initializeOutput(const MergerConfig& config, const std::vector<std::unique_ptr<DataSource>>& data_sources) {
+    // Open output file
+    output_file_ = std::make_unique<TFile>(config.output_file.c_str(), "RECREATE");
+    if (!output_file_ || output_file_->IsZombie()) {
+        throw std::runtime_error("Could not create output file: " + config.output_file);
+    }
+    
     // Set ROOT I/O optimizations
     output_file_->SetCompressionLevel(1);
     
@@ -115,8 +127,6 @@ std::vector<std::unique_ptr<DataSource>> EDM4hepDataHandler::initializeDataSourc
     copyPodioMetadata(data_sources);
     
     std::cout << "EDM4hep data handler initialized successfully" << std::endl;
-    
-    return data_sources;
 }
 
 void EDM4hepDataHandler::prepareTimeframe() {
