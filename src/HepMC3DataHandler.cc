@@ -48,15 +48,7 @@ std::vector<std::unique_ptr<DataSource>> HepMC3DataHandler::initializeDataSource
         hepmc3_sources_.push_back(dynamic_cast<HepMC3DataSource*>(source.get()));
     }
     
-    // auto runInfo = configureMetadata(config);
-
-    // Create HepMC3 writer
-    // writer_ = std::make_shared<HepMC3::WriterRootTree>(filename);//, runInfo);
-    // if (!writer_) {
-    //     throw std::runtime_error("Failed to create HepMC3 writer for: " + filename);
-    // }
-    
-    // std::cout << "HepMC3 data handler initialized with " << hepmc3_sources_.size() << " sources" << std::endl;
+    std::cout << "HepMC3 data handler initialized with " << hepmc3_sources_.size() << " sources" << std::endl;
     
     return data_sources;
 }

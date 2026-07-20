@@ -99,21 +99,6 @@ std::vector<std::unique_ptr<DataSource>> EDM4hepDataHandler::initializeDataSourc
         throw std::runtime_error("Could not create output file: " + filename);
     }
     
-    // // Set ROOT I/O optimizations
-    // output_file_->SetCompressionLevel(1);
-    
-    // // Create output tree
-    // output_tree_ = new TTree("events", "Merged timeframes");
-    
-    // // Discover collections from sources
-    // discoverCollections(data_sources);
-    
-    // // Setup output tree branches
-    // setupOutputTree();
-    
-    // // Copy metadata from first source
-    // copyPodioMetadata(data_sources);
-    
     std::cout << "EDM4hep data handler initialized successfully" << std::endl;
     
     return data_sources;
