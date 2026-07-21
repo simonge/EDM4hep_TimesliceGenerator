@@ -23,6 +23,8 @@ void HepMC3DataSource::openNextFile() {
         if (!config_->repeat_on_eof) {
             throw std::runtime_error("No more input files to process for source: " + config_->name);
         } else {
+            std::cout << "Reached end of input files for source: " << config_->name 
+                      << ". Repeating from the first file." << std::endl;
             m_current_file = 0; // Loop back to the first file if repeat_on_eof is true
         }
     }
@@ -55,8 +57,9 @@ void HepMC3DataSource::openNextFile() {
     if (m_still_to_skip > 0) {
         std::cout << "Skipping first " << m_still_to_skip << " events for source " << config_->name << " as per configuration" << std::endl;
         if (m_still_to_skip >= total_entries_) {
-            std::cout << "Warning: Skip value exceeds total entries, but repeat_on_eof is true. Will loop back to start after reaching EOF." << std::endl;
+            std::cout << "Warning: Skip value exceeds total entries, moving to next file." << std::endl;
             m_still_to_skip = m_still_to_skip - total_entries_; // Wrap around if repeat_on_eof is true
+            m_current_file++;
             openNextFile(); // Open next file if available
             return;
         } else {
