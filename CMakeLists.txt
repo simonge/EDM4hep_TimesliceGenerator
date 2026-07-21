@@ -1,5 +1,9 @@
 cmake_minimum_required(VERSION 3.16)
-project(TimeframeBuilder VERSION 1.0.0)
+# Set version based on git
+include(cmake/git_version.cmake)
+set_git_version(TIMEFRAME_BUILDER_VERSION)
+
+project(TimeframeBuilder VERSION ${TIMEFRAME_BUILDER_VERSION} LANGUAGES CXX)
 
 # Set C++ standard
 set(CMAKE_CXX_STANDARD 20)
@@ -21,6 +25,7 @@ find_package(yaml-cpp REQUIRED)
 
 # Find HepMC3 (optional, for HepMC3 backend support)
 find_package(HepMC3 QUIET)
+
 
 # Include directories
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
@@ -74,6 +79,12 @@ endif()
 if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
     set(CMAKE_INSTALL_PREFIX "${CMAKE_CURRENT_SOURCE_DIR}/install" CACHE PATH "Installation directory" FORCE)
 endif()
+
+
+# Set compile definitions
+# target_compile_definitions(
+#   timeframe_builder PRIVATE TIMEFRAME_BUILDER_VERSION=${TIMEFRAME_BUILDER_VERSION_FULL})
+add_definitions(-DTIMEFRAME_BUILDER_VERSION_STR="${TIMEFRAME_BUILDER_VERSION_FULL}")
 
 # Install the executables
 install(TARGETS timeframe_builder DESTINATION bin)

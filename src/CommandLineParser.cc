@@ -16,6 +16,7 @@ void CommandLineParser::printUsage(const char* program_name) {
               << "  -p, --bunch-period PERIOD   Bunch crossing period in ns (default: 10.0)\n"
               << "  --random-seed SEED          Random number generator seed (default: 0, use random_device)\n"
               << "  -h, --help                  Show this help message\n"
+              << "  -v, --version               Show version information\n"
               << "\nDefault Source Options (backward compatibility):\n"
               << "  -f, --frequency FREQ        Mean event frequency (events/ns) (default: 1.0)\n"
               << "  -b, --use-bunch-crossing    Enable bunch crossing logic\n"
@@ -346,13 +347,14 @@ MergerConfig CommandLineParser::parse(int argc, char* argv[]) {
         {"beam-spread", required_argument, 0, 1002},
         {"status-offset", required_argument, 0, 1003},
         {"help", no_argument, 0, 'h'},
+        {"version", no_argument, 0, 'v'},
         {0, 0, 0, 0}
     };
 
     int opt;
     int option_index = 0;
     
-    while ((opt = getopt_long(new_argc, new_argv, "o:n:d:f:p:bse:h", long_options, &option_index)) != -1) {
+    while ((opt = getopt_long(new_argc, new_argv, "o:n:d:f:p:bse:hv", long_options, &option_index)) != -1) {
         switch (opt) {
             case 1004:
                 config_file = optarg;
@@ -398,6 +400,9 @@ MergerConfig CommandLineParser::parse(int argc, char* argv[]) {
                 break;
             case 'h':
                 printUsage(new_argv[0]);
+                std::exit(0);
+            case 'v':
+                std::cout << "TimeframeBuilder version: " << TIMEFRAME_BUILDER_VERSION_STR << std::endl;
                 std::exit(0);
             default:
                 printUsage(new_argv[0]);

@@ -69,7 +69,7 @@ std::shared_ptr<HepMC3::GenRunInfo> HepMC3DataHandler::configureMetadata(const M
     std::string metadata_prefix = "TimeframeBuilder_HepMC3_";
 
     // Fix me when release version exists
-    runInfo->add_attribute(metadata_prefix + "version", std::make_shared<HepMC3::StringAttribute>(std::to_string(0.0f)));
+    runInfo->add_attribute(metadata_prefix + "version", std::make_shared<HepMC3::StringAttribute>(TIMEFRAME_BUILDER_VERSION_STR));
 
     runInfo->add_attribute(metadata_prefix + "timeframe_duration_ns", std::make_shared<HepMC3::StringAttribute>(std::to_string(config.timeframe_duration)));
     runInfo->add_attribute(metadata_prefix + "bunch_crossing_period_ns", std::make_shared<HepMC3::StringAttribute>(std::to_string(config.bunch_crossing_period)));
