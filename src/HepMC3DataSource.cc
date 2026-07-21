@@ -8,35 +8,38 @@ HepMC3DataSource::HepMC3DataSource(const SourceConfig& config, size_t source_ind
     total_entries_ = 0;
     current_entry_index_ = 0;
     entries_needed_ = 0;
-    openInputFiles();
+    m_still_to_skip = config_->skip;
+    m_current_file = 0;
+    m_total_files = config_->input_files.size();
+    openNextFile();
 }
 
 HepMC3DataSource::~HepMC3DataSource() {
     cleanup();
 }
 
-void HepMC3DataSource::openInputFiles() {
-    if (config_->input_files.empty()) {
-        throw std::runtime_error("No input files specified for source: " + config_->name);
+void HepMC3DataSource::openNextFile() {
+    if (m_current_file >= config_->input_files.size()) {
+        if (!config_->repeat_on_eof) {
+            throw std::runtime_error("No more input files to process for source: " + config_->name);
+        } else {
+            std::cout << "Reached end of input files for source: " << config_->name 
+                      << ". Repeating from the first file." << std::endl;
+            m_current_file = 0; // Loop back to the first file if repeat_on_eof is true
+        }
     }
-    
-    // For now, support only single file (could be extended to support multiple files)
-    if (config_->input_files.size() > 1) {
-        std::cout << "Warning: HepMC3DataSource currently supports only the first input file. "
-                  << "Using: " << config_->input_files[0] << std::endl;
-    }
-    
-    const std::string& input_file = config_->input_files[0];
-    
+
+    const std::string& input_file = config_->input_files[m_current_file];
+
     // Validate file extension
     if (input_file.find(".hepmc3.tree.root") == std::string::npos) {
         throw std::runtime_error(
             "HepMC3DataSource only supports .hepmc3.tree.root format. Got: " + input_file
         );
     }
-    
+
     std::cout << "Opening HepMC3 file: " << input_file << std::endl;
-    
+
     // Create ReaderRootTree explicitly for ROOT tree format
     reader_ = std::make_shared<HepMC3::ReaderRootTree>(input_file);
     if (!reader_) {
@@ -45,27 +48,26 @@ void HepMC3DataSource::openInputFiles() {
 
     // Get entry count directly from TTree
     total_entries_ = reader_->m_tree->GetEntries();
-    
+
     std::cout << "Found " << total_entries_ << " events in HepMC3 file" << std::endl;
-    
+
     current_entry_index_ = 0;
 
     // Skip initial events if specified
-    long long skipN = config_->skip;
-    if (skipN > 0) {
-        std::cout << "Skipping first " << skipN << " events for source " << config_->name << " as per configuration" << std::endl;
-        if (config_->skip >= total_entries_) {
-            if(!config_->repeat_on_eof) {
-                throw std::runtime_error("Skip value exceeds total entries in source: " + config_->name);
-            } else {
-                std::cout << "Warning: Skip value exceeds total entries, but repeat_on_eof is true. Will loop back to start after reaching EOF." << std::endl;
-                skipN = skipN % total_entries_; // Wrap around if repeat_on_eof is true
-            }
+    if (m_still_to_skip > 0) {
+        std::cout << "Skipping first " << m_still_to_skip << " events for source " << config_->name << " as per configuration" << std::endl;
+        if (m_still_to_skip >= total_entries_) {
+            std::cout << "Warning: Skip value exceeds total entries, moving to next file." << std::endl;
+            m_still_to_skip = m_still_to_skip - total_entries_; // Wrap around if repeat_on_eof is true
+            m_current_file++;
+            openNextFile(); // Open next file if available
+            return;
+        } else {
+            reader_->skip(m_still_to_skip);
+            current_entry_index_ += m_still_to_skip;
+            m_still_to_skip = 0; // Reset skip counter after skipping
         }
-        reader_->skip(skipN);
-        current_entry_index_ += skipN;
     }
-
 }
 
 bool HepMC3DataSource::hasMoreEntries() const {

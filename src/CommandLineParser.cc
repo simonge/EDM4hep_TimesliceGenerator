@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <cctype>
 #include <getopt.h>
+#include <glob.h>
 
 void CommandLineParser::printUsage(const char* program_name) {
     std::cout << "Usage: " << program_name << " [options] input_file1 [input_file2 ...]\n"
@@ -75,6 +76,35 @@ std::vector<std::string> CommandLineParser::splitCommaSeparated(const std::strin
     return result;
 }
 
+std::vector<std::string> CommandLineParser::expandGlobPatterns(const std::vector<std::string>& patterns) {
+    std::vector<std::string> expanded_files;
+    for (const auto& pattern : patterns) {
+        glob_t glob_result{};
+        int ret = glob(pattern.c_str(), GLOB_TILDE, nullptr, &glob_result);
+
+        if (ret == 0) {
+            // matched files
+            for (size_t i = 0; i < glob_result.gl_pathc; ++i) {
+                expanded_files.emplace_back(glob_result.gl_pathv[i]);
+            }
+        } else if (ret == GLOB_NOMATCH) {
+            bool has_wildcard = pattern.find_first_of("*?[") != std::string::npos;
+
+            if (has_wildcard) {
+                std::cerr << "Warning: No files matched wildcard pattern: " << pattern << std::endl;
+            } else {
+                // treat as literal filename (local or XRootD)
+                expanded_files.emplace_back(pattern);
+            }
+        } else {
+            std::cerr << "Error: glob() failed for pattern: " << pattern << std::endl;
+        }
+
+        globfree(&glob_result);
+    }
+    return expanded_files;
+}
+
 SourceConfig* CommandLineParser::findOrCreateSource(std::vector<SourceConfig>& sources, const std::string& name) {
     for (auto& source : sources) {
         if (source.name == name) {
@@ -117,7 +147,8 @@ bool CommandLineParser::handleSourceOption(std::vector<SourceConfig>& sources, c
     SourceConfig* source = findOrCreateSource(sources, source_name);
     
     if (property == "input_files") {
-        source->input_files = splitCommaSeparated(value);
+        std::vector<std::string> files = splitCommaSeparated(value);
+        source->input_files  = expandGlobPatterns(files);
     } else if (property == "skip") {
         source->skip = std::stoi(value);
     } else if (property == "frequency") {
@@ -167,7 +198,8 @@ void CommandLineParser::loadYAMLConfig(const std::string& config_file, MergerCon
             SourceConfig source;
             if (source_yaml["input_files"]) {
                 for (const auto& f : source_yaml["input_files"]) {
-                    source.input_files.push_back(f.as<std::string>());
+                    std::vector<std::string> expanded_files = expandGlobPatterns({f.as<std::string>()});
+                    source.input_files.insert(source.input_files.end(), expanded_files.begin(), expanded_files.end());
                 }
             }
             if (source_yaml["name"]) source.name = source_yaml["name"].as<std::string>();

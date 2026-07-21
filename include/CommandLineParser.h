@@ -41,6 +41,13 @@ private:
     static std::vector<std::string> splitCommaSeparated(const std::string& value);
 
     /**
+     * Expand glob patterns in file paths (e.g., "*.root") to actual file lists
+     * @param patterns Vector of glob patterns
+     * @return Vector of expanded file paths
+     */
+    static std::vector<std::string> expandGlobPatterns(const std::vector<std::string>& patterns);
+
+    /**
      * Find or create a source configuration by name
      * @param sources Vector of source configurations
      * @param name Name of the source
