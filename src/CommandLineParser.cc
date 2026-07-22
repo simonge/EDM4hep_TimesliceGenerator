@@ -49,6 +49,8 @@ void CommandLineParser::printUsage(const char* program_name) {
               << "                              Beam spread for Gaussian smearing\n"
               << "  --source:NAME:status_offset OFFSET\n"
               << "                              Generator status offset\n"
+              << "  --source:NAME:keep_weight BOOL\n"
+              << "                              Keep event weights (true/false)\n"
               << "  --source:NAME:repeat_on_eof BOOL\n"
               << "                              Repeat source when EOF reached (true/false)\n"
               << "\nExamples:\n"
@@ -167,6 +169,8 @@ bool CommandLineParser::handleSourceOption(std::vector<SourceConfig>& sources, c
         source->beam_spread = std::stof(value);
     } else if (property == "status_offset") {
         source->generator_status_offset = std::stoi(value);
+    } else if (property == "keep_weight") {
+        source->keep_weight = parseBool(value);
     } else if (property == "already_merged") {
         source->already_merged = parseBool(value);
     } else if (property == "tree_name") {
@@ -214,6 +218,7 @@ void CommandLineParser::loadYAMLConfig(const std::string& config_file, MergerCon
             if (source_yaml["beam_speed"]) source.beam_speed = source_yaml["beam_speed"].as<float>();
             if (source_yaml["beam_spread"]) source.beam_spread = source_yaml["beam_spread"].as<float>();
             if (source_yaml["generator_status_offset"]) source.generator_status_offset = source_yaml["generator_status_offset"].as<int32_t>();
+            if (source_yaml["keep_weight"]) source.keep_weight = source_yaml["keep_weight"].as<bool>();
             if (source_yaml["repeat_on_eof"]) source.repeat_on_eof = source_yaml["repeat_on_eof"].as<bool>();
             config.sources.push_back(source);
         }
@@ -253,6 +258,12 @@ void CommandLineParser::mergeCliSources(MergerConfig& config, const std::vector<
                 }
                 if (cli_source.generator_status_offset != 0) {
                     existing_source.generator_status_offset = cli_source.generator_status_offset;
+                }
+                if (cli_source.keep_weight) {
+                    existing_source.keep_weight = cli_source.keep_weight;
+                }
+                if (cli_source.skip != 0) {
+                    existing_source.skip = cli_source.skip;
                 }
                 if (cli_source.already_merged) {
                     existing_source.already_merged = cli_source.already_merged;
@@ -315,6 +326,7 @@ void CommandLineParser::printConfiguration(const MergerConfig& config) {
         std::cout << "  Beam speed: " << source.beam_speed << " mm/ns" << std::endl;
         std::cout << "  Beam spread: " << source.beam_spread << std::endl;
         std::cout << "  Generator status offset: " << source.generator_status_offset << std::endl;
+        std::cout << "  Keep weight: " << (source.keep_weight ? "true" : "false") << std::endl;
         std::cout << "  Repeat on EOF: " << (source.repeat_on_eof ? "true" : "false") << std::endl;
     }
     std::cout << "Output file: " << config.output_file << std::endl;
@@ -378,6 +390,7 @@ MergerConfig CommandLineParser::parse(int argc, char* argv[]) {
         {"beam-speed", required_argument, 0, 1001},
         {"beam-spread", required_argument, 0, 1002},
         {"status-offset", required_argument, 0, 1003},
+        {"keep-weight", required_argument, 0, 1006},
         {"help", no_argument, 0, 'h'},
         {"version", no_argument, 0, 'v'},
         {0, 0, 0, 0}
@@ -426,6 +439,9 @@ MergerConfig CommandLineParser::parse(int argc, char* argv[]) {
                 break;
             case 1003:
                 default_source.generator_status_offset = std::stoi(optarg);
+                break;
+            case 1006:
+                default_source.keep_weight = parseBool(optarg);
                 break;
             case 1005:
                 config.random_seed = std::stoul(optarg);

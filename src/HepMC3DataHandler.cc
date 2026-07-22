@@ -119,13 +119,14 @@ void HepMC3DataHandler::processEvent(DataSource& source) {
     const auto& event = hepmc3_source->getCurrentEvent();
     
     // Insert the event into the merged timeframe
-    insertHepMC3Event(event, current_timeframe_, time_offset_ns, config.generator_status_offset);
+    insertHepMC3Event(event, current_timeframe_, time_offset_ns, config.generator_status_offset, config.keep_weight);
 }
 
 long HepMC3DataHandler::insertHepMC3Event(const HepMC3::GenEvent& inevt,
                                             std::unique_ptr<HepMC3::GenEvent>& hepframe,
                                             double time,
-                                            int baseStatus) {
+                                            int baseStatus,
+                                            bool keepWeights) {
     // Convert time in nanoseconds to HepMC position units (mm)
     double timeHepmc = c_light * time;
     
@@ -181,6 +182,13 @@ long HepMC3DataHandler::insertHepMC3Event(const HepMC3::GenEvent& inevt,
     // Add all vertices to the merged event
     for (auto& vertex : vertices) {
         hepframe->add_vertex(vertex);
+    }
+
+    if(keepWeights) {
+        // Copy weights from the original event
+        for (const auto& weight : inevt.weights()) {
+            hepframe->weights().push_back(weight);
+        }
     }
     
     return finalParticleCount;
