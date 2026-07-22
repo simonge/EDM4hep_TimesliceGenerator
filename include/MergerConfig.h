@@ -26,6 +26,7 @@ struct SourceConfig {
 
     // New generator status offset
     int32_t  generator_status_offset{0};
+    bool     keep_weight{false};
 
     // Tree properties
     std::string tree_name{"events"};

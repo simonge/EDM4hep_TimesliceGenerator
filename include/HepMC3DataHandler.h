@@ -57,5 +57,6 @@ private:
     long insertHepMC3Event(const HepMC3::GenEvent& inevt,
                           std::unique_ptr<HepMC3::GenEvent>& hepframe,
                           double time,
-                          int baseStatus);
+                          int baseStatus,
+                          bool keepWeights);
 };

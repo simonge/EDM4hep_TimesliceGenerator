@@ -16,12 +16,15 @@ sources:
     use_bunch_crossing: true
     attach_to_beam: false
     generator_status_offset: 0
+    keep_weight: true
     
   - input_files:
-      - input.hepmc3.tree.root
+      - input*.hepmc3.tree.root
     name: background
+    skip: 10000000
     static_number_of_events: true
     static_events_per_timeframe: 2
     use_bunch_crossing: true
     generator_status_offset: 1000
     already_merged: false
+    repeat_on_eof: true

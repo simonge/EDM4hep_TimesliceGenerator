@@ -13,6 +13,7 @@ sources:
     mean_event_frequency: 0.1
     use_bunch_crossing: true
     generator_status_offset: 0
+    keep_weight: true
   - input_files:
       - input3.root
     name: background
