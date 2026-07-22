@@ -12,6 +12,7 @@ sources:
     static_events_per_timeframe: 1
     use_bunch_crossing: true
     generator_status_offset: 0
+    keep_weight: true
   - name: minbias
     input_files:
       - input3.edm4hep.root    

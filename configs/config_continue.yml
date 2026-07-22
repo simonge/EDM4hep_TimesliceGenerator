@@ -20,3 +20,4 @@ sources:
     static_events_per_timeframe: 1
     use_bunch_crossing: true
     generator_status_offset: 5000
+    keep_weight: true

@@ -11,6 +11,7 @@ sources:
     static_events_per_timeframe: 1
     use_bunch_crossing: true
     generator_status_offset: 0
+    keep_weight: true
   - name: minbias
     static_number_of_events: false
     mean_event_frequency: 0.000083 # in GHz
