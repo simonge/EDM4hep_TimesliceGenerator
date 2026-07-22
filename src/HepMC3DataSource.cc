@@ -76,7 +76,7 @@ bool HepMC3DataSource::hasMoreEntries() const {
 
 bool HepMC3DataSource::loadNextEvent() {
     if (current_entry_index_ >= total_entries_) {
-        return false;
+        openNextFile(); // Open next file if available
     }
     
     if (reader_->failed()) {

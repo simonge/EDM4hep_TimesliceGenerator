@@ -92,7 +92,7 @@ bool TimeframeBuilder::updateInputNEvents(std::vector<std::unique_ptr<DataSource
         }
 
         // Check enough events are available in this source
-        if (!data_source->hasMoreEntries()) {
+        if (!data_source->hasMoreEntries() && !config.repeat_on_eof) {
             std::cout << "Not enough events available in source " << config.name << std::endl;
             return false;
         }
