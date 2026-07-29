@@ -56,6 +56,15 @@ void EDM4hepDataSource::initialize(const std::vector<std::string>& tracker_colle
 
             std::cout << "Source " << source_index_ << " has " << total_entries_ << " entries" << std::endl;
             
+            // Skip initial events if specified
+            if (config_->skip > 0) {
+                if (config_->skip >= total_entries_ && !config_->repeat_on_eof) {
+                    throw std::runtime_error("Skip value exceeds total entries and repeat_on_eof is false for source " + std::to_string(source_index_));
+                }
+                current_entry_index_ = config_->skip % total_entries_; // Wrap around if repeat_on_eof is true
+                std::cout << "Skipping first " << config_->skip << " events for source " << source_index_ << ", starting at entry " << current_entry_index_ << std::endl;
+            }
+
             // Setup branch addresses
             setupBranches();
             
