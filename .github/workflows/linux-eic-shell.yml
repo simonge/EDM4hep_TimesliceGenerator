@@ -28,8 +28,15 @@ env:
 jobs:
   build:
     runs-on: ubuntu-24.04
+    outputs:
+      snakefile-hash: ${{ steps.snakefile-hash.outputs.hash }}
     steps:
     - uses: actions/checkout@v6
+    - name: Compute Snakefile hash
+      id: snakefile-hash
+      run: |
+        hash=$(sha256sum Snakefile | awk '{print $1}')
+        echo "hash=${hash}" | tee $GITHUB_OUTPUT
     - uses: cvmfs-contrib/github-action-cvmfs@v5
     - name: Build and install
       uses: eic/run-cvmfs-osg-eic-shell@main
@@ -53,9 +60,23 @@ jobs:
     steps:
     - uses: actions/checkout@v6
     - uses: cvmfs-contrib/github-action-cvmfs@v5
+    - name: Retrieve cached EPIC simulation files
+      id: retrieve_simulation_files
+      uses: actions/cache@v5
+      with:
+        path: |
+          epic_sim_ci_signal.edm4hep.root
+          epic_sim_ci_minbias.edm4hep.root
+          epic_sim_ci_hadron_beamgas.edm4hep.root
+          epic_sim_ci_electron_beamgas_brems.edm4hep.root
+          epic_sim_ci_electron_beamgas_coulomb.edm4hep.root
+          epic_sim_ci_electron_beamgas_touschek.edm4hep.root
+          epic_sim_ci_electron_synchrotron.edm4hep.root
+        key: epic-simulations-${{ needs.build.outputs.snakefile-hash }}
     - name: Fix script permissions
       run: chmod +x .github/scripts/monitor_memory.sh
     - name: Run all EPIC simulations with Snakemake
+      if: steps.retrieve_simulation_files.outputs.cache-hit != 'true'
       uses: eic/run-cvmfs-osg-eic-shell@main
       with:
         platform-release: "eic_xl:nightly"
@@ -77,8 +98,21 @@ jobs:
           epic_sim_ci_electron_beamgas_coulomb.edm4hep.root
           epic_sim_ci_electron_beamgas_touschek.edm4hep.root
           epic_sim_ci_electron_synchrotron.edm4hep.root
-        retention-days: 1
+        retention-days: 5
     - name: Upload snakemake memory report
+      if: steps.retrieve_simulation_files.outputs.cache-hit != 'true'
+      uses: actions/upload-artifact@v6
+      with:
+        name: epic-simulations
+        path: epic-simulations.csv
+        retention-days: 5
+    - name: Create memory report for cached run
+      if: steps.retrieve_simulation_files.outputs.cache-hit == 'true'
+      run: |
+        echo "time_sec,rss_mb,vms_mb" > epic-simulations.csv
+        echo "0,0,0" >> epic-simulations.csv
+    - name: Upload memory report for cached run
+      if: steps.retrieve_simulation_files.outputs.cache-hit == 'true'
       uses: actions/upload-artifact@v6
       with:
         name: epic-simulations
