@@ -17,9 +17,13 @@ PodioEDM4hepDataSource::PodioEDM4hepDataSource(const SourceConfig& config, size_
 void PodioEDM4hepDataSource::initialize(const std::vector<std::string>& tracker_collections,
                                         const std::vector<std::string>& calo_collections,
                                         const std::vector<std::string>& gp_collections) {
-    tracker_collection_names_ = &tracker_collections;
-    calo_collection_names_ = &calo_collections;
-    gp_collection_names_ = &gp_collections;
+    // Always update collection name pointers — may be called again after discovery
+    if (!tracker_collections.empty()) tracker_collection_names_ = &tracker_collections;
+    if (!calo_collections.empty())    calo_collection_names_    = &calo_collections;
+    if (!gp_collections.empty())      gp_collection_names_      = &gp_collections;
+
+    // Guard the reader/file-open against double-initialization
+    if (initialized_) return;
 
     if (!config_->input_files.empty()) {
         try {
