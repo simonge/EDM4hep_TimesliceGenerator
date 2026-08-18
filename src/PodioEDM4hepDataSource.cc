@@ -9,7 +9,6 @@
 
 PodioEDM4hepDataSource::PodioEDM4hepDataSource(const SourceConfig& config, size_t source_index)
     : EDM4hepDataSource(config, source_index) {
-    // Base class constructor sets config_ and source_index_; reset entry state.
     total_entries_ = 0;
     current_entry_index_ = 0;
     entries_needed_ = 1;
@@ -75,8 +74,7 @@ bool PodioEDM4hepDataSource::loadNextEvent() {
     if (!frame_data) {
         return false;
     }
-    podio::Frame frame(std::move(frame_data));
-    extractDataFromFrame(frame);
+    storeFrame(podio::Frame(std::move(frame_data)));
     return true;
 }
 
@@ -89,31 +87,71 @@ void PodioEDM4hepDataSource::loadEvent(size_t event_index) {
         throw std::runtime_error("PodioEDM4hepDataSource: failed to read entry " +
                                  std::to_string(actual_index));
     }
-    podio::Frame frame(std::move(frame_data));
-    extractDataFromFrame(frame);
+    storeFrame(podio::Frame(std::move(frame_data)));
+}
+
+// ---------------------------------------------------------------------------
+// Frame storage — lazy-extraction entry point
+// ---------------------------------------------------------------------------
+void PodioEDM4hepDataSource::storeFrame(podio::Frame&& frame) {
+    clearCaches();
+    current_frame_ = std::move(frame);
 }
 
 void PodioEDM4hepDataSource::clearCaches() {
+    // vec.clear() preserves allocated capacity so subsequent emplace_back calls
+    // reuse the same memory without reallocating (key perf benefit across events).
     cached_mcparticles_.clear();
-    cached_objectids_.clear();
-    cached_tracker_hits_.clear();
-    cached_calo_hits_.clear();
-    cached_calo_contribs_.clear();
-    cached_event_headers_.clear();
-    cached_gp_key_branches_.clear();
+    for (auto& [k, v] : cached_objectids_)    v.clear();
+    for (auto& [k, v] : cached_tracker_hits_) v.clear();
+    for (auto& [k, v] : cached_calo_hits_)    v.clear();
+    for (auto& [k, v] : cached_calo_contribs_) v.clear();
+    for (auto& [k, v] : cached_event_headers_) v.clear();
+    for (auto& [k, v] : cached_gp_key_branches_) v.clear();
     cached_gp_int_values_.clear();
     cached_gp_float_values_.clear();
     cached_gp_double_values_.clear();
     cached_gp_string_values_.clear();
+
+    // Reset lazy-extraction flags.
+    extracted_mcparticles_   = false;
+    extracted_tracker_hits_  = false;
+    extracted_calo_hits_     = false;
+    extracted_event_headers_ = false;
+    extracted_gp_            = false;
 }
 
-void PodioEDM4hepDataSource::extractDataFromFrame(const podio::Frame& frame) {
-    clearCaches();
-    extractMCParticles(frame);
-    if (tracker_collection_names_) extractTrackerHits(frame);
-    if (calo_collection_names_)    extractCaloHits(frame);
-    extractEventHeaders(frame);
-    extractGP(frame);
+// ---------------------------------------------------------------------------
+// Lazy-extraction guards
+// ---------------------------------------------------------------------------
+void PodioEDM4hepDataSource::ensureMCParticlesExtracted() {
+    if (extracted_mcparticles_ || !current_frame_) return;
+    extractMCParticles(*current_frame_);
+    extracted_mcparticles_ = true;
+}
+
+void PodioEDM4hepDataSource::ensureTrackerHitsExtracted() {
+    if (extracted_tracker_hits_ || !current_frame_) return;
+    if (tracker_collection_names_) extractTrackerHits(*current_frame_);
+    extracted_tracker_hits_ = true;
+}
+
+void PodioEDM4hepDataSource::ensureCaloHitsExtracted() {
+    if (extracted_calo_hits_ || !current_frame_) return;
+    if (calo_collection_names_) extractCaloHits(*current_frame_);
+    extracted_calo_hits_ = true;
+}
+
+void PodioEDM4hepDataSource::ensureEventHeadersExtracted() {
+    if (extracted_event_headers_ || !current_frame_) return;
+    extractEventHeaders(*current_frame_);
+    extracted_event_headers_ = true;
+}
+
+void PodioEDM4hepDataSource::ensureGPExtracted() {
+    if (extracted_gp_ || !current_frame_) return;
+    extractGP(*current_frame_);
+    extracted_gp_ = true;
 }
 
 // ---------------------------------------------------------------------------
@@ -127,33 +165,35 @@ void PodioEDM4hepDataSource::extractMCParticles(const podio::Frame& frame) {
     auto& parents_refs   = cached_objectids_["_MCParticles_parents"];
     auto& daughters_refs = cached_objectids_["_MCParticles_daughters"];
 
+    cached_mcparticles_.reserve(coll.size());
+
     for (const auto& p : coll) {
         edm4hep::MCParticleData d;
-        d.PDG               = p.getPDG();
-        d.generatorStatus   = p.getGeneratorStatus();
-        d.simulatorStatus   = p.getSimulatorStatus();
-        d.charge            = p.getCharge();
-        d.time              = p.getTime();
-        d.mass              = p.getMass();
-        d.vertex            = p.getVertex();
-        d.endpoint          = p.getEndpoint();
-        d.momentum          = p.getMomentum();
+        d.PDG                = p.getPDG();
+        d.generatorStatus    = p.getGeneratorStatus();
+        d.simulatorStatus    = p.getSimulatorStatus();
+        d.charge             = p.getCharge();
+        d.time               = p.getTime();
+        d.mass               = p.getMass();
+        d.vertex             = p.getVertex();
+        d.endpoint           = p.getEndpoint();
+        d.momentum           = p.getMomentum();
         d.momentumAtEndpoint = p.getMomentumAtEndpoint();
-        d.helicity          = p.getHelicity();
+        d.helicity           = p.getHelicity();
 
-        d.parents_begin   = static_cast<unsigned int>(parents_refs.size());
+        d.parents_begin = static_cast<unsigned int>(parents_refs.size());
         for (const auto& par : p.getParents()) {
-            parents_refs.push_back(par.getObjectID());
+            parents_refs.emplace_back(par.getObjectID());
         }
-        d.parents_end     = static_cast<unsigned int>(parents_refs.size());
+        d.parents_end = static_cast<unsigned int>(parents_refs.size());
 
         d.daughters_begin = static_cast<unsigned int>(daughters_refs.size());
         for (const auto& dau : p.getDaughters()) {
-            daughters_refs.push_back(dau.getObjectID());
+            daughters_refs.emplace_back(dau.getObjectID());
         }
-        d.daughters_end   = static_cast<unsigned int>(daughters_refs.size());
+        d.daughters_end = static_cast<unsigned int>(daughters_refs.size());
 
-        cached_mcparticles_.push_back(d);
+        cached_mcparticles_.emplace_back(d);
     }
 }
 
@@ -169,6 +209,9 @@ void PodioEDM4hepDataSource::extractTrackerHits(const podio::Frame& frame) {
         auto& hits = cached_tracker_hits_[name];
         auto& refs = cached_objectids_["_" + name + "_particle"];
 
+        hits.reserve(coll.size());
+        refs.reserve(coll.size());
+
         for (const auto& h : coll) {
             edm4hep::SimTrackerHitData d;
             d.cellID     = h.getCellID();
@@ -178,8 +221,8 @@ void PodioEDM4hepDataSource::extractTrackerHits(const podio::Frame& frame) {
             d.quality    = h.getQuality();
             d.position   = h.getPosition();
             d.momentum   = h.getMomentum();
-            hits.push_back(d);
-            refs.push_back(h.getParticle().getObjectID());
+            hits.emplace_back(d);
+            refs.emplace_back(h.getParticle().getObjectID());
         }
     }
 }
@@ -196,10 +239,12 @@ void PodioEDM4hepDataSource::extractCaloHits(const podio::Frame& frame) {
         std::string contrib_name = contribCollectionName(name);
         const auto* contrib_base = frame.get(contrib_name);
 
-        auto& hits         = cached_calo_hits_[name];
-        auto& contrib_refs = cached_objectids_["_" + name + "_contributions"];
-        auto& contribs     = cached_calo_contribs_[name];
+        auto& hits              = cached_calo_hits_[name];
+        auto& contrib_refs      = cached_objectids_["_" + name + "_contributions"];
+        auto& contribs          = cached_calo_contribs_[name];
         auto& contrib_particle_refs = cached_objectids_["_" + contrib_name + "_particle"];
+
+        hits.reserve(coll.size());
 
         for (const auto& h : coll) {
             edm4hep::SimCalorimeterHitData d;
@@ -209,7 +254,7 @@ void PodioEDM4hepDataSource::extractCaloHits(const podio::Frame& frame) {
 
             d.contributions_begin = static_cast<unsigned int>(contrib_refs.size());
             for (const auto& c : h.getContributions()) {
-                contrib_refs.push_back(c.getObjectID());
+                contrib_refs.emplace_back(c.getObjectID());
 
                 if (contrib_base) {
                     edm4hep::CaloHitContributionData cd;
@@ -218,13 +263,13 @@ void PodioEDM4hepDataSource::extractCaloHits(const podio::Frame& frame) {
                     cd.time         = c.getTime();
                     cd.stepPosition = c.getStepPosition();
                     cd.stepLength   = c.getStepLength();
-                    contribs.push_back(cd);
-                    contrib_particle_refs.push_back(c.getParticle().getObjectID());
+                    contribs.emplace_back(cd);
+                    contrib_particle_refs.emplace_back(c.getParticle().getObjectID());
                 }
             }
             d.contributions_end = static_cast<unsigned int>(contrib_refs.size());
 
-            hits.push_back(d);
+            hits.emplace_back(d);
         }
     }
 }
@@ -238,19 +283,22 @@ void PodioEDM4hepDataSource::extractEventHeaders(const podio::Frame& frame) {
         if (!base) continue;
         const auto& coll = frame.get<edm4hep::EventHeaderCollection>(coll_name);
         auto& headers = cached_event_headers_[coll_name];
+        headers.reserve(coll.size());
         for (const auto& h : coll) {
             edm4hep::EventHeaderData d;
             d.eventNumber = h.getEventNumber();
             d.runNumber   = h.getRunNumber();
             d.timeStamp   = h.getTimeStamp();
             d.weight      = h.getWeight();
-            headers.push_back(d);
+            headers.emplace_back(d);
         }
     }
 }
 
 // ---------------------------------------------------------------------------
 // GenericParameters (GP)
+// getKeysAndValues already returns owned vectors; move them directly into the
+// caches to avoid any extra copy.
 // ---------------------------------------------------------------------------
 void PodioEDM4hepDataSource::extractGP(const podio::Frame& frame) {
     const auto& params = frame.getParameters();
@@ -272,11 +320,13 @@ void PodioEDM4hepDataSource::extractGP(const podio::Frame& frame) {
 }
 
 // ---------------------------------------------------------------------------
-// process* overrides — modify in place (same contract as EDM4hepDataSource)
+// process* overrides — lazy extraction then modify in place
 // ---------------------------------------------------------------------------
 
 std::vector<edm4hep::MCParticleData>& PodioEDM4hepDataSource::processMCParticles(
     size_t particle_parents_offset, size_t particle_daughters_offset, int totalEventsConsumed) {
+
+    ensureMCParticlesExtracted();
 
     if (totalEventsConsumed == 0 && config_->already_merged) {
         return cached_mcparticles_;
@@ -298,6 +348,17 @@ std::vector<edm4hep::MCParticleData>& PodioEDM4hepDataSource::processMCParticles
 std::vector<podio::ObjectID>& PodioEDM4hepDataSource::processObjectID(
     const std::string& collection_name, size_t index_offset, int totalEventsConsumed) {
 
+    // ObjectIDs are populated as a side-effect of extractMCParticles/Tracker/CaloHits;
+    // ensure the owning collection has been extracted first.
+    if (collection_name == "_MCParticles_parents" || collection_name == "_MCParticles_daughters") {
+        ensureMCParticlesExtracted();
+    } else {
+        // Determine origin: tracker or calo by checking collection name patterns.
+        // A conservative approach: ensure all relevant collections are extracted.
+        ensureTrackerHitsExtracted();
+        ensureCaloHitsExtracted();
+    }
+
     auto& refs = cached_objectids_[collection_name];
 
     if (totalEventsConsumed == 0 && config_->already_merged) {
@@ -311,6 +372,8 @@ std::vector<podio::ObjectID>& PodioEDM4hepDataSource::processObjectID(
 
 std::vector<edm4hep::SimTrackerHitData>& PodioEDM4hepDataSource::processTrackerHits(
     const std::string& collection_name, size_t /*particle_index_offset*/, int totalEventsConsumed) {
+
+    ensureTrackerHitsExtracted();
 
     auto& hits = cached_tracker_hits_[collection_name];
     if (totalEventsConsumed == 0 && config_->already_merged) {
@@ -327,6 +390,8 @@ std::vector<edm4hep::SimTrackerHitData>& PodioEDM4hepDataSource::processTrackerH
 std::vector<edm4hep::SimCalorimeterHitData>& PodioEDM4hepDataSource::processCaloHits(
     const std::string& collection_name, size_t contribution_index_offset, int totalEventsConsumed) {
 
+    ensureCaloHitsExtracted();
+
     auto& hits = cached_calo_hits_[collection_name];
     if (totalEventsConsumed == 0 && config_->already_merged) {
         return hits;
@@ -341,6 +406,8 @@ std::vector<edm4hep::SimCalorimeterHitData>& PodioEDM4hepDataSource::processCalo
 std::vector<edm4hep::CaloHitContributionData>& PodioEDM4hepDataSource::processCaloContributions(
     const std::string& collection_name, size_t /*particle_index_offset*/, int totalEventsConsumed) {
 
+    ensureCaloHitsExtracted();
+
     auto& contribs = cached_calo_contribs_[collection_name];
     if (totalEventsConsumed == 0 && config_->already_merged) {
         return contribs;
@@ -354,27 +421,35 @@ std::vector<edm4hep::CaloHitContributionData>& PodioEDM4hepDataSource::processCa
 }
 
 std::vector<std::string>& PodioEDM4hepDataSource::processGPBranch(const std::string& branch_name) {
+    ensureGPExtracted();
     return cached_gp_key_branches_[branch_name];
 }
 
 std::vector<std::vector<int>>& PodioEDM4hepDataSource::processGPIntValues() {
+    ensureGPExtracted();
     return cached_gp_int_values_;
 }
 
 std::vector<std::vector<float>>& PodioEDM4hepDataSource::processGPFloatValues() {
+    ensureGPExtracted();
     return cached_gp_float_values_;
 }
 
 std::vector<std::vector<double>>& PodioEDM4hepDataSource::processGPDoubleValues() {
+    ensureGPExtracted();
     return cached_gp_double_values_;
 }
 
 std::vector<std::vector<std::string>>& PodioEDM4hepDataSource::processGPStringValues() {
+    ensureGPExtracted();
     return cached_gp_string_values_;
 }
 
 std::vector<edm4hep::EventHeaderData>& PodioEDM4hepDataSource::processEventHeaders(
     const std::string& collection_name) {
+
+    ensureEventHeadersExtracted();
+
     static std::vector<edm4hep::EventHeaderData> empty;
     auto it = cached_event_headers_.find(collection_name);
     if (it == cached_event_headers_.end()) {

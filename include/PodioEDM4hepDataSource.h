@@ -74,7 +74,18 @@ private:
     const std::vector<std::string>* calo_collection_names_{nullptr};
     const std::vector<std::string>* gp_collection_names_{nullptr};
 
-    // Cached data extracted from the current frame
+    // The current frame, held until all process* calls have consumed it lazily.
+    std::optional<podio::Frame> current_frame_;
+
+    // Extraction-done flags (set to true after the corresponding extract* runs).
+    bool extracted_mcparticles_{false};
+    bool extracted_tracker_hits_{false};
+    bool extracted_calo_hits_{false};
+    bool extracted_event_headers_{false};
+    bool extracted_gp_{false};
+
+    // Cached data extracted from the current frame.
+    // vec.clear() preserves allocated capacity; emplace_back reuses it event-to-event.
     std::vector<edm4hep::MCParticleData> cached_mcparticles_;
     std::unordered_map<std::string, std::vector<podio::ObjectID>> cached_objectids_;
     std::unordered_map<std::string, std::vector<edm4hep::SimTrackerHitData>> cached_tracker_hits_;
@@ -90,7 +101,12 @@ private:
     std::vector<std::vector<std::string>> cached_gp_string_values_;
 
     // Helpers
-    void extractDataFromFrame(const podio::Frame& frame);
+    void storeFrame(podio::Frame&& frame);
+    void ensureMCParticlesExtracted();
+    void ensureTrackerHitsExtracted();
+    void ensureCaloHitsExtracted();
+    void ensureEventHeadersExtracted();
+    void ensureGPExtracted();
     void extractMCParticles(const podio::Frame& frame);
     void extractTrackerHits(const podio::Frame& frame);
     void extractCaloHits(const podio::Frame& frame);
