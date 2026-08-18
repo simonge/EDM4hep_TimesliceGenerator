@@ -74,9 +74,9 @@ public:
 
 private:
     TTree* output_tree_ = nullptr;
-    EDM4hepMergedCollections collections_;
 
 protected:
+    EDM4hepMergedCollections collections_;
     std::unique_ptr<TFile> output_file_;
 
     // Store validated EDM4hep data sources (non-owning pointers)

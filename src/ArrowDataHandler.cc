@@ -9,6 +9,8 @@
 #include <iostream>
 #include <stdexcept>
 
+// ---------------------------------------------------------------------------
+
 ArrowDataHandler::~ArrowDataHandler()
 {
     // Ensure resources are released even if finalize() was not called
@@ -47,7 +49,8 @@ void ArrowDataHandler::finalize()
 
 void ArrowDataHandler::writeFrame(podio::Frame& frame)
 {
-    // Open the output stream on first write
+    // Open the output stream on first write.
+    // /dev/null is a valid destination on Linux for pure throughput benchmarks.
     if (!arrow_stream_) {
         auto result = arrow::io::FileOutputStream::Open(output_filename_);
         if (!result.ok()) {

@@ -9,7 +9,7 @@
 // Forward-declare Arrow types to keep the header lightweight
 namespace arrow {
 class Schema;
-namespace io   { class FileOutputStream; }
+namespace io   { class OutputStream; }
 namespace ipc  { class RecordBatchWriter; }
 } // namespace arrow
 
@@ -36,7 +36,7 @@ protected:
     void writeFrame(podio::Frame& frame) override;
 
 private:
-    std::shared_ptr<arrow::io::FileOutputStream>  arrow_stream_;
+    std::shared_ptr<arrow::io::OutputStream>       arrow_stream_;
     std::shared_ptr<arrow::ipc::RecordBatchWriter> arrow_writer_;
 };
 
