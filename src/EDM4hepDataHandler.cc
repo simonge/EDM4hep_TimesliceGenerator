@@ -271,6 +271,12 @@ void EDM4hepDataHandler::writeTimeframe() {
     header.timeStamp = current_timeframe_number_;
     collections_.event_headers.push_back(header);
     
+    // Restore the output file as the current ROOT directory before Fill().
+    // Multiple podio ROOTReader instances each open their input files via
+    // ROOT's file manager, which updates gDirectory. Without this cd() call,
+    // TBranchElement::WriteBasketImpl fails when it can't resolve the write
+    // destination for the output TTree.
+    output_file_->cd();
     output_tree_->Fill();
     std::cout << "=== Timeframe written ===" << std::endl;
 }

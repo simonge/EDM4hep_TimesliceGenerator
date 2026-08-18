@@ -17,7 +17,7 @@ void CommandLineParser::printUsage(const char* program_name) {
               << "  -p, --bunch-period PERIOD   Bunch crossing period in ns (default: 10.0)\n"
               << "  --random-seed SEED          Random number generator seed (default: 0, use random_device)\n"
               << "  --reader BACKEND            Input/output backend: 'root' (TChain/TTree, default) or 'podio'\n"
-              << "  --writer BACKEND            Output writer: 'root' (default) or 'arrow' (Arrow IPC stream)\n"
+              << "  --writer BACKEND            Output writer: 'root' (TTree, default), 'podio' (podio::ROOTWriter frame), or 'arrow' (Arrow IPC stream)\n"
               << "  -h, --help                  Show this help message\n"
               << "  -v, --version               Show version information\n"
               << "\nDefault Source Options (backward compatibility):\n"
@@ -463,8 +463,8 @@ MergerConfig CommandLineParser::parse(int argc, char* argv[]) {
                 break;
             case 1008:
                 config.writer = optarg;
-                if (config.writer != "root" && config.writer != "arrow") {
-                    throw std::runtime_error("Invalid --writer value: '" + config.writer + "'. Must be 'root' or 'arrow'.");
+                if (config.writer != "root" && config.writer != "podio" && config.writer != "arrow") {
+                    throw std::runtime_error("Invalid --writer value: '" + config.writer + "'. Must be 'root', 'podio', or 'arrow'.");
                 }
                 break;
             case 'h':

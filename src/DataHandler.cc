@@ -1,5 +1,6 @@
 #include "DataHandler.h"
 #include "EDM4hepDataHandler.h"
+#include "PodioEDM4hepDataHandler.h"
 #include "PodioROOTDataHandler.h"
 #ifdef HAVE_ARROW
 #include "ArrowDataHandler.h"
@@ -63,7 +64,14 @@ std::unique_ptr<DataHandler> DataHandler::create(const MergerConfig& config) {
 
     if (hasExtension(filename, ".edm4hep.root")) {
         if (reader == "podio") {
-            return std::make_unique<PodioROOTDataHandler>();
+            // writer="root" (default): podio reader + same ROOT TTree output as the ROOT backend
+            //   → PodioEDM4hepDataHandler (inherits EDM4hepDataHandler output, uses PodioEDM4hepDataSource input)
+            // writer="podio": podio reader + podio::ROOTWriter frame output
+            //   → PodioROOTDataHandler
+            if (config.writer == "podio") {
+                return std::make_unique<PodioROOTDataHandler>();
+            }
+            return std::make_unique<PodioEDM4hepDataHandler>();
         }
         return std::make_unique<EDM4hepDataHandler>();
     }
