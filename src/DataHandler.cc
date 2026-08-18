@@ -1,6 +1,9 @@
 #include "DataHandler.h"
 #include "EDM4hepDataHandler.h"
-#include "PodioEDM4hepDataHandler.h"
+#include "PodioROOTDataHandler.h"
+#ifdef HAVE_ARROW
+#include "ArrowDataHandler.h"
+#endif
 #ifdef HAVE_HEPMC3
 #include "HepMC3DataHandler.h"
 #endif
@@ -60,9 +63,19 @@ std::unique_ptr<DataHandler> DataHandler::create(const MergerConfig& config) {
 
     if (hasExtension(filename, ".edm4hep.root")) {
         if (reader == "podio") {
-            return std::make_unique<PodioEDM4hepDataHandler>();
+            return std::make_unique<PodioROOTDataHandler>();
         }
         return std::make_unique<EDM4hepDataHandler>();
+    }
+
+    if (hasExtension(filename, ".arrow")) {
+#ifdef HAVE_ARROW
+        return std::make_unique<ArrowDataHandler>();
+#else
+        throw std::runtime_error(
+            "Arrow output requested ('" + filename + "') but this build was compiled without Arrow support.\n"
+            "Rebuild with Arrow C++ installed and available to CMake.");
+#endif
     }
     
     std::string error_msg = "Unsupported data format: " + filename + "\n"
