@@ -131,6 +131,11 @@ void EDM4hepDataHandler::initializeOutput(const MergerConfig& config, const std:
 
 void EDM4hepDataHandler::prepareTimeframe() {
     collections_.clear();
+    // Restore the output file as the current ROOT directory so that any ROOT
+    // book-keeping triggered by subsequent readNextEntry() / loadEvent() calls
+    // (which open input files and change gDirectory) does not corrupt the output
+    // tree's internal state before writeTimeframe() / Fill() is called.
+    if (output_file_) output_file_->cd();
 }
 
 void EDM4hepDataHandler::processEvent(DataSource& source) {
@@ -257,6 +262,13 @@ void EDM4hepDataHandler::processEvent(DataSource& source) {
         std::make_move_iterator(gp_string_values.begin()), std::make_move_iterator(gp_string_values.end()));
     
     totalEventsConsumed++;
+
+    // After each loadEvent() + processEvent() cycle, restore the output file as
+    // the current ROOT directory.  readNextEntry()/readEntry() opens input files
+    // via ROOT's file manager and updates gDirectory; if ROOT's internal basket
+    // bookkeeping runs between mergeEvents() iterations with the wrong gDirectory
+    // it will misdirect I/O and cause catastrophically slow writes.
+    if (output_file_) output_file_->cd();
 }
 
 void EDM4hepDataHandler::writeTimeframe() {
