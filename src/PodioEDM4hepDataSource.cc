@@ -6,6 +6,7 @@
 #include <edm4hep/EventHeaderCollection.h>
 #include <podio/Frame.h>
 #include <iostream>
+#include <limits>
 
 PodioEDM4hepDataSource::PodioEDM4hepDataSource(const SourceConfig& config, size_t source_index)
     : EDM4hepDataSource(config, source_index) {
@@ -22,7 +23,7 @@ void PodioEDM4hepDataSource::initialize(const std::vector<std::string>& tracker_
     if (!calo_collections.empty())    calo_collection_names_    = &calo_collections;
     if (!gp_collections.empty())      gp_collection_names_      = &gp_collections;
 
-    // Guard the reader/file-open against double-initialization
+    // Guard the file-open against double-initialization
     if (initialized_) return;
 
     if (!config_->input_files.empty()) {
@@ -50,6 +51,10 @@ void PodioEDM4hepDataSource::initialize(const std::vector<std::string>& tracker_
             }
 
             initialized_ = true;
+            // next_sequential_index_ starts at SIZE_MAX (invalid) so the first
+            // loadEvent() call always uses readEntry() to seek, which internally
+            // positions the reader for readNextEntry() on subsequent calls.
+            next_sequential_index_ = std::numeric_limits<size_t>::max();
             std::cout << "Successfully initialized podio EDM4hep source " << source_index_
                       << " (" << config_->name << ")" << std::endl;
 
@@ -74,10 +79,11 @@ bool PodioEDM4hepDataSource::loadNextEvent() {
         }
         return false;
     }
-    auto frame_data = reader_.readEntry(config_->tree_name, current_entry_index_);
+    auto frame_data = reader_.readNextEntry(config_->tree_name);
     if (!frame_data) {
         return false;
     }
+    ++next_sequential_index_;
     storeFrame(podio::Frame(std::move(frame_data)));
     return true;
 }
@@ -86,7 +92,19 @@ void PodioEDM4hepDataSource::loadEvent(size_t event_index) {
     size_t actual_index = (config_->repeat_on_eof && total_entries_ > 0)
                               ? event_index % total_entries_
                               : event_index;
-    auto frame_data = reader_.readEntry(config_->tree_name, actual_index);
+
+    std::unique_ptr<podio::ROOTFrameData> frame_data;
+    if (actual_index == next_sequential_index_) {
+        // Sequential path: avoids category-map lookup in readEntry()
+        frame_data = reader_.readNextEntry(config_->tree_name);
+        ++next_sequential_index_;
+    } else {
+        // Non-sequential seek (repeat_on_eof wrap-around or skip)
+        frame_data = reader_.readEntry(config_->tree_name, actual_index);
+        // Resync the sequential counter so future sequential reads are fast
+        next_sequential_index_ = actual_index + 1;
+    }
+
     if (!frame_data) {
         throw std::runtime_error("PodioEDM4hepDataSource: failed to read entry " +
                                  std::to_string(actual_index));

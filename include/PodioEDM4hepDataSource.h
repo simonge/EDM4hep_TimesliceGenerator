@@ -68,6 +68,9 @@ public:
 private:
     podio::ROOTReader reader_;
     bool initialized_{false};
+    // Tracks the next index that readNextEntry() would return, so we can
+    // use the cheaper sequential API instead of readEntry(n) when possible.
+    size_t next_sequential_index_{0};
 
     // Collection name lists (set by initialize())
     const std::vector<std::string>* tracker_collection_names_{nullptr};
