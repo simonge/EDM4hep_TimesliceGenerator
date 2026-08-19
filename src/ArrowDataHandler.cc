@@ -71,28 +71,29 @@ void ArrowDataHandler::writeFrame(podio::Frame& frame)
     // Read row(s) from the table as RecordBatches
     arrow::TableBatchReader batch_reader(*table);
     std::shared_ptr<arrow::RecordBatch> batch;
-    auto status = batch_reader.ReadNext(&batch);
-    if (!status.ok()) {
-        throw std::runtime_error("ArrowDataHandler: ReadNext failed: " + status.ToString());
-    }
-    if (!batch) {
-        // Empty frame — nothing to write
-        return;
-    }
-
-    // Create the IPC stream writer once (schema is fixed after the first frame)
-    if (!arrow_writer_) {
-        auto writer_result = arrow::ipc::MakeStreamWriter(arrow_stream_, batch->schema());
-        if (!writer_result.ok()) {
-            throw std::runtime_error(
-                "ArrowDataHandler: MakeStreamWriter failed: " + writer_result.status().ToString());
+    while (true) {
+        auto status = batch_reader.ReadNext(&batch);
+        if (!status.ok()) {
+            throw std::runtime_error("ArrowDataHandler: ReadNext failed: " + status.ToString());
         }
-        arrow_writer_ = writer_result.ValueOrDie();
-    }
+        if (!batch) {
+            break;
+        }
 
-    status = arrow_writer_->WriteRecordBatch(*batch);
-    if (!status.ok()) {
-        throw std::runtime_error("ArrowDataHandler: WriteRecordBatch failed: " + status.ToString());
+        // Create the IPC stream writer once (schema is fixed after the first frame)
+        if (!arrow_writer_) {
+            auto writer_result = arrow::ipc::MakeStreamWriter(arrow_stream_, batch->schema());
+            if (!writer_result.ok()) {
+                throw std::runtime_error(
+                    "ArrowDataHandler: MakeStreamWriter failed: " + writer_result.status().ToString());
+            }
+            arrow_writer_ = writer_result.ValueOrDie();
+        }
+
+        status = arrow_writer_->WriteRecordBatch(*batch);
+        if (!status.ok()) {
+            throw std::runtime_error("ArrowDataHandler: WriteRecordBatch failed: " + status.ToString());
+        }
     }
 }
 

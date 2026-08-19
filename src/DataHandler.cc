@@ -95,6 +95,11 @@ std::unique_ptr<DataHandler> DataHandler::create(const MergerConfig& config) {
     std::string error_msg = "Unsupported data format: " + filename + "\n"
         "Currently supported formats:\n"
         "  - Files ending with '.edm4hep.root' (e.g., output.edm4hep.root)\n";
+#ifdef HAVE_ARROW
+    error_msg += "  - Files ending with '.arrow' (e.g., output.arrow), or use '--writer arrow'\n";
+#else
+    error_msg += "  - Arrow output via '--writer arrow' / '.arrow' is unavailable in this build\n";
+#endif
 #ifdef HAVE_HEPMC3
     error_msg += "  - Files ending with '.hepmc3.tree.root' (e.g., output.hepmc3.tree.root)";
 #else

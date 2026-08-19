@@ -73,18 +73,23 @@ bool PodioEDM4hepDataSource::hasMoreEntries() const {
 }
 
 bool PodioEDM4hepDataSource::loadNextEvent() {
+    bool wrapped_to_start = false;
     if (current_entry_index_ >= total_entries_) {
-        if (config_->repeat_on_eof) {
-            current_entry_index_ = 0;
+        if (!config_->repeat_on_eof) {
+            return false;
         }
-        return false;
+        current_entry_index_ = 0;
+        wrapped_to_start = true;
     }
-    auto frame_data = reader_.readNextEntry(config_->tree_name);
+    auto frame_data = wrapped_to_start
+                          ? reader_.readEntry(config_->tree_name, current_entry_index_)
+                          : reader_.readNextEntry(config_->tree_name);
     if (!frame_data) {
         return false;
     }
-    ++next_sequential_index_;
+    next_sequential_index_ = current_entry_index_ + 1;
     storeFrame(podio::Frame(std::move(frame_data)));
+    ++current_entry_index_;
     return true;
 }
 
@@ -274,11 +279,11 @@ void PodioEDM4hepDataSource::extractCaloHits(const podio::Frame& frame) {
             d.energy   = h.getEnergy();
             d.position = h.getPosition();
 
-            d.contributions_begin = static_cast<unsigned int>(contrib_refs.size());
-            for (const auto& c : h.getContributions()) {
-                contrib_refs.emplace_back(c.getObjectID());
+            d.contributions_begin = static_cast<unsigned int>(contribs.size());
+            if (contrib_base) {
+                for (const auto& c : h.getContributions()) {
+                    contrib_refs.emplace_back(c.getObjectID());
 
-                if (contrib_base) {
                     edm4hep::CaloHitContributionData cd;
                     cd.PDG          = c.getPDG();
                     cd.energy       = c.getEnergy();
@@ -289,7 +294,7 @@ void PodioEDM4hepDataSource::extractCaloHits(const podio::Frame& frame) {
                     contrib_particle_refs.emplace_back(c.getParticle().getObjectID());
                 }
             }
-            d.contributions_end = static_cast<unsigned int>(contrib_refs.size());
+            d.contributions_end = static_cast<unsigned int>(contribs.size());
 
             hits.emplace_back(d);
         }
@@ -430,7 +435,14 @@ std::vector<edm4hep::CaloHitContributionData>& PodioEDM4hepDataSource::processCa
 
     ensureCaloHitsExtracted();
 
-    auto& contribs = cached_calo_contribs_[collection_name];
+    const std::string suffix = "Contributions";
+    const std::string base_name =
+        (collection_name.size() >= suffix.size() &&
+         collection_name.compare(collection_name.size() - suffix.size(), suffix.size(), suffix) == 0)
+            ? collection_name.substr(0, collection_name.size() - suffix.size())
+            : collection_name;
+
+    auto& contribs = cached_calo_contribs_[base_name];
     if (totalEventsConsumed == 0 && config_->already_merged) {
         return contribs;
     }

@@ -16,7 +16,7 @@ void CommandLineParser::printUsage(const char* program_name) {
               << "  -d, --duration TIME         Timeframe duration in ns (default: 20.0)\n"
               << "  -p, --bunch-period PERIOD   Bunch crossing period in ns (default: 10.0)\n"
               << "  --random-seed SEED          Random number generator seed (default: 0, use random_device)\n"
-              << "  --reader BACKEND            Input/output backend: 'root' (TChain/TTree, default) or 'podio'\n"
+              << "  --reader BACKEND            Input reader backend: 'root' (TChain/TTree, default) or 'podio'\n"
               << "  --writer BACKEND            Output writer: 'root' (TTree, default), 'podio' (podio::ROOTWriter frame), or 'arrow' (Arrow IPC stream)\n"
               << "  -h, --help                  Show this help message\n"
               << "  -v, --version               Show version information\n"

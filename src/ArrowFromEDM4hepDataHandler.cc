@@ -13,8 +13,20 @@
 
 ArrowFromEDM4hepDataHandler::~ArrowFromEDM4hepDataHandler()
 {
-    if (arrow_writer_) arrow_writer_->Close().ok();
-    if (arrow_stream_) arrow_stream_->Close().ok();
+    if (arrow_writer_) {
+        auto status = arrow_writer_->Close();
+        if (!status.ok()) {
+            std::cerr << "ArrowFromEDM4hepDataHandler: writer Close() failed: "
+                      << status.ToString() << std::endl;
+        }
+    }
+    if (arrow_stream_) {
+        auto status = arrow_stream_->Close();
+        if (!status.ok()) {
+            std::cerr << "ArrowFromEDM4hepDataHandler: stream Close() failed: "
+                      << status.ToString() << std::endl;
+        }
+    }
 }
 
 void ArrowFromEDM4hepDataHandler::initializeOutput(
@@ -58,24 +70,47 @@ void ArrowFromEDM4hepDataHandler::writeTimeframe()
 
     arrow::TableBatchReader reader(*table);
     std::shared_ptr<arrow::RecordBatch> batch;
-    if (!reader.ReadNext(&batch).ok() || !batch) return;
+    while (true) {
+        auto read_status = reader.ReadNext(&batch);
+        if (!read_status.ok()) {
+            throw std::runtime_error("ArrowFromEDM4hepDataHandler: ReadNext failed: " +
+                                     read_status.ToString());
+        }
+        if (!batch) {
+            break;
+        }
 
-    if (!arrow_writer_) {
-        auto wr = arrow::ipc::MakeStreamWriter(arrow_stream_, batch->schema());
-        if (!wr.ok()) throw std::runtime_error("ArrowFromEDM4hepDataHandler: MakeStreamWriter: " +
-                                               wr.status().ToString());
-        arrow_writer_ = wr.ValueOrDie();
+        if (!arrow_writer_) {
+            auto wr = arrow::ipc::MakeStreamWriter(arrow_stream_, batch->schema());
+            if (!wr.ok()) throw std::runtime_error("ArrowFromEDM4hepDataHandler: MakeStreamWriter: " +
+                                                   wr.status().ToString());
+            arrow_writer_ = wr.ValueOrDie();
+        }
+        auto status = arrow_writer_->WriteRecordBatch(*batch);
+        if (!status.ok()) throw std::runtime_error("ArrowFromEDM4hepDataHandler: WriteRecordBatch: " +
+                                                   status.ToString());
     }
-    auto status = arrow_writer_->WriteRecordBatch(*batch);
-    if (!status.ok()) throw std::runtime_error("ArrowFromEDM4hepDataHandler: WriteRecordBatch: " +
-                                               status.ToString());
     std::cout << "=== Timeframe written (Arrow/ROOT) ===" << std::endl;
 }
 
 void ArrowFromEDM4hepDataHandler::finalize()
 {
-    if (arrow_writer_) { arrow_writer_->Close().ok(); arrow_writer_.reset(); }
-    if (arrow_stream_) { arrow_stream_->Close().ok(); arrow_stream_.reset(); }
+    if (arrow_writer_) {
+        auto status = arrow_writer_->Close();
+        if (!status.ok()) {
+            throw std::runtime_error(
+                "ArrowFromEDM4hepDataHandler: writer Close() failed: " + status.ToString());
+        }
+        arrow_writer_.reset();
+    }
+    if (arrow_stream_) {
+        auto status = arrow_stream_->Close();
+        if (!status.ok()) {
+            throw std::runtime_error(
+                "ArrowFromEDM4hepDataHandler: stream Close() failed: " + status.ToString());
+        }
+        arrow_stream_.reset();
+    }
     std::cout << "ArrowFromEDM4hepDataHandler output finalized: " << output_filename_ << std::endl;
 }
 
