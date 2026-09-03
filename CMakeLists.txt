@@ -35,8 +35,10 @@ include_directories(${ROOT_INCLUDE_DIRS})
 add_executable(timeframe_builder
     src/DataSource.cc
     src/EDM4hepDataSource.cc
+    src/PodioEDM4hepDataSource.cc
     src/DataHandler.cc
     src/EDM4hepDataHandler.cc
+    src/PodioEDM4hepDataHandler.cc
     src/TimeframeBuilder.cc
     src/CommandLineParser.cc
     src/timeframe_builder_main.cc
@@ -52,6 +54,23 @@ if(HepMC3_FOUND)
     target_compile_definitions(timeframe_builder PRIVATE HAVE_HEPMC3)
 else()
     message(STATUS "HepMC3 not found - HepMC3 backend will not be available")
+endif()
+
+# Always add PodioROOTDataHandler and the shared frame-builder utility
+target_sources(timeframe_builder PRIVATE src/PodioROOTDataHandler.cc)
+target_sources(timeframe_builder PRIVATE src/EDM4hepFrameBuilder.cc)
+
+# Find Arrow (optional, for Arrow IPC stream output)
+find_package(Arrow QUIET)
+if(Arrow_FOUND AND TARGET podio::podioArrow)
+    message(STATUS "Arrow + podio Arrow support found - enabling Arrow IPC output support")
+    target_sources(timeframe_builder PRIVATE src/ArrowDataHandler.cc)
+    target_sources(timeframe_builder PRIVATE src/ArrowFromEDM4hepDataHandler.cc)
+    target_compile_definitions(timeframe_builder PRIVATE HAVE_ARROW)
+    target_link_libraries(timeframe_builder Arrow::arrow_shared)
+    target_link_libraries(timeframe_builder podio::podioArrow)
+else()
+    message(STATUS "Arrow IPC output not available (requires both Arrow and podio Arrow support)")
 endif()
 
 # Link against ROOT, PODIO and EDM4HEP

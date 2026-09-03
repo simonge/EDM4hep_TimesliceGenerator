@@ -16,6 +16,8 @@ void CommandLineParser::printUsage(const char* program_name) {
               << "  -d, --duration TIME         Timeframe duration in ns (default: 20.0)\n"
               << "  -p, --bunch-period PERIOD   Bunch crossing period in ns (default: 10.0)\n"
               << "  --random-seed SEED          Random number generator seed (default: 0, use random_device)\n"
+              << "  --reader BACKEND            Input reader backend: 'root' (TChain/TTree, default) or 'podio'\n"
+              << "  --writer BACKEND            Output writer: 'root' (TTree, default), 'podio' (podio::ROOTWriter frame), or 'arrow' (Arrow IPC stream)\n"
               << "  -h, --help                  Show this help message\n"
               << "  -v, --version               Show version information\n"
               << "\nDefault Source Options (backward compatibility):\n"
@@ -196,6 +198,9 @@ void CommandLineParser::loadYAMLConfig(const std::string& config_file, MergerCon
     if (yaml["random_seed"]) config.random_seed = yaml["random_seed"].as<unsigned int>();
     if (yaml["introduce_offsets"]) config.introduce_offsets = yaml["introduce_offsets"].as<bool>();
     
+    if (yaml["reader"]) config.reader = yaml["reader"].as<std::string>();
+    if (yaml["writer"]) config.writer = yaml["writer"].as<std::string>();
+    
     if (yaml["sources"]) {
         config.sources.clear();
         for (const auto& source_yaml : yaml["sources"]) {
@@ -335,6 +340,8 @@ void CommandLineParser::printConfiguration(const MergerConfig& config) {
     std::cout << "Bunch crossing period: " << config.bunch_crossing_period << " ns" << std::endl;
     std::cout << "Random seed: " << config.random_seed << (config.random_seed == 0 ? " (using random_device)" : "") << std::endl;
     std::cout << "Introduce offsets: " << (config.introduce_offsets ? "true" : "false") << std::endl;
+    std::cout << "Reader backend: " << config.reader << std::endl;
+    std::cout << "Writer backend: " << config.writer << std::endl;
     std::cout << "================================================" << std::endl;
 }
 
@@ -391,6 +398,8 @@ MergerConfig CommandLineParser::parse(int argc, char* argv[]) {
         {"beam-spread", required_argument, 0, 1002},
         {"status-offset", required_argument, 0, 1003},
         {"keep-weight", required_argument, 0, 1006},
+        {"reader", required_argument, 0, 1007},
+        {"writer", required_argument, 0, 1008},
         {"help", no_argument, 0, 'h'},
         {"version", no_argument, 0, 'v'},
         {0, 0, 0, 0}
@@ -445,6 +454,18 @@ MergerConfig CommandLineParser::parse(int argc, char* argv[]) {
                 break;
             case 1005:
                 config.random_seed = std::stoul(optarg);
+                break;
+            case 1007:
+                config.reader = optarg;
+                if (config.reader != "root" && config.reader != "podio") {
+                    throw std::runtime_error("Invalid --reader value: '" + config.reader + "'. Must be 'root' or 'podio'.");
+                }
+                break;
+            case 1008:
+                config.writer = optarg;
+                if (config.writer != "root" && config.writer != "podio" && config.writer != "arrow") {
+                    throw std::runtime_error("Invalid --writer value: '" + config.writer + "'. Must be 'root', 'podio', or 'arrow'.");
+                }
                 break;
             case 'h':
                 printUsage(new_argv[0]);
