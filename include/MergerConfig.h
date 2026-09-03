@@ -50,6 +50,6 @@ struct MergerConfig {
     // Backend reader: "root" (TChain/TTree, default) or "podio" (podio::ROOTFrameReader)
     std::string reader{"root"};
 
-        // Backend writer: "root" (ROOT TTree, default), "podio" (podio::ROOTWriter frame), or "arrow"
+    // Backend writer: "root" (ROOT TTree, default), "podio" (podio::ROOTWriter frame), or "arrow"
     std::string writer{"root"};
 };
